@@ -1,0 +1,1899 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FanClub — Dashboard de Vendas</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ══════════════════════════════════════════════════════
+   TOKENS
+══════════════════════════════════════════════════════ */
+:root {
+  --bg:       #0A0C10;
+  --s1:       #111318;
+  --s2:       #181B22;
+  --s3:       #1E222C;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --text:     #F1F5F9;
+  --muted:    #64748B;
+  --muted2:   #94A3B8;
+  --accent:   #6EE7B7;
+  --a2:       #818CF8;
+  --a3:       #FB923C;
+  --a4:       #F472B6;
+  --a5:       #34D399;
+  --green:    #10B981;
+  --amber:    #F59E0B;
+  --red:      #F43F5E;
+  --blue:     #60A5FA;
+  --fhead:    'Syne', sans-serif;
+  --fmono:    'JetBrains Mono', monospace;
+  --fdisplay: 'Clash Display', 'Syne', sans-serif;
+  --r:        14px;
+  --glow:     0 0 40px rgba(110,231,183,0.07);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+
+body {
+  font-family: var(--fhead);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* noise */
+body::before {
+  content:''; position:fixed; inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none; z-index:0; opacity:.4;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.header {
+  position:sticky; top:0; z-index:100;
+  background:rgba(10,12,16,.88);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:0 32px; height:60px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.logo { display:flex; align-items:center; gap:10px; font-size:17px; font-weight:800; letter-spacing:-.4px; }
+.logo-dot { width:8px; height:8px; background:var(--accent); border-radius:50%; box-shadow:0 0 12px var(--accent); animation:blink 2s infinite; }
+@keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.5)}}
+.logo-sub { color:var(--muted); font-weight:400; }
+
+.hdr-right { display:flex; align-items:center; gap:14px; }
+.live-badge {
+  display:flex; align-items:center; gap:6px;
+  background:rgba(110,231,183,.1); border:1px solid rgba(110,231,183,.2);
+  padding:4px 12px; border-radius:20px;
+  color:var(--accent); font-family:var(--fmono); font-size:11px; font-weight:500;
+}
+.live-dot { width:6px; height:6px; background:var(--accent); border-radius:50%; animation:blink 1.5s infinite; }
+.hdr-time { font-family:var(--fmono); font-size:11px; color:var(--muted); }
+.btn-cfg {
+  display:flex; align-items:center; gap:6px;
+  padding:6px 14px;
+  background:var(--s2); border:1px solid var(--border2);
+  border-radius:8px; color:var(--muted2);
+  font-family:var(--fhead); font-size:12px; font-weight:600;
+  cursor:pointer; transition:all .15s;
+}
+.btn-cfg:hover { border-color:var(--accent); color:var(--accent); background:rgba(110,231,183,.08); }
+
+/* ── Drawer ─────────────────────────────────────────── */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; display:none; backdrop-filter:blur(4px); }
+.overlay.open { display:block; }
+.drawer {
+  position:fixed; top:0; right:-440px; width:420px; height:100vh;
+  background:var(--s1); border-left:1px solid var(--border2);
+  z-index:201; padding:28px; overflow-y:auto;
+  transition:right .3s cubic-bezier(.4,0,.2,1);
+  box-shadow:-20px 0 60px rgba(0,0,0,.6);
+}
+.drawer.open { right:0; }
+.drawer-close {
+  position:absolute; top:20px; right:20px; width:30px; height:30px;
+  border:1px solid var(--border2); border-radius:8px;
+  background:var(--s2); color:var(--muted2);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:14px;
+}
+.drawer h3 { font-size:16px; font-weight:700; margin-bottom:4px; }
+.drawer p  { font-size:13px; color:var(--muted2); margin-bottom:22px; line-height:1.6; }
+.dg { margin-bottom:16px; }
+.dlbl { display:block; font-size:11px; font-weight:600; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px; }
+.dinput {
+  width:100%; padding:9px 12px;
+  border:1px solid var(--border2); border-radius:8px;
+  font-family:var(--fmono); font-size:12px;
+  color:var(--text); background:var(--s2); outline:none;
+  transition:border-color .15s; color-scheme:dark;
+}
+.dinput:focus { border-color:var(--accent); }
+.dinput::placeholder { color:var(--muted); }
+.dhint { font-size:11px; color:var(--muted); margin-top:5px; line-height:1.5; }
+.dhint code { font-family:var(--fmono); background:var(--s3); border:1px solid var(--border); padding:1px 5px; border-radius:4px; font-size:10px; color:var(--accent); }
+.btn-load {
+  width:100%; padding:10px; background:var(--accent); border:none;
+  border-radius:8px; color:#0A0C10; font-family:var(--fhead);
+  font-size:14px; font-weight:700; cursor:pointer; transition:opacity .15s;
+}
+.btn-load:hover { opacity:.85; }
+.drawer-steps { margin-top:22px; padding-top:20px; border-top:1px solid var(--border); }
+.drawer-steps h4 { font-size:12px; font-weight:600; color:var(--muted2); margin-bottom:14px; }
+.step { display:flex; gap:10px; margin-bottom:12px; }
+.snum { width:20px; height:20px; background:var(--accent); color:#0A0C10; border-radius:50%; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
+.stxt { font-size:12px; color:var(--muted2); line-height:1.6; }
+.stxt strong { color:var(--text); }
+.scols { background:var(--s3); border:1px solid var(--border); border-radius:8px; padding:12px; margin-top:10px; }
+.scols h5 { font-size:10px; font-weight:600; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px; }
+.scol { display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px; }
+.scol-l { font-family:var(--fmono); font-size:11px; font-weight:600; color:var(--accent); width:18px; }
+.scol-n { color:var(--muted2); }
+
+/* ── Main ───────────────────────────────────────────── */
+.main { padding:28px 32px; max-width:1440px; margin:0 auto; position:relative; z-index:1; }
+
+.slabel {
+  font-family:var(--fmono); font-size:10px;
+  color:var(--muted); letter-spacing:2px; text-transform:uppercase;
+  margin-bottom:16px; display:flex; align-items:center; gap:8px;
+}
+.slabel::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── Filter bar ─────────────────────────────────────── */
+.fbar {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:var(--r); padding:10px 18px;
+  margin-bottom:22px;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+}
+.flbl { font-family:var(--fmono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+.fpresets { display:flex; gap:4px; flex-wrap:wrap; }
+.ftab {
+  padding:5px 12px; border:1px solid var(--border2); border-radius:6px;
+  background:transparent; font-family:var(--fhead); font-size:12px; font-weight:600;
+  color:var(--muted); cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.ftab:hover { border-color:var(--accent); color:var(--accent); background:rgba(110,231,183,.07); }
+.ftab.on { background:var(--s2); color:var(--text); border-color:var(--border2); box-shadow:0 1px 8px rgba(0,0,0,.4); }
+.fsep { width:1px; height:20px; background:var(--border2); flex-shrink:0; }
+.fdates { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.fdate {
+  padding:5px 10px; border:1px solid var(--border2); border-radius:6px;
+  font-family:var(--fmono); font-size:12px; color:var(--text); background:var(--s2);
+  outline:none; transition:border-color .15s; cursor:pointer; color-scheme:dark;
+  min-width:0; max-width:140px;
+}
+.fdate:focus { border-color:var(--accent); }
+.farrow { font-size:12px; color:var(--muted); }
+.fbtn {
+  padding:5px 14px;
+  background:rgba(110,231,183,.1); border:1px solid rgba(110,231,183,.25);
+  border-radius:6px; color:var(--accent);
+  font-family:var(--fhead); font-size:12px; font-weight:700;
+  cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.fbtn:hover { background:var(--accent); color:#0A0C10; }
+.finfo {
+  margin-left:auto;
+  font-family:var(--fmono); font-size:10px; color:var(--muted);
+  background:var(--s2); padding:4px 10px; border-radius:6px;
+  border:1px solid var(--border); white-space:nowrap;
+}
+
+/* Mobile filter bar */
+@media (max-width: 600px) {
+  .fbar {
+    padding: 12px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .fpresets {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    width: 100%;
+  }
+  .ftab {
+    text-align: center;
+    padding: 7px 4px;
+    font-size: 11px;
+  }
+  .fsep { display: none; }
+  .fdates {
+    width: 100%;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .fdate {
+    flex: 1;
+    max-width: none;
+    font-size: 11px;
+    padding: 7px 8px;
+  }
+  .fbtn {
+    width: 100%;
+    text-align: center;
+    padding: 8px;
+  }
+  .finfo {
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+  }
+  select.fdate {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* ── Alert banner ───────────────────────────────────── */
+.alert {
+  background:linear-gradient(135deg,rgba(245,158,11,.09),rgba(245,158,11,.04));
+  border:1px solid rgba(245,158,11,.25); border-left:3px solid var(--amber);
+  border-radius:var(--r); padding:14px 20px; margin-bottom:22px;
+  display:flex; align-items:center; gap:14px;
+  animation:slideIn .4s ease;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.alert-icon { font-size:22px; flex-shrink:0; }
+.alert-txt { flex:1; }
+.alert-txt strong { font-size:14px; font-weight:700; color:var(--amber); display:block; }
+.alert-txt span   { font-size:12px; color:var(--muted2); }
+.alert-n { font-family:var(--fdisplay); font-size:40px; font-weight:700; color:var(--amber); flex-shrink:0; letter-spacing:-1px; }
+
+/* ── KPI grid ───────────────────────────────────────── */
+.kpi-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:14px; margin-bottom:28px;
+}
+.kpi {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:var(--r); padding:22px;
+  position:relative; overflow:hidden;
+  transition:transform .2s, box-shadow .2s;
+}
+.kpi::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,var(--cc,var(--accent)),transparent);
+}
+.kpi:hover { transform:translateY(-2px); box-shadow:var(--glow); }
+.kpi .ico {
+  width:34px; height:34px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:17px; margin-bottom:14px;
+  background:color-mix(in srgb,var(--cc,var(--accent)) 12%,transparent);
+}
+.kpi .lbl { font-family:var(--fmono); font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:7px; }
+.kpi .val { font-family:var(--fdisplay); font-size:28px; font-weight:700; letter-spacing:-1px; line-height:1; margin-bottom:10px; color:var(--cc,var(--accent)); }
+.kpi .delta {
+  display:inline-flex; align-items:center; gap:4px;
+  font-family:var(--fmono); font-size:11px; padding:3px 8px; border-radius:6px;
+}
+.delta.up   { background:rgba(110,231,183,.12); color:var(--accent); }
+.delta.down { background:rgba(244,63,94,.12);   color:var(--red);    }
+.kpi .sub { font-family:var(--fmono); font-size:11px; color:var(--muted); margin-top:6px; }
+
+/* status mini */
+.smini-row { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:14px; }
+.smini {
+  background:var(--s2); border:1px solid var(--border);
+  border-radius:8px; padding:10px; text-align:center;
+}
+.smini .sl { font-family:var(--fmono); font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:3px; }
+.smini .sv { font-family:var(--fdisplay); font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
+.smini.aprov .sv  { color:var(--amber); }
+.smini.transp .sv { color:var(--blue);  }
+.smini.entr .sv   { color:var(--green); }
+
+/* ── Card base ──────────────────────────────────────── */
+.card {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:var(--r); padding:22px;
+  transition:box-shadow .2s;
+}
+.card:hover { box-shadow:0 0 30px rgba(110,231,183,.04); }
+.card.amber-l { border-left:2px solid var(--amber); }
+
+.ch { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; }
+.ct { font-size:15px; font-weight:700; }
+.cs { font-family:var(--fmono); font-size:11px; color:var(--muted); margin-top:3px; }
+.cpill { font-family:var(--fmono); font-size:10px; padding:4px 10px; border-radius:20px; border:1px solid var(--border); color:var(--muted); white-space:nowrap; }
+
+/* ── Grids ──────────────────────────────────────────── */
+.g21 { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:14px; }
+.g3  { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:14px; }
+.g2  { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+
+/* ── Aprovados table ────────────────────────────────── */
+.dtbl { width:100%; border-collapse:collapse; }
+.dtbl th {
+  font-family:var(--fmono); font-size:10px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.5px; color:var(--muted);
+  text-align:left; padding:8px 10px; border-bottom:1px solid var(--border);
+}
+.dtbl td { padding:10px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.dtbl tr:last-child td { border-bottom:none; }
+.dtbl tr:hover td { background:rgba(255,255,255,.02); }
+.pid { font-family:var(--fmono); font-size:11px; color:var(--accent); font-weight:500; }
+.udot { display:inline-block; width:6px; height:6px; background:var(--amber); border-radius:50%; margin-right:6px; animation:blink 1.5s infinite; }
+.vcel { font-family:var(--fdisplay); font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* ── Rank bars ──────────────────────────────────────── */
+.rlist { display:flex; flex-direction:column; gap:10px; }
+.ritem { display:flex; align-items:center; gap:10px; }
+.rpos { font-family:var(--fmono); font-size:11px; font-weight:600; color:var(--muted); width:16px; text-align:right; flex-shrink:0; }
+.rpos.g { color:#F59E0B; } .rpos.s { color:#94A3B8; } .rpos.b { color:#B45309; }
+.rlbl { font-family:var(--fdisplay); font-size:14px; font-weight:600; width:40px; text-align:center; flex-shrink:0; }
+.rbw  { flex:1; }
+.rbbg { background:var(--s3); height:5px; border-radius:3px; }
+.rbfill { height:5px; border-radius:3px; background:var(--accent); transition:width 1.2s cubic-bezier(.4,0,.2,1); }
+.rcnt { font-family:var(--fmono); font-size:12px; font-weight:600; width:28px; text-align:right; flex-shrink:0; }
+
+/* ── Payment ────────────────────────────────────────── */
+.plist { display:flex; flex-direction:column; gap:10px; }
+.pitem { display:flex; align-items:center; gap:10px; }
+.pdot  { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.pname { font-size:13px; flex:1; }
+.ppct  { font-family:var(--fmono); font-size:11px; color:var(--muted); width:34px; text-align:right; flex-shrink:0; }
+.pval  { font-family:var(--fmono); font-size:12px; font-weight:600; flex-shrink:0; width:28px; text-align:right; }
+
+/* ── Channel list ───────────────────────────────────── */
+.clist { display:flex; flex-direction:column; gap:9px; margin-top:14px; }
+.crow  { display:flex; align-items:center; gap:10px; }
+.cdot  { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.cname { font-size:13px; flex:1; }
+.cval  { font-family:var(--fdisplay); font-size:13px; font-weight:600; letter-spacing:-.5px; }
+.cpct  { font-family:var(--fmono); font-size:10px; color:var(--muted); width:36px; text-align:right; flex-shrink:0; }
+
+/* ── Cashflow table ─────────────────────────────────── */
+.cftbl { width:100%; border-collapse:collapse; }
+.cftbl th {
+  font-family:var(--fmono); font-size:10px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.5px; color:var(--muted);
+  text-align:left; padding:8px 10px; border-bottom:2px solid var(--border);
+  background:var(--s2);
+}
+.cftbl td { padding:10px; font-size:13px; border-bottom:1px solid var(--border); }
+.cftbl tr:last-child td { border-bottom:none; }
+.cftbl tr:hover td { background:rgba(255,255,255,.02); }
+.cchip {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:11px; font-weight:600; padding:3px 8px; border-radius:6px;
+}
+.cfval { font-family:var(--fdisplay); font-weight:600; font-variant-numeric:tabular-nums; }
+.cfdate { font-family:var(--fmono); font-size:12px; color:var(--muted2); }
+.cfst { font-size:11px; font-weight:600; padding:2px 8px; border-radius:5px; }
+.cfst.ok  { background:rgba(16,185,129,.15);  color:var(--green); }
+.cfst.em  { background:rgba(96,165,250,.12);   color:var(--blue);  }
+.cfst.fut { background:var(--s3); color:var(--muted); }
+
+/* ── Top 20 rank ────────────────────────────────────── */
+.t20row {
+  display:flex; align-items:center; gap:12px;
+  padding:9px 6px; border-bottom:1px solid var(--border);
+  transition:background .15s; border-radius:6px;
+}
+.t20row:last-child { border-bottom:none; }
+.t20row:hover { background:rgba(255,255,255,.02); }
+.t20n { font-family:var(--fmono); font-size:11px; color:var(--muted); width:20px; text-align:right; flex-shrink:0; }
+.t20n.g{color:#F59E0B;font-weight:700} .t20n.s{color:#94A3B8;font-weight:700} .t20n.b{color:#B45309;font-weight:700}
+.t20bw { flex:1; }
+.t20name { font-size:12px; font-weight:600; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; }
+.t20bg { height:4px; background:var(--s2); border-radius:2px; }
+.t20bar { height:4px; border-radius:2px; background:var(--accent); transition:width 1.2s cubic-bezier(.4,0,.2,1); }
+.t20val { font-family:var(--fdisplay); font-size:13px; font-weight:600; flex-shrink:0; letter-spacing:-.5px; }
+.t20pct { font-family:var(--fmono); font-size:10px; color:var(--muted); flex-shrink:0; width:36px; text-align:right; }
+
+/* ── Guide cards ────────────────────────────────────── */
+.ggrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-bottom:14px; }
+.gcard {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:var(--r); padding:22px; position:relative; overflow:hidden;
+  transition:transform .2s, box-shadow .2s;
+}
+.gcard::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--a2),transparent); }
+.gcard:hover { transform:translateY(-2px); box-shadow:0 0 30px rgba(129,140,248,.08); }
+.gnum { font-family:var(--fdisplay); font-size:48px; font-weight:700; color:rgba(255,255,255,.04); position:absolute; top:10px; right:14px; line-height:1; letter-spacing:-2px; }
+.gico { font-size:26px; margin-bottom:10px; }
+.gtit { font-family:var(--fdisplay); font-size:15px; font-weight:600; margin-bottom:8px; letter-spacing:-.3px; }
+.gbody { font-size:12px; color:var(--muted2); line-height:1.7; margin-bottom:12px; }
+.gbody strong { color:var(--text); }
+.gcode { font-family:var(--fmono); font-size:10px; background:var(--s2); border:1px solid var(--border); padding:8px 12px; border-radius:8px; color:var(--a2); word-break:break-all; }
+.gtip { background:rgba(110,231,183,.06); border:1px solid rgba(110,231,183,.15); border-radius:var(--r); padding:14px 18px; font-size:13px; color:var(--muted2); line-height:1.6; }
+.gtip strong { color:var(--accent); }
+
+/* ── Loading ────────────────────────────────────────── */
+.loading {
+  position:fixed; inset:0; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  z-index:999; gap:14px; transition:opacity .4s;
+}
+.loading.gone { opacity:0; pointer-events:none; }
+.lspin { width:36px; height:36px; border:2px solid var(--border2); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin{to{transform:rotate(360deg)}}
+.ltxt { font-family:var(--fmono); font-size:13px; color:var(--muted); }
+
+/* ── Footer ─────────────────────────────────────────── */
+.footer {
+  padding:20px 32px; border-top:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  font-family:var(--fmono); font-size:11px; color:var(--muted);
+  position:relative; z-index:1; margin-top:14px;
+}
+.footer a { color:var(--accent); text-decoration:none; }
+
+/* ── Animations ─────────────────────────────────────── */
+.fu { opacity:0; transform:translateY(14px); animation:fu .5s ease forwards; }
+@keyframes fu{to{opacity:1;transform:translateY(0)}}
+.d1{animation-delay:.05s}.d2{animation-delay:.10s}.d3{animation-delay:.15s}
+.d4{animation-delay:.20s}.d5{animation-delay:.25s}.d6{animation-delay:.30s}
+
+/* ── Responsive ─────────────────────────────────────── */
+@media(max-width:1024px){ .g21,.g3{grid-template-columns:1fr} .g2{grid-template-columns:1fr} }
+@media(max-width:768px){
+  .main{padding:14px 16px} .header{padding:0 16px}
+  .kpi-grid{grid-template-columns:1fr 1fr} .kpi .val{font-size:22px}
+  .hdr-time{display:none}
+  .drawer{width:100vw;right:-100vw}
+  .fbar{gap:8px} .fsep{display:none}
+  .finfo{margin-left:0;width:100%;text-align:center}
+}
+@media(max-width:480px){
+  .kpi-grid{grid-template-columns:1fr}
+  .alert{flex-direction:column;align-items:flex-start}
+}
+
+  /* ══════════════════════════════════════════════
+     SIDEBAR & PAGES SYSTEM
+  ══════════════════════════════════════════════ */
+  .app-layout {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 230px;
+    background: var(--s1);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 60px; /* below header */
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    padding: 16px 0;
+    transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+  }
+
+  .sidebar-section {
+    padding: 0 12px;
+    margin-bottom: 8px;
+  }
+
+  .sidebar-label {
+    font-family: var(--fmono);
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 0 8px;
+    margin-bottom: 4px;
+    margin-top: 12px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted2);
+    border: 1px solid transparent;
+    text-decoration: none;
+    user-select: none;
+  }
+  .nav-item:hover {
+    background: var(--s2);
+    color: var(--text);
+  }
+  .nav-item.active {
+    background: var(--accent-dim, rgba(110,231,183,0.1));
+    color: var(--accent);
+    border-color: rgba(110,231,183,0.15);
+  }
+  .nav-item .nav-icon { font-size: 16px; flex-shrink: 0; }
+  .nav-item .nav-badge {
+    margin-left: auto;
+    background: var(--s3);
+    color: var(--muted);
+    font-family: var(--fmono);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .nav-item.active .nav-badge {
+    background: rgba(110,231,183,0.15);
+    color: var(--accent);
+  }
+
+  .nav-soon {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  .nav-soon .nav-badge { background: var(--s2); color: var(--muted); font-size: 9px; }
+
+  /* Main content area shifts right on desktop */
+  .app-content {
+    margin-left: 230px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Page system */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Sidebar toggle for mobile */
+  .sidebar-toggle {
+    display: none;
+    width: 34px; height: 34px;
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    background: var(--s2);
+    color: var(--text);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 900px) {
+    .sidebar {
+      transform: translateX(-100%);
+    }
+    .sidebar.open {
+      transform: translateX(0);
+      box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+    }
+    .app-content { margin-left: 0; }
+    .sidebar-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 49;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.open { display: block; }
+    .sidebar-toggle { display: flex; }
+  }
+
+  /* ══════════════════════════════════════════════
+     ESTOQUE PAGE
+  ══════════════════════════════════════════════ */
+  .estoque-hero {
+    background: linear-gradient(135deg, rgba(110,231,183,0.08) 0%, rgba(129,140,248,0.05) 100%);
+    border: 1px solid rgba(110,231,183,0.12);
+    border-radius: var(--r);
+    padding: 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .estoque-hero-icon { font-size: 40px; }
+  .estoque-hero h2 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+  .estoque-hero p { font-size: 13px; color: var(--muted2); margin-top: 4px; line-height: 1.5; }
+
+  .stock-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .connect-card {
+    background: var(--s1);
+    border: 1px dashed var(--border2);
+    border-radius: var(--r);
+    padding: 28px;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .connect-card:hover { border-color: var(--accent); background: rgba(110,231,183,0.03); }
+  .connect-card .cc-icon { font-size: 36px; margin-bottom: 12px; }
+  .connect-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .connect-card p { font-size: 12px; color: var(--muted2); line-height: 1.6; margin-bottom: 16px; }
+  .connect-card .cc-input {
+    width: 100%; padding: 8px 12px;
+    border: 1px solid var(--border2); border-radius: 8px;
+    font-family: var(--fmono); font-size: 11px;
+    color: var(--text); background: var(--s2);
+    outline: none; margin-bottom: 10px;
+    color-scheme: dark;
+  }
+  .connect-card .cc-input:focus { border-color: var(--accent); }
+  .cc-btn {
+    padding: 8px 18px;
+    background: var(--accent-dim, rgba(110,231,183,0.1));
+    border: 1px solid rgba(110,231,183,0.25);
+    border-radius: 8px; color: var(--accent);
+    font-family: var(--fhead); font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .cc-btn:hover { background: var(--accent); color: #0A0C10; }
+
+  .financeiro-coming {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 400px; gap: 16px;
+    color: var(--muted);
+  }
+  .financeiro-coming .fc-icon { font-size: 60px; opacity: .4; }
+  .financeiro-coming h3 { font-size: 20px; font-weight: 700; color: var(--text2); }
+  .financeiro-coming p { font-size: 13px; max-width: 360px; text-align: center; line-height: 1.6; }
+
+</style>
+</head>
+<body>
+
+
+
+<!-- Header -->
+<header class="header">
+  <div class="logo">
+    <svg width="130" height="26" viewBox="0 0 130 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text x="0" y="20" font-family="'Clash Display','Syne','Arial Black',sans-serif" font-size="21" font-weight="900" fill="white" letter-spacing="-0.5">FAN</text>
+      <text x="52" y="20" font-family="'Clash Display','Syne','Arial Black',sans-serif" font-size="21" font-weight="900" fill="white" letter-spacing="-0.5">CLUB</text>
+      <circle cx="124" cy="5" r="3" fill="white"/>
+    </svg>
+    <span style="font-size:10px;color:var(--muted);margin-left:6px;font-family:var(--fmono)">/ Analytics</span>
+  </div>
+  <div class="hdr-right">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+    <span class="hdr-time" id="hdr-time">—</span>
+    <div class="live-badge"><span class="live-dot"></span><span id="sync-lbl">AO VIVO</span></div>
+    <button class="btn-cfg" onclick="openDrawer()">⚙ Planilha</button>
+  </div>
+</header>
+
+<!-- Drawer -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  <h3>Conectar Google Sheets</h3>
+  <p>Publique sua planilha e cole a URL para sincronização em tempo real com auto-refresh configurável.</p>
+  <div class="dg">
+    <label class="dlbl">URL da Planilha (JSON)</label>
+    <input class="dinput" type="text" id="url-in" placeholder="https://docs.google.com/spreadsheets/d/ID/gviz/tq?tqx=out:json">
+    <div class="dhint">Formato: <code>...spreadsheets/d/SEU_ID/gviz/tq?tqx=out:json&sheet=NomeDaAba</code></div>
+  </div>
+  <div class="dg">
+    <label class="dlbl">Auto-refresh</label>
+    <select class="dinput" id="iv-sel">
+      <option value="30">A cada 30 segundos</option>
+      <option value="1800" selected>A cada 30 minutos</option>
+      <option value="300">A cada 5 minutos</option>
+    </select>
+  </div>
+  <button class="btn-load" onclick="applyDrawer()">↻ Carregar e salvar</button>
+  <div class="drawer-steps">
+    <h4>Passo a passo</h4>
+    <div class="step"><div class="snum">1</div><div class="stxt">Abra sua planilha → <strong>Arquivo → Publicar na web</strong></div></div>
+    <div class="step"><div class="snum">2</div><div class="stxt">Selecione a aba → formato <strong>Página Web</strong> → Publicar</div></div>
+    <div class="step"><div class="snum">3</div><div class="stxt">Substitua o final da URL por <code>gviz/tq?tqx=out:json</code></div></div>
+    <div class="step"><div class="snum">4</div><div class="stxt">Cole acima e clique em <strong>Carregar e salvar</strong></div></div>
+    <div class="scols">
+      <h5>Estrutura esperada (linha 1 = cabeçalho)</h5>
+      <div class="scol"><span class="scol-l">A</span><span class="scol-n">Data do Pedido (AAAA-MM-DD)</span></div>
+      <div class="scol"><span class="scol-l">B</span><span class="scol-n">Pedido ID</span></div>
+      <div class="scol"><span class="scol-l">C</span><span class="scol-n">Cliente</span></div>
+      <div class="scol"><span class="scol-l">D</span><span class="scol-n">Produto</span></div>
+      <div class="scol"><span class="scol-l">E</span><span class="scol-n">Tamanho</span></div>
+      <div class="scol"><span class="scol-l">F</span><span class="scol-n">Forma de Pagamento</span></div>
+      <div class="scol"><span class="scol-l">G</span><span class="scol-n">Canal de Venda</span></div>
+      <div class="scol"><span class="scol-l">H</span><span class="scol-n">Status (Aprovado / Em Transporte / Entregue)</span></div>
+      <div class="scol"><span class="scol-l">I</span><span class="scol-n">Valor do Pedido</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+
+<!-- Sidebar overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Principal</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)" data-page="dashboard">
+      <span class="nav-icon">📊</span>
+      <span>Dashboard</span>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Análises</div>
+    <div class="nav-item nav-soon" onclick="showPage('financeiro',this)" data-page="financeiro">
+      <span class="nav-icon">💰</span>
+      <span>Financeiro & Vendas</span>
+      <span class="nav-badge">Em breve</span>
+    </div>
+    <div class="nav-item" onclick="showPage('estoque',this)" data-page="estoque">
+      <span class="nav-icon">📦</span>
+      <span>Estoque</span>
+    </div>
+  </div>
+
+  <div style="margin-top:auto;padding:12px 20px;border-top:1px solid var(--border)">
+    <div style="font-family:var(--fmono);font-size:10px;color:var(--muted)">FanClub Analytics</div>
+    <div style="font-family:var(--fmono);font-size:9px;color:var(--text3);margin-top:2px">v2.0 · 2026</div>
+  </div>
+</nav>
+
+<!-- App content -->
+<div class="app-content">
+
+  <!-- PAGE: DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <main class="main">
+
+
+  <!-- Filter bar -->
+  <div class="fbar fu d1">
+    <span class="flbl">Período</span>
+    <div class="fpresets">
+      <button class="ftab" onclick="setPreset('hoje',this)">Hoje</button>
+      <button class="ftab" onclick="setPreset('7d',this)">7 dias</button>
+      <button class="ftab" onclick="setPreset('30d',this)">30 dias</button>
+      <button class="ftab" onclick="setPreset('mes',this)">Este mês</button>
+      <button class="ftab" onclick="setPreset('trim',this)">Trimestre</button>
+      <button class="ftab on" onclick="setPreset('tudo',this)">Tudo</button>
+    </div>
+    <div class="fsep"></div>
+    <div class="fdates">
+      <span class="flbl">De</span>
+      <input type="date" class="fdate" id="f-from">
+      <span class="farrow">→</span>
+      <span class="flbl">Até</span>
+      <input type="date" class="fdate" id="f-to">
+      <button class="fbtn" onclick="applyFilter()">Filtrar</button>
+    </div>
+    <div class="fsep"></div>
+    <select class="fdate" id="f-canal" onchange="applyFilter()" style="cursor:pointer;min-width:130px">
+      <option value="">Todos os canais</option>
+      <option value="Shopee">Shopee</option>
+      <option value="Mercado Livre">Mercado Livre</option>
+      <option value="Shein">Shein</option>
+      <option value="TikTok Shop">TikTok Shop</option>
+      <option value="Dafiti">Dafiti</option>
+      <option value="Netshoes">Netshoes</option>
+      <option value="Loja Própria">Loja Própria</option>
+    </select>
+    <div class="finfo" id="f-info">Todos os registros</div>
+  </div>
+
+  <!-- Alert banner -->
+  <div class="alert fu d2" id="alert-box">
+    <div class="alert-icon">📦</div>
+    <div class="alert-txt">
+      <strong>Pedidos aguardando envio</strong>
+      <span>Status <b>Aprovado</b> — precisam ser despachados agora</span>
+    </div>
+    <div class="alert-n" id="alert-n">0</div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="slabel">indicadores principais</div>
+  <div class="kpi-grid">
+    <div class="kpi fu d1" style="--cc:#F472B6">
+      <div class="ico">📊</div><div class="lbl">Status dos Pedidos</div>
+      <div class="smini-row">
+        <div class="smini aprov"><div class="sl">Aprovado</div><div class="sv" id="s-apv">0</div></div>
+        <div class="smini transp"><div class="sl">Transp.</div><div class="sv" id="s-trn">0</div></div>
+        <div class="smini entr"><div class="sl">Entregue</div><div class="sv" id="s-ent">0</div></div>
+      </div>
+    </div>
+    <div class="kpi fu d2" style="--cc:#6EE7B7">
+      <div class="ico">💰</div><div class="lbl">GMV Total</div>
+      <div class="val" id="k-gmv">R$0</div>
+      <span class="delta up" id="d-gmv">—</span>
+      <div class="sub" id="s-gmv">—</div>
+    </div>
+    <div class="kpi fu d3" style="--cc:#818CF8">
+      <div class="ico">📦</div><div class="lbl">Total Pedidos</div>
+      <div class="val" id="k-ped">0</div>
+      <span class="delta up" id="d-ped">—</span>
+      <div class="sub">pedidos no período</div>
+    </div>
+    <div class="kpi fu d4" style="--cc:#FB923C">
+      <div class="ico">🎯</div><div class="lbl">Ticket Médio</div>
+      <div class="val" id="k-tkt">R$0</div>
+      <span class="delta neu" id="d-tkt">por pedido</span>
+    </div>
+    <div class="kpi fu d5" style="--cc:#F472B6">
+      <div class="ico">👟</div><div class="lbl">Produtos Vendidos</div>
+      <div class="val" id="k-qtd">0</div>
+      <span class="delta up" id="d-qtd">—</span>
+      <div class="sub">unidades</div>
+    </div>
+    <div class="kpi fu d6" style="--cc:#34D399">
+      <div class="ico">🚚</div><div class="lbl">Frete Total</div>
+      <div class="val" id="k-frt">R$0</div>
+      <span class="delta down" id="d-frt">—</span>
+      <div class="sub">cobrado dos clientes</div>
+    </div>
+  </div>
+
+  <!-- Evolução DESTAQUE full width -->
+  <div class="slabel">evolução de faturamento</div>
+  <div class="card fu d5" style="margin-bottom:14px">
+    <div class="ch">
+      <div><div class="ct" style="font-size:17px">Evolução de Faturamento</div><div class="cs">GMV diário acumulado no período</div></div>
+      <span class="cpill" id="pill-per">Período completo</span>
+    </div>
+    <div style="position:relative;height:260px;max-height:260px">
+      <canvas id="ch-linha"></canvas>
+    </div>
+  </div>
+
+  <!-- GMV Mês+Canal | Mix de Canais -->
+  <div class="slabel">gmv por canal e mês</div>
+  <div class="g21 fu">
+    <div class="card">
+      <div class="ch">
+        <div><div class="ct">GMV por Mês e Canal</div><div class="cs">Comparativo mensal empilhado</div></div>
+      </div>
+      <canvas id="ch-bar" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="ch">
+        <div><div class="ct">Mix de Canais</div><div class="cs">% do GMV por marketplace</div></div>
+      </div>
+      <div style="max-width:190px;margin:0 auto 14px"><canvas id="ch-donut" height="190"></canvas></div>
+      <div class="clist" id="c-list"></div>
+    </div>
+  </div>
+
+  <!-- Pagamento -->
+  <div class="slabel">produtos e pagamentos</div>
+  <div class="fu">
+    <div class="card">
+      <div class="ch"><div><div class="ct">Forma de Pagamento</div><div class="cs">Distribuição no período</div></div></div>
+      <canvas id="ch-pag" height="170" style="margin-bottom:14px"></canvas>
+      <div class="plist" id="p-list"></div>
+    </div>
+  </div>
+
+  <!-- Fluxo de caixa -->
+  <div class="slabel">fluxo financeiro por canal</div>
+  <div class="g2 fu">
+    <div class="card">
+      <div class="ch"><div><div class="ct">Previsão de Recebimentos</div><div class="cs">Pedidos Entregues + prazo de liberação por canal</div></div></div>
+      <canvas id="ch-cf" height="180"></canvas>
+    </div>
+    <div class="card">
+      <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão e líquido por canal</div></div></div>
+      <div style="max-height:300px;overflow-y:auto">
+        <table class="cf-table">
+          <thead>
+            <tr>
+              <th>Canal</th>
+              <th>GMV</th>
+              <th>Comissão</th>
+              <th>Líquido</th>
+              <th>Prazo</th>
+              <th>Previsão</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="cf-body"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fila de Envio Operacional -->
+  <div class="slabel">fila de envio operacional</div>
+  <div class="card amber-l fu" style="margin-bottom:14px">
+    <div class="ch">
+      <div><div class="ct">⚠️ Fila de Envio — Pedidos Aprovados</div><div class="cs">Aguardando despacho — atualize o status após enviar</div></div>
+      <span class="cpill" id="alert-pill" style="color:var(--amber);border-color:rgba(245,158,11,.3)">0 pedidos</span>
+    </div>
+    <div style="max-height:360px;overflow-y:auto">
+      <table class="dtbl">
+        <thead><tr><th>Pedido</th><th>Cliente</th><th>Canal</th><th style="text-align:right">Valor</th></tr></thead>
+        <tbody id="apv-body"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Guia publicação -->
+  <div class="slabel" style="margin-top:32px">como publicar e manter atualizado</div>
+  <div class="ggrid fu">
+    <div class="gcard"><div class="gnum">01</div><div class="gico">📊</div><div class="gtit">Prepare o Google Sheets</div><div class="gbody">Abra sua planilha → <strong>Arquivo → Publicar na web</strong>. Selecione a aba e formato <strong>Página Web</strong>.</div><div class="gcode">Arquivo → Publicar na web → Formato: JSON</div></div>
+    <div class="gcard"><div class="gnum">02</div><div class="gico">🔗</div><div class="gtit">Cole a URL no Dashboard</div><div class="gbody">Clique em <strong>⚙ Planilha</strong> no topo. Cole a URL e configure o intervalo de refresh.</div><div class="gcode">...spreadsheets/d/ID/gviz/tq?tqx=out:json</div></div>
+    <div class="gcard"><div class="gnum">03</div><div class="gico">⚡</div><div class="gtit">Auto-refresh ativo</div><div class="gbody">O dashboard se atualiza automaticamente a cada <strong>30 minutos</strong>. Sem necessidade de recarregar.</div><div class="gcode">setInterval(refresh, 30 * 60 * 1000)</div></div>
+    <div class="gcard"><div class="gnum">04</div><div class="gico">🌐</div><div class="gtit">Publique online (grátis)</div><div class="gbody"><strong>Netlify Drop</strong> — arraste o .html em app.netlify.com/drop.<br><strong>GitHub Pages</strong> — suba como index.html.</div><div class="gcode">app.netlify.com/drop → arraste → link ✓</div></div>
+  </div>
+  <div class="gtip fu">💡 <strong>Dica pro:</strong> Para atualização em segundos (tempo real), use <strong>Google Apps Script</strong> para criar um webhook que dispara quando a planilha é editada.</div>
+
+
+    </main>
+  </div>
+
+  <!-- PAGE: FINANCEIRO (em breve) -->
+  <div id="page-financeiro" class="page">
+    <main class="main">
+      <div class="financeiro-coming">
+        <div class="fc-icon">💰</div>
+        <h3>Financeiro & Vendas</h3>
+        <p>Esta seção está em desenvolvimento. Em breve você terá análises detalhadas de faturamento, margem, DRE simplificado e projeções de receita.</p>
+        <div style="margin-top:8px">
+          <span style="font-family:var(--fmono);font-size:11px;color:var(--accent);background:rgba(110,231,183,0.08);padding:6px 14px;border-radius:20px;border:1px solid rgba(110,231,183,0.2)">🚧 Em desenvolvimento</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- PAGE: ESTOQUE -->
+  <div id="page-estoque" class="page">
+    <main class="main">
+
+      <div class="estoque-hero">
+        <div class="estoque-hero-icon">📦</div>
+        <div>
+          <h2>Gestão de Estoque</h2>
+          <p>Conecte sua planilha de inventário para visualizar estoque atual, alertas de ruptura e análise por produto.</p>
+        </div>
+      </div>
+
+      <!-- KPIs de estoque -->
+      <div class="slabel">indicadores de estoque</div>
+      <div class="stock-kpi-grid">
+        <div class="kpi" style="--cc:#6EE7B7">
+          <div class="ico">📦</div>
+          <div class="lbl">Total em Estoque</div>
+          <div class="val" id="stock-total">—</div>
+          <div class="sub">unidades disponíveis</div>
+        </div>
+        <div class="kpi" style="--cc:#F59E0B">
+          <div class="ico">⚠️</div>
+          <div class="lbl">Baixo Estoque</div>
+          <div class="val" id="stock-low">—</div>
+          <div class="sub">SKUs críticos (≤5 un)</div>
+        </div>
+        <div class="kpi" style="--cc:#818CF8">
+          <div class="ico">🏷️</div>
+          <div class="lbl">Total de SKUs</div>
+          <div class="val" id="stock-skus">—</div>
+          <div class="sub">produtos cadastrados</div>
+        </div>
+        <div class="kpi" style="--cc:#F472B6">
+          <div class="ico">🔴</div>
+          <div class="lbl">Ruptura</div>
+          <div class="val" id="stock-zero">—</div>
+          <div class="sub">SKUs zerados</div>
+        </div>
+      </div>
+
+      <!-- Conectar planilha de estoque -->
+      <div class="slabel">fonte de dados</div>
+      <div class="connect-card" style="max-width:540px;text-align:left">
+        <div class="cc-icon">🔗</div>
+        <h4>Conectar Planilha de Estoque</h4>
+        <p>Adicione uma aba de inventário na sua planilha do Google Sheets e cole a URL abaixo. Estrutura esperada: <strong>SKU | Nome | Estoque Atual | Estoque Mínimo</strong></p>
+        <input class="cc-input" type="text" id="estoque-url" placeholder="https://docs.google.com/spreadsheets/d/ID/gviz/tq?tqx=out:json&gid=SEU_GID">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Cole a URL da aba de estoque (GID diferente da aba de pedidos)</div>
+        <button class="cc-btn" onclick="loadEstoque()">↻ Carregar Estoque</button>
+      </div>
+
+      <!-- Top 20 produtos (do produtosMap) -->
+      <div class="slabel" style="margin-top:24px">top 20 produtos — por gmv</div>
+      <div class="g2">
+        <div class="card">
+          <div class="ch"><div><div class="ct">Top 20 Produtos</div><div class="cs">Por GMV consolidado da aba Produtos</div></div></div>
+          <div style="max-height:480px;overflow-y:auto" id="t20-estoque"></div>
+        </div>
+        <div class="card">
+          <div class="ch"><div><div class="ct">Tamanhos Mais Vendidos</div><div class="cs">Consolidado da aba Produtos</div></div></div>
+          <div class="rlist" id="r-tam-estoque"></div>
+          <canvas id="ch-tam-bar" height="200" style="margin-top:16px"></canvas>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+</div>
+
+
+<footer class="footer">
+  <span>FanClub Analytics Dashboard — Atualização automática via Google Sheets</span>
+  <span><a href="#" onclick="openDrawer()">Configurar planilha</a> &bull; Dados de exemplo ativos</span>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   CONSTANTES & CONFIGURAÇÕES
+═══════════════════════════════════════════════════════════════ */
+const SAMPLE = [];
+const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
+const CACHE_LS_KEY = 'fc_rows_cache_v7'; // v7: col AE=valor, AC=frete, filtro por string
+
+const PRAZOS = { 'Shopee':16,'Mercado Livre':20,'Shein':21,'TikTok Shop':14,'Dafiti':60,'Netshoes':30,'Loja Própria':1 };
+const CCORES = { 'Shopee':'#EE4D2D','Mercado Livre':'#FFD700','Shein':'#00BCD4','TikTok Shop':'#69C9D0','Dafiti':'#9C27B0','Netshoes':'#F43F5E','Loja Própria':'#34D399' };
+const PCORES = ['#6EE7B7','#818CF8','#FB923C','#F472B6','#60A5FA','#F59E0B','#34D399'];
+const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+/* ─ utils ─ */
+const fM  = v => { if(v>=1e6) return 'R$'+(v/1e6).toFixed(2)+'M'; if(v>=1e3) return 'R$'+(v/1e3).toFixed(1)+'k'; return 'R$'+v.toFixed(2).replace('.',','); };
+const fMF = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const fN  = v => { if(v>=1e6) return (v/1e6).toFixed(1)+'M'; if(v>=1e3) return (v/1e3).toFixed(1)+'k'; return v.toLocaleString('pt-BR'); };
+const fD  = s => new Date(s+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
+const td  = () => new Date().toISOString().split('T')[0];
+const addD= (s,n) => { const d=new Date(s+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+
+/* ═══════════════════════════════════════════════════════════════
+   PARSE DE DATA
+═══════════════════════════════════════════════════════════════ */
+function parseGSDate(v) {
+  if (!v && v !== 0) return '';
+  var s = String(v).trim();
+  if (!s || s === 'null' || s === 'undefined') return '';
+  if (s.startsWith('Date(')) {
+    var p = s.replace('Date(','').replace(')','').split(',');
+    var y=parseInt(p[0]), m=parseInt(p[1])+1, d=parseInt(p[2]);
+    return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  }
+  if (s.includes('/')) {
+    var parts = s.split(' ')[0].split('/');
+    if (parts.length === 3) {
+      var mo=parseInt(parts[0]), dy=parseInt(parts[1]), yr=parseInt(parts[2]);
+      if (yr < 100) yr += 2000;
+      return yr+'-'+String(mo).padStart(2,'0')+'-'+String(dy).padStart(2,'0');
+    }
+  }
+  if (s.length >= 10 && s[4] === '-') return s.substring(0,10);
+  return '';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AUTO-DETECTOR DE COLUNAS
+   Analisa 50 linhas e identifica, por frequência de palavras-chave,
+   quais colunas contêm canal, status, data, valor, frete, pagamento.
+   Resultado cacheado em _colIdx para não repetir a varredura.
+═══════════════════════════════════════════════════════════════ */
+var _colIdx = null;
+
+// KW_CANAL: palavras exclusivas de marketplace — SEM 'loja' (contamina path de imagem)
+const KW_CANAL  = ['shopee','mercado livre','mercado','shein','tiktok','tik tok','dafiti','netshoes','fanclub','- shopee','- mercado','- shein','- tiktok','- dafiti','- netshoes'];
+const KW_STATUS = ['aprovado','entregue','transporte','nota fiscal','cancelado','pendente','8 -','7 -','6 -','5 -','4 -'];
+const KW_PAG    = ['pix','boleto','cartão','cartao','crédito','credito','débito','debito','visa','master','ame','picpay'];
+
+function detectCols(rawRows) {
+  var sample = rawRows.slice(0, 50);
+  var ncols = 0;
+  sample.forEach(function(r){ if(r && r.length > ncols) ncols = r.length; });
+
+  // Acumuladores de hits por coluna
+  var hCanal={}, hStatus={}, hPag={};
+
+  sample.forEach(function(r){
+    if(!r || r.length < 5) return;
+    r.forEach(function(cell, i){
+      var s = String(cell||'').toLowerCase();
+      if(KW_CANAL.some(function(k){return s.includes(k);}))  hCanal[i]  = (hCanal[i] ||0)+1;
+      if(KW_STATUS.some(function(k){return s.includes(k);})) hStatus[i] = (hStatus[i]||0)+1;
+      if(KW_PAG.some(function(k){return s.includes(k);}))    hPag[i]    = (hPag[i]   ||0)+1;
+    });
+  });
+
+  function bestIdx(hits, fallback) {
+    var entries = Object.entries(hits).sort(function(a,b){return b[1]-a[1];});
+    return entries.length ? parseInt(entries[0][0]) : fallback;
+  }
+
+  // Data: primeira coluna onde >50% das linhas têm formato de data
+  var dataIdx = 7;
+  for(var i=0; i<Math.min(ncols,20); i++){
+    var hits=0;
+    sample.forEach(function(r){
+      var s=String(r&&r[i]||'');
+      if(s.match(/^\d{4}-\d{2}-\d{2}/)||s.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}/)||s.startsWith('Date(')) hits++;
+    });
+    if(hits > sample.length * 0.5){ dataIdx=i; break; }
+  }
+
+  // Valor total: col AE (idx 30) confirmado
+  var valorIdx = 30, bestValScore = 0;
+  for(var j=0; j<Math.min(ncols,54); j++){
+    var sum=0, cnt=0, invalidCnt=0;
+    sample.forEach(function(r){
+      var raw = r&&r[j];
+      var s = String(raw||'');
+      // Rejeitar CPF (000.000.000-00), CNPJ (00.000.000/0000-00), datas, textos
+      if(s.match(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/)) { invalidCnt++; return; } // CPF
+      if(s.match(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/)) { invalidCnt++; return; } // CNPJ
+      if(s.includes('/') || s.includes('-') && !s.match(/^[\d.]+$/)) { return; }
+      var v=parseFloat(s);
+      if(!isNaN(v)&&v>0){sum+=v;cnt++;}
+    });
+    if(invalidCnt > sample.length * 0.3) continue; // coluna tem CPF/CNPJ → ignorar
+    if(cnt > sample.length*0.5){
+      var avg=sum/cnt;
+      if(avg>=30 && avg<=5000 && avg>bestValScore){ bestValScore=avg; valorIdx=j; }
+    }
+  }
+
+  // Frete: col AC (idx 28) confirmado
+  var freteIdx = 28, bestFrScore = 0;
+  for(var k=0; k<Math.min(ncols,54); k++){
+    if(k===valorIdx) continue;
+    var sumF=0, cntF=0;
+    sample.forEach(function(r){
+      var v=parseFloat(r&&r[k]);
+      if(!isNaN(v)&&v>0){sumF+=v;cntF++;}
+    });
+    if(cntF > sample.length*0.3){
+      var avgF=sumF/cntF;
+      if(avgF>=3 && avgF<=150 && avgF>bestFrScore){ bestFrScore=avgF; freteIdx=k; }
+    }
+  }
+
+  // Pedido ID: uma das primeiras 10 colunas com números inteiros grandes
+  var pedidoIdx = 4; // confirmado: col 4
+  for(var p=0; p<Math.min(ncols,10); p++){
+    var hitsP=0;
+    sample.forEach(function(r){
+      var s=String(r&&r[p]||'');
+      var v=parseFloat(s);
+      if(!isNaN(v)&&v>1000&&Math.floor(v)===v) hitsP++;
+    });
+    if(hitsP > sample.length*0.5){ pedidoIdx=p; break; }
+  }
+
+  // Cliente: coluna de texto com espaços (nome), excluindo CPF/CNPJ e canal/status/data
+  var canalIdx  = bestIdx(hCanal,  19); // confirmado: col 19 "63 - Shopee"
+  var statusIdx = bestIdx(hStatus, 14); // confirmado: col 14 "4 - Aprovado"
+  var pagIdx    = bestIdx(hPag,    18); // confirmado: col 18 "17 - Pix"
+
+  var clienteIdx = 10; // confirmado: col 10
+  for(var c=0; c<Math.min(ncols,25); c++){
+    if(c===canalIdx||c===statusIdx||c===dataIdx||c===pagIdx) continue;
+    var hitsC=0;
+    sample.forEach(function(r){
+      var s=String(r&&r[c]||'');
+      // Nome próprio: tem espaço, não é CPF/CNPJ, não é data
+      if(s.includes(' ')&&s.length>5&&isNaN(parseFloat(s))&&!s.startsWith('Date(')&&!s.match(/\d{3}\.\d{3}/)) hitsC++;
+    });
+    if(hitsC > sample.length*0.6){ clienteIdx=c; break; }
+  }
+
+  _colIdx = {canal:canalIdx, status:statusIdx, data:dataIdx, valor:valorIdx, frete:freteIdx, pedido:pedidoIdx, cliente:clienteIdx, pag:pagIdx};
+  console.log('[FanClub] Colunas detectadas:', JSON.stringify(_colIdx));
+  return _colIdx;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NORMALIZADORES
+═══════════════════════════════════════════════════════════════ */
+function normCanal(raw) {
+  var s = String(raw||'').trim();
+  var sl = s.toLowerCase();
+  if(!s || s==='null' || s==='undefined' || s==='0') return 'Loja Própria';
+  // Rejeita números puros e paths de imagem
+  if(!isNaN(parseFloat(s)) && isFinite(s)) return 'Loja Própria';
+  if(sl.includes('img/') || sl.includes('.png') || sl.includes('.jpg')) return 'Loja Própria';
+  // Padrão real da planilha: "63 - Shopee", "41 - Mercado Livre", etc.
+  if(sl.includes('shopee'))        return 'Shopee';
+  if(sl.includes('mercado livre')) return 'Mercado Livre';
+  if(sl.includes('mercado'))       return 'Mercado Livre';
+  if(sl.includes('shein'))         return 'Shein';
+  if(sl.includes('tiktok') || sl.includes('tik tok')) return 'TikTok Shop';
+  if(sl.includes('dafiti'))        return 'Dafiti';
+  if(sl.includes('netshoes'))      return 'Netshoes';
+  if(sl.includes('fanclub') || sl.includes('loja própria') || sl.includes('loja propria') || sl.includes('site')) return 'Loja Própria';
+  return 'Loja Própria';
+}
+
+function normStatus(raw) {
+  var s = String(raw||'').toLowerCase();
+  // Padrão real: "4 - Aprovado", "7 - Em Transporte", "8 - Entregue"
+  if(s.includes('entreg')   || s.includes('8 -')) return 'Entregue';
+  if(s.includes('transport')|| s.includes('7 -')) return 'Em Transporte';
+  // Aprovado, Nota Fiscal, Faturado, etc.
+  return 'Aprovado';
+}
+
+function normPag(raw) {
+  var s = String(raw||'').toLowerCase();
+  if(s.includes('pix'))   return 'Pix';
+  if(s.includes('boleto') || s.includes('bank'))    return 'Boleto';
+  if(s.includes('cart')   || s.includes('cred')   || s.includes('debit') || s.includes('visa') || s.includes('master')) return 'Cartão';
+  if(s.includes('wallet') || s.includes('carteira')|| s.includes('digital')|| s.includes('paypal')|| s.includes('ame') || s.includes('picpay')) return 'Carteira Digital';
+  if(s.includes('brinde') || s.includes('gratis')  || s.includes('free'))  return 'Brinde';
+  return 'Outros';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAPEAMENTO DE LINHA RAW → OBJETO PEDIDO
+═══════════════════════════════════════════════════════════════ */
+function mapRow(r) {
+  if (!r || r.length <= 8) return null;
+  var idx = _colIdx || {canal:19, status:14, data:6, valor:30, frete:28, pedido:4, cliente:10, pag:18};
+  var data = parseGSDate(r[idx.data]);
+  if (!data) return null;
+  // Col AE (idx 30) = total de vendas confirmado
+  var valor = parseFloat(r[30]) || parseFloat(r[idx.valor]) || 0;
+  if (valor <= 0) return null;
+  return {
+    data:    data,
+    id:      String(r[idx.pedido]||'').replace('.0',''),
+    cliente: String(r[idx.cliente]||''),
+    produto: 'Produto',
+    tamanho: 'N/D',
+    pag:     normPag(r[idx.pag]),
+    canal:   normCanal(r[idx.canal]),
+    status:  normStatus(r[idx.status]),
+    valor:   valor,
+    frete:   parseFloat(r[28]) || parseFloat(r[idx.frete]) || 0, // col AC (idx 28)
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PROCESSAMENTO CENTRAL — SINGLE PASS
+   Percorre os pedidos UMA ÚNICA VEZ e monta todas as estruturas
+   necessárias para KPIs, gráficos e tabelas.
+═══════════════════════════════════════════════════════════════ */
+function processarDados(pedidos) {
+  // Acumuladores
+  var total=0, frete=0;
+  var aprov=[], trans=[], entr=[];
+  var byData={}, byCanal={}, byCanalMes={}, byPag={}, byTam={}, byProd={};
+  var cfd={}, cfc={};
+  var todayStr = td();
+  var fut60 = addD(todayStr, 60);
+
+  for (var i=0; i<pedidos.length; i++) {
+    var p = pedidos[i];
+    total  += p.valor;
+    frete  += p.frete;
+
+    // Status
+    if      (p.status==='Entregue')      entr.push(p);
+    else if (p.status==='Em Transporte') trans.push(p);
+    else                                 aprov.push(p);
+
+    // GMV por dia
+    byData[p.data] = (byData[p.data]||0) + p.valor;
+
+    // GMV por canal
+    byCanal[p.canal] = (byCanal[p.canal]||0) + p.valor;
+
+    // GMV por canal/mês
+    var mes = p.data.slice(0,7);
+    if (mes.length===7) {
+      if (!byCanalMes[p.canal]) byCanalMes[p.canal] = {};
+      byCanalMes[p.canal][mes] = (byCanalMes[p.canal][mes]||0) + p.valor;
+    }
+
+    // Pagamento
+    byPag[p.pag] = (byPag[p.pag]||0) + 1;
+
+    // Tamanho
+    byTam[p.tamanho] = (byTam[p.tamanho]||0) + 1;
+
+    // Produto
+    if (!byProd[p.produto]) byProd[p.produto] = {gmv:0,qtd:0};
+    byProd[p.produto].gmv += p.valor;
+    byProd[p.produto].qtd += 1;
+  }
+
+  // Cashflow (só pedidos entregues)
+  for (var e=0; e<entr.length; e++) {
+    var pe = entr[e];
+    var pr = PRAZOS[pe.canal]||7;
+    var dl = addD(pe.data, pr);
+    cfd[dl] = (cfd[dl]||0) + pe.valor;
+    if (!cfc[pe.canal]) cfc[pe.canal] = {gmv:0, data:null, prazo:pr};
+    cfc[pe.canal].gmv += pe.valor;
+    if (!cfc[pe.canal].data || dl > cfc[pe.canal].data) cfc[pe.canal].data = dl;
+  }
+
+  // Ordenações e slices finais
+  var datas = Object.keys(byData).sort();
+  var canais = Object.entries(byCanal).sort(function(a,b){return b[1]-a[1];});
+  var meses  = [...new Set(datas.map(function(d){return d.slice(0,7);}))].sort();
+  var pagamentos = Object.entries(byPag).sort(function(a,b){return b[1]-a[1];});
+  var tamanhos   = Object.entries(byTam).sort(function(a,b){return b[1]-a[1];});
+  var top20 = Object.entries(byProd).map(function(e){return {nome:e[0],gmv:e[1].gmv,qtd:e[1].qtd};}).sort(function(a,b){return b.gmv-a.gmv;}).slice(0,20);
+  var cfdatas = Object.keys(cfd).filter(function(d){return d>=todayStr&&d<=fut60;}).sort().slice(0,20);
+
+  return {
+    total, qtd: pedidos.length, frete,
+    aprov, trans, entr,
+    datas, vals: datas.map(function(d){return byData[d];}),
+    canais, cgm: byCanalMes, meses,
+    pagamentos, tamanhos, top20,
+    cfdatas, cfvals: cfdatas.map(function(d){return cfd[d];}), cfc
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CACHE EM MEMÓRIA + localStorage (5 min)
+═══════════════════════════════════════════════════════════════ */
+var _memCache = null;   // {key, pedidos, ts}
+
+function cacheKey(rows) {
+  return rows.length + '_' + (rows[0]?.[2]||'') + '_' + (rows[rows.length-1]?.[2]||'');
+}
+
+function loadFromLS(key) {
+  try {
+    var raw = localStorage.getItem(CACHE_LS_KEY);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    if (obj.key !== key) return null;
+    if (Date.now() - obj.ts > CACHE_TTL) return null;
+    console.log('[FanClub] Cache localStorage válido, pulando re-processamento');
+    return obj.pedidos;
+  } catch(e) { return null; }
+}
+
+function saveToLS(key, pedidos) {
+  try {
+    // Salvar apenas campos essenciais para reduzir tamanho
+    var light = pedidos.map(function(p){
+      return [p.data,p.id,p.cliente,p.canal,p.status,p.valor,p.frete,p.pag];
+    });
+    localStorage.setItem(CACHE_LS_KEY, JSON.stringify({key:key, ts:Date.now(), pedidos:light}));
+  } catch(e) { /* quota exceeded — ok */ }
+}
+
+function restoreFromLight(light) {
+  return light.map(function(l){
+    return {data:l[0],id:l[1],cliente:l[2],canal:l[3],status:l[4],valor:l[5],frete:l[6],pag:l[7],produto:'Produto',tamanho:'N/D'};
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FILTER + APPLY
+═══════════════════════════════════════════════════════════════ */
+var allRows = [];
+var _pedidosCache = null;  // pedidos mapeados (todos, sem filtro de data)
+var _pedidosCacheKey = '';
+
+function getPedidos() {
+  var key = cacheKey(allRows);
+  if (_pedidosCache && _pedidosCacheKey === key) return _pedidosCache;
+
+  // Tenta localStorage
+  var fromLS = loadFromLS(key);
+  if (fromLS) {
+    _pedidosCache = fromLS[0] && Array.isArray(fromLS[0]) ? restoreFromLight(fromLS) : fromLS;
+    _pedidosCacheKey = key;
+    return _pedidosCache;
+  }
+
+  // Detectar colunas e mapear (single pass)
+  detectCols(allRows);
+  var mapped = [];
+  for (var i=0; i<allRows.length; i++) {
+    var obj = mapRow(allRows[i]);
+    if (obj) mapped.push(obj);
+  }
+  _pedidosCache = mapped;
+  _pedidosCacheKey = key;
+  saveToLS(key, mapped);
+  return mapped;
+}
+
+function setPreset(p,btn){
+  document.querySelectorAll('.ftab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  const now=new Date(), t=td();
+  let from=null, to=t;
+  if(p==='hoje') from=t;
+  else if(p==='7d'){const d=new Date();d.setDate(d.getDate()-7);from=d.toISOString().split('T')[0];}
+  else if(p==='30d'){const d=new Date();d.setDate(d.getDate()-30);from=d.toISOString().split('T')[0];}
+  else if(p==='mes') from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  else if(p==='trim'){
+    const q=Math.floor(now.getMonth()/3);
+    from=new Date(now.getFullYear(),q*3,1).toISOString().split('T')[0];
+    to=new Date(now.getFullYear(),q*3+3,0).toISOString().split('T')[0];
+  }
+  else{from=null;to=null;}
+  document.getElementById('f-from').value=from||'';
+  document.getElementById('f-to').value=to||'';
+  applyFilter();
+}
+
+function applyFilter(){
+  var from = document.getElementById('f-from').value; // "YYYY-MM-DD" ou ""
+  var to   = document.getElementById('f-to').value;   // "YYYY-MM-DD" ou ""
+  var canalFilter = (document.getElementById('f-canal')||{}).value || '';
+
+  var pedidos = getPedidos();
+
+  // Comparação por string YYYY-MM-DD — evita bug de timezone UTC vs local
+  var filtered = pedidos.filter(function(p){
+    if(!p.data || p.data.length < 10) return false;
+    var d = p.data.slice(0,10);
+    if(from && d < from) return false;
+    if(to   && d > to)   return false;
+    if(canalFilter && p.canal !== canalFilter) return false;
+    return true;
+  });
+
+  var fi   = document.getElementById('f-info');
+  var pill = document.getElementById('pill-per');
+  if(!from&&!to){ fi.textContent=filtered.length+' registros · período completo'; pill.textContent='Período completo'; }
+  else { var f=from?fD(from):'...'; var t2=to?fD(to):'hoje'; fi.textContent=filtered.length+' registros · '+f+' → '+t2; pill.textContent=f+' – '+t2; }
+
+  if(filtered.length===0){ renderEmpty(); return; }
+  renderAll(processarDados(filtered));
+}
+
+/* ─ image error handler ─ */
+function imgErr(img) {
+  img.onerror = null;
+  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><rect width="44" height="44" rx="8" fill="#1E222C"/><text x="22" y="30" text-anchor="middle" font-size="22">👟</text></svg>');
+}
+
+function nomeParaSlug(nome) {
+  var base = nome.replace(/\s+\d{2}$/, '').trim();
+  base = base.replace(/\s+-\s+[^-]+\s+\d{2}$/, '').trim();
+  return base.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s-]/g,'').trim().replace(/\s+/g,'-').replace(/-+/g,'-');
+}
+
+function imgUrlFanClub(nome) { return 'https://www.usefanclub.com.br/'+nomeParaSlug(nome); }
+
+
+/* ─ charts ─ */
+let CH={};
+function dch(){Object.values(CH).forEach(c=>c&&c.destroy());CH={};}
+
+const TO={
+  responsive:true,maintainAspectRatio:true,
+  plugins:{
+    legend:{display:false},
+    tooltip:{backgroundColor:'#181B22',borderColor:'rgba(255,255,255,0.08)',borderWidth:1,titleColor:'#F1F5F9',bodyColor:'#64748B',padding:10}
+  }
+};
+const SC={
+  x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}},
+  y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}}
+};
+
+/* ─ render all ─ */
+function renderAll(d){
+  // KPIs
+  const cnt=d.aprov.length+d.trans.length+d.entr.length;
+  document.getElementById('k-gmv').textContent=fM(d.total);
+  document.getElementById('k-ped').textContent=cnt.toLocaleString('pt-BR');
+  document.getElementById('k-tkt').textContent=fM(cnt>0?d.total/cnt:0);
+  document.getElementById('k-qtd').textContent=d.qtd.toLocaleString('pt-BR');
+  document.getElementById('k-frt').textContent=fM(d.frete);
+  document.getElementById('s-apv').textContent=d.aprov.length;
+  document.getElementById('s-trn').textContent=d.trans.length;
+  document.getElementById('s-ent').textContent=d.entr.length;
+
+  const ev=d.entr.reduce((s,p)=>s+p.valor,0);
+  document.getElementById('s-gmv').textContent=fMF(ev)+' entregues';
+  document.getElementById('d-ped').textContent=cnt.toLocaleString('pt-BR')+' total';
+  document.getElementById('alert-n').textContent=d.aprov.length;
+  try{document.getElementById('alert-pill').textContent=d.aprov.length+' pedidos';}catch(e){}
+
+  // Aprovados table
+  const apvHtml = d.aprov.length===0
+    ? '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">✅ Nenhum pedido aguardando envio<\/td><\/tr>'
+    : d.aprov.map(p=>`<tr>
+      <td><span class="udot"><\/span><span class="pid">${p.id}<\/span><\/td>
+      <td style="color:var(--muted2)">${p.cliente}<\/td>
+      <td><span style="font-size:11px;padding:2px 7px;border-radius:5px;background:${(CCORES[p.canal]||'#ccc')}22;color:${CCORES[p.canal]||'#888'};font-weight:600">${p.canal}<\/span><\/td>
+      <td style="text-align:right"><span class="vcel">${fMF(p.valor)}<\/span><\/td>
+    <\/tr>`).join('');
+  try{document.getElementById('apv-body').innerHTML=apvHtml;}catch(e){}
+  try{document.getElementById('apv-body2').innerHTML=apvHtml;}catch(e){}
+  // PLACEHOLDER - old apv-body render replaced
+  if(false) document.getElementById('apv-body').innerHTML=d.aprov.length===0
+
+
+  // Tamanhos e Top 20 — apenas na página Estoque (renderEstoque)
+  // Pagamento
+  const pT=d.pagamentos.reduce((s,p)=>s+p[1],0);
+  document.getElementById('p-list').innerHTML=d.pagamentos.map((p,i)=>`
+    <div class="pitem">
+      <div class="pdot" style="background:${PCORES[i]||'#ccc'}"><\/div>
+      <div class="pname">${p[0]}<\/div>
+      <div class="ppct">${((p[1]/pT)*100).toFixed(0)}%<\/div>
+      <div class="pval">${p[1]}<\/div>
+    <\/div>`).join('');
+
+  // Canal list
+  const cT=d.canais.reduce((s,c)=>s+c[1],0);
+  const clistHtml=d.canais.map(c=>`
+    <div class="crow">
+      <div class="cdot" style="background:${CCORES[c[0]]||'#ccc'}"><\/div>
+      <div class="cname">${c[0]}<\/div>
+      <div class="cval">${fM(c[1])}<\/div>
+      <div class="cpct">${((c[1]/cT)*100).toFixed(1)}%<\/div>
+    <\/div>`).join('');
+  try{document.getElementById('c-list').innerHTML=clistHtml;}catch(e){}
+  try{document.getElementById('c-list2').innerHTML=clistHtml;}catch(e){}
+
+  // Cashflow table
+  const today=td();
+  const COMISSOES={'Shopee':0.20,'Mercado Livre':0.16,'Shein':0.18,'TikTok Shop':0.12,'Dafiti':0.20,'Netshoes':0.20,'Loja Própria':0.03};
+  document.getElementById('cf-body').innerHTML=Object.entries(d.cfc)
+    .sort((a,b)=>(a[1].data||'').localeCompare(b[1].data||''))
+    .map(function([canal,info]){
+      const diff=info.data?Math.round((new Date(info.data)-new Date(today))/86400000):999;
+      const cls=diff<=0?'ok':diff<=7?'em':'fut';
+      const lbl=diff<=0?'✓ Disponível':'Em '+diff+'d';
+      const comRate=COMISSOES[canal]||0.15;
+      const comVal=info.gmv*comRate;
+      const liq=info.gmv-comVal;
+      return '<tr>'+
+        '<td><span class="cchip" style="background:'+(CCORES[canal]||'#888')+'18;color:'+(CCORES[canal]||'#888')+'">'+canal+'<\/span><\/td>'+
+        '<td><span class="cfval" style="color:var(--text)">'+fMF(info.gmv)+'<\/span><\/td>'+
+        '<td style="font-family:var(--fmono);font-size:11px"><span style="color:var(--red)">-'+fMF(comVal)+'<\/span><br><span style="color:var(--muted);font-size:10px">'+(comRate*100).toFixed(0)+'%<\/span><\/td>'+
+        '<td><span class="cfval" style="color:var(--green)">'+fMF(liq)+'<\/span><\/td>'+
+        '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted)">+'+info.prazo+'d<\/td>'+
+        '<td><span class="cfdate">'+(info.data?fD(info.data):'—')+'<\/span><\/td>'+
+        '<td><span class="cfst '+cls+'">'+lbl+'<\/span><\/td>'+
+      '<\/tr>';
+    }).join('');
+
+  makeCharts(d);
+}
+
+function makeCharts(d){
+  dch();
+
+  // ── Linha evolução ──────────────────────────────────────────
+  const gL=document.getElementById('ch-linha').getContext('2d');
+  const gr=gL.createLinearGradient(0,0,0,280);
+  gr.addColorStop(0,'rgba(110,231,183,0.22)');gr.addColorStop(1,'rgba(110,231,183,0)');
+  CH.linha=new Chart(gL,{type:'line',data:{labels:d.datas.map(fD),datasets:[{label:'GMV',data:d.vals,borderColor:'#6EE7B7',backgroundColor:gr,borderWidth:2.5,tension:0.4,fill:true,pointBackgroundColor:'#6EE7B7',pointRadius:window.innerWidth<768?3:5,pointHoverRadius:7}]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#94A3B8',font:{family:'JetBrains Mono',size:11},boxWidth:12}},tooltip:{backgroundColor:'#181B22',borderColor:'rgba(255,255,255,0.08)',borderWidth:1,titleColor:'#F1F5F9',bodyColor:'#64748B',padding:10,callbacks:{label:function(c){return ' GMV: '+fMF(c.raw);}}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11},callback:function(v){return fM(v);}}}}}});
+
+  // ── Barras canal/mês ─────────────────────────────────────────
+  const canalKeys=Object.keys(d.cgm);
+  CH.bar=new Chart(document.getElementById('ch-bar'),{type:'bar',data:{labels:d.meses.map(function(m){var p=m.split('-');return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(p[1])-1]+'/'+p[0].slice(2);}),datasets:canalKeys.map(function(c){return {label:c,data:d.meses.map(function(m){return d.cgm[c]&&d.cgm[c][m]||0;}),backgroundColor:(CCORES[c]||'#6EE7B7')+'CC',borderColor:CCORES[c]||'#6EE7B7',borderWidth:0,borderRadius:3,borderSkipped:false};})},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{color:'#94A3B8',font:{family:'JetBrains Mono',size:10},boxWidth:10,padding:12}},tooltip:{backgroundColor:'#181B22',borderColor:'rgba(255,255,255,0.08)',borderWidth:1,callbacks:{label:function(c){return ' '+c.dataset.label+': '+fMF(c.raw);}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11},callback:function(v){return fM(v);}}}}}});
+
+  // ── Donut canais (renderiza em ch-donut e ch-donut2) ─────────
+  ['ch-donut','ch-donut2'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(!el) return;
+    var key='d_'+id;
+    if(CH[key]) CH[key].destroy();
+    var tot=d.canais.reduce(function(s,x){return s+x[1];},0);
+    CH[key]=new Chart(el,{type:'doughnut',data:{labels:d.canais.map(function(c){return c[0];}),datasets:[{data:d.canais.map(function(c){return c[1];}),backgroundColor:d.canais.map(function(c){return CCORES[c[0]]||'#6EE7B7';}),borderWidth:2,borderColor:'#111318',hoverOffset:5}]},options:{cutout:'72%',responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' '+fMF(c.raw)+' ('+(c.raw/tot*100).toFixed(1)+'%)';}}}}}});
+  });
+
+  // ── Donut pagamento ──────────────────────────────────────────
+  const pL=d.pagamentos.map(function(p){return p[0];}),pV=d.pagamentos.map(function(p){return p[1];}),pT=pV.reduce(function(s,v){return s+v;},0);
+  CH.pag=new Chart(document.getElementById('ch-pag'),{type:'doughnut',data:{labels:pL,datasets:[{data:pV,backgroundColor:PCORES.slice(0,pL.length),borderWidth:3,borderColor:'#111318',hoverOffset:4}]},options:{cutout:'70%',responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' ('+(c.raw/pT*100).toFixed(1)+'%)';}}}}}});
+
+  // ── Cashflow ─────────────────────────────────────────────────
+  const today2=td();
+  const cfC=d.cfdatas.map(function(dt){return dt<=today2?'#10B981':dt<=addD(today2,7)?'#60A5FA':'#1E222C';});
+  CH.cf=new Chart(document.getElementById('ch-cf'),{type:'bar',data:{labels:d.cfdatas.map(fD),datasets:[{data:d.cfvals,backgroundColor:cfC,borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' '+fMF(c.raw);}}}},scales:{x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11},callback:function(v){return fM(v);}}}}}});
+}
+
+function renderEmpty(){
+  dch();
+  ['k-gmv','k-tkt','k-frt'].forEach(id=>{ try{document.getElementById(id).textContent='R$0,00';}catch(e){} });
+  ['k-ped','k-qtd','s-apv','s-trn','s-ent'].forEach(id=>{ try{document.getElementById(id).textContent='0';}catch(e){} });
+  try{document.getElementById('alert-n').textContent='0';}catch(e){}
+  try{document.getElementById('apv-body').innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Nenhum pedido no período<\/td><\/tr>';}catch(e){}
+  try{document.getElementById('p-list').innerHTML='';}catch(e){}
+  try{document.getElementById('c-list').innerHTML='';}catch(e){}
+  try{document.getElementById('c-list2').innerHTML='';}catch(e){}
+  try{document.getElementById('cf-body').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Sem dados<\/td><\/tr>';}catch(e){}
+}
+
+/* ─ Google Sheets ─ */
+function parseGS(text){
+  try {
+    const clean=text.replace(/^[^\{]+/,'').replace(/[^\}]+$/,'');
+    const obj=JSON.parse(clean);
+    return obj.table.rows.map(r=>r.c.map(c=>{
+      if(!c) return '';
+      // Handle date objects from Google Sheets
+      if(c.f && (c.f.includes('/') || c.f.includes('-'))) return c.f;
+      if(c.v && typeof c.v === 'string' && c.v.startsWith('Date(')) {
+        // Parse Date(2026,2,31) format
+        const parts = c.v.replace('Date(','').replace(')','').split(',');
+        const d = new Date(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]));
+        return d.toISOString().split('T')[0];
+      }
+      return c.v??c.f??'';
+    }));
+  } catch(e) {
+    console.error('Parse error:', e);
+    return [];
+  }
+}
+const PRODUTOS_GID_URL = 'https://docs.google.com/spreadsheets/d/1ir9OHsj3hZ0Io9pCArefwM1EiCsleSlmC0lmkpkClqk/gviz/tq?tqx=out:json&gid=1170407159';
+const DEFAULT_URL = 'https://docs.google.com/spreadsheets/d/1ir9OHsj3hZ0Io9pCArefwM1EiCsleSlmC0lmkpkClqk/gviz/tq?tqx=out:json&gid=1435598200';
+let produtosMap = {}; // codigo -> {nome, gmv, qtd}
+
+async function loadProdutos() {
+  try {
+    const res = await fetch(PRODUTOS_GID_URL + '&nocache=' + Date.now());
+    const txt = await res.text();
+    const rows = parseGS(txt);
+    // Col 0=skip, 1=Codigo, 2=Nome, 3=Mes, 4=Canal, 5=Qtd, 6=GMV
+    const data = rows[0] && (rows[0][1]===null||String(rows[0][1]).includes('Código')) ? rows.slice(1) : rows;
+    const map = {};
+    data.forEach(r => {
+      if(!r[1] && !r[2]) return;
+      const cod = String(r[1]||'').trim();
+      const nome = String(r[2]||'').trim();
+      if(!cod || !nome) return;
+      // Remove tamanho do final do código para agrupar
+      const codBase = cod.replace(/-\d{2}$/, '');
+      const nomeBase = nome.replace(/\s+\d{2}$/, '').trim();
+      if(!map[codBase]) map[codBase] = {nome: nomeBase, gmv: 0, qtd: 0, cod: codBase};
+      map[codBase].gmv += parseFloat(r[6]) || 0;
+      map[codBase].qtd += parseFloat(r[5]) || 0;
+    });
+    produtosMap = map;
+    console.log('Produtos carregados:', Object.keys(map).length);
+    // Se estoque page estiver ativa, re-renderizar
+    var estoquePage = document.getElementById('page-estoque');
+    if(estoquePage && estoquePage.classList.contains('active')) {
+      renderEstoque();
+    }
+  } catch(e) {
+    console.error('Erro ao carregar produtos:', e);
+  }
+}
+
+async function loadGS(url){
+  const res=await fetch(url+'&nocache='+Date.now());
+  const txt=await res.text();
+  const rows=parseGS(txt);
+  // Pular linha de cabeçalho se col 2 for texto
+  const data=rows[0]&&isNaN(parseFloat(rows[0][2]))?rows.slice(1):rows;
+  // Detectar colunas na primeira carga
+  if(!_colIdx && data.length > 0) detectCols(data);
+  // Filtrar apenas linhas com ID e valor, garantindo que a linha tem dados suficientes
+  return data.filter(function(r){
+    if(!r||r.length<10) return false;
+    var idx = _colIdx || {valor:30, pedido:2};
+    var val = parseFloat(r[idx.valor])||parseFloat(r[idx.valor+1])||0;
+    var id  = r[idx.pedido];
+    return id && val > 0;
+  });
+}
+
+/* ─ Drawer ─ */
+function openDrawer(){ document.getElementById('overlay').classList.add('open'); document.getElementById('drawer').classList.add('open'); const s=localStorage.getItem('fc_url'); if(s) document.getElementById('url-in').value=s; }
+function closeDrawer(){ document.getElementById('overlay').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); }
+async function applyDrawer(){
+  const url=document.getElementById('url-in').value.trim();
+  const iv=parseInt(document.getElementById('iv-sel').value)*1000;
+  if(!url){alert('Cole a URL do Google Sheets');return;}
+  localStorage.setItem('fc_url',url); localStorage.setItem('fc_iv',iv);
+  // Limpar caches ao trocar de planilha
+  localStorage.removeItem(CACHE_LS_KEY);
+  _colIdx = null; _pedidosCache = null; _pedidosCacheKey = '';
+  sheetURL=url; closeDrawer(); refresh(); startTimer(iv);
+}
+
+/* ─ Refresh ─ */
+let sheetURL=null, timer=null;
+async function refresh(){
+  const url=sheetURL||localStorage.getItem('fc_url');
+  const lbl=document.getElementById('sync-lbl');
+  try{
+    lbl.textContent='Sincronizando...';
+    const rows=url?await loadGS(url):SAMPLE;
+    // Invalidar cache de pedidos ao receber novos dados
+    _pedidosCache = null;
+    _pedidosCacheKey = '';
+    allRows=rows;
+    loadProdutos(); // carrega aba de produtos em paralelo
+    applyFilter();
+    document.getElementById('hdr-time').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    lbl.textContent=url?'AO VIVO':'EXEMPLO';
+  }catch(e){
+    console.error('Refresh error:',e);
+    lbl.textContent='ERRO';
+    allRows=SAMPLE;
+    applyFilter();
+  }
+}
+function startTimer(ms){ if(timer)clearInterval(timer); const iv=ms||parseInt(localStorage.getItem('fc_iv')||1800000); timer=setInterval(refresh,iv); }
+
+/* ─ Init ─ */
+Chart.defaults.color='#64748B';
+Chart.defaults.font.family='JetBrains Mono';
+
+
+/* ══════════════════════════════════════════════════════════════
+   SIDEBAR & PAGE NAVIGATION
+══════════════════════════════════════════════════════════════ */
+function showPage(pageId, navEl) {
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // Show target page
+  var page = document.getElementById('page-' + pageId);
+  if(page) page.classList.add('active');
+  // Update nav items
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if(navEl) navEl.classList.add('active');
+  // Close sidebar on mobile
+  if(window.innerWidth <= 900) closeSidebar();
+  // If estoque page, render estoque content
+  if(pageId === 'estoque') renderEstoque();
+}
+
+function toggleSidebar() {
+  var sb = document.getElementById('sidebar');
+  var ov = document.getElementById('sidebar-overlay');
+  sb.classList.toggle('open');
+  ov.classList.toggle('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ESTOQUE PAGE
+══════════════════════════════════════════════════════════════ */
+let estoqueData = [];
+const ESTOQUE_URL_KEY = 'fc_estoque_url';
+
+async function loadEstoque() {
+  var url = document.getElementById('estoque-url').value.trim();
+  if(!url) { alert('Cole a URL da planilha de estoque'); return; }
+  localStorage.setItem(ESTOQUE_URL_KEY, url);
+  try {
+    var res = await fetch(url + '&nocache=' + Date.now());
+    var txt = await res.text();
+    var rows = parseGS(txt);
+    var data = rows[0] && isNaN(parseFloat(rows[0][3])) ? rows.slice(1) : rows;
+    estoqueData = data.filter(r => r && r[0]).map(r => ({
+      sku: String(r[0]||'').trim(),
+      nome: String(r[1]||'').trim(),
+      estoque: parseInt(r[2])||0,
+      minimo: parseInt(r[3])||5,
+    }));
+    renderEstoqueKPIs();
+    alert('Estoque carregado! ' + estoqueData.length + ' SKUs');
+  } catch(e) {
+    console.error(e);
+    alert('Erro ao carregar estoque: ' + e.message);
+  }
+}
+
+function renderEstoqueKPIs() {
+  if(estoqueData.length === 0) return;
+  var total = estoqueData.reduce((s,i) => s + i.estoque, 0);
+  var low   = estoqueData.filter(i => i.estoque > 0 && i.estoque <= i.minimo).length;
+  var zero  = estoqueData.filter(i => i.estoque === 0).length;
+  try { document.getElementById('stock-total').textContent = total.toLocaleString('pt-BR'); } catch(e){}
+  try { document.getElementById('stock-low').textContent  = low; } catch(e){}
+  try { document.getElementById('stock-skus').textContent = estoqueData.length.toLocaleString('pt-BR'); } catch(e){}
+  try { document.getElementById('stock-zero').textContent = zero; } catch(e){}
+}
+
+function renderEstoqueKPIs() {
+  if(estoqueData.length === 0) return;
+  var total = estoqueData.reduce(function(s,i){return s+i.estoque;}, 0);
+  var low   = estoqueData.filter(function(i){return i.estoque>0&&i.estoque<=i.minimo;}).length;
+  var zero  = estoqueData.filter(function(i){return i.estoque===0;}).length;
+  try{document.getElementById('stock-total').textContent=total.toLocaleString('pt-BR');}catch(e){}
+  try{document.getElementById('stock-low').textContent=low;}catch(e){}
+  try{document.getElementById('stock-skus').textContent=estoqueData.length.toLocaleString('pt-BR');}catch(e){}
+  try{document.getElementById('stock-zero').textContent=zero;}catch(e){}
+}
+
+function renderEstoque() {
+  // Render KPIs if data available
+  if(estoqueData.length > 0) renderEstoqueKPIs();
+
+  // Load saved estoque URL
+  var savedUrl = localStorage.getItem(ESTOQUE_URL_KEY);
+  if(savedUrl) {
+    try { document.getElementById('estoque-url').value = savedUrl; } catch(e){}
+  }
+
+  // Top 20 from produtosMap
+  var t20el = document.getElementById('t20-estoque');
+  var tamEl = document.getElementById('r-tam-estoque');
+  if(!t20el || !tamEl) return;
+
+  var prods = Object.values(produtosMap).sort((a,b) => b.gmv - a.gmv).slice(0,20);
+  if(prods.length === 0) {
+    t20el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:30px;font-size:13px">ℹ️ Dados carregando... Aguarde o refresh</div>';
+    tamEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:30px;font-size:13px">ℹ️ Dados carregando...</div>';
+    return;
+  }
+
+  var maxG = prods[0].gmv;
+  var totG = prods.reduce((s,p) => s+p.gmv, 0);
+  var medals = ['g','s','b'];
+
+  t20el.innerHTML = prods.map(function(p,i) {
+    var slug = nomeParaSlug(p.nome);
+    var imgUrl = 'https://www.usefanclub.com.br/' + slug;
+    var medal = ['g','s','b'][i]||'';
+    return '<div class="t20row" style="gap:10px;align-items:center;padding:8px 4px">'+
+      '<div class="t20n '+medal+'">'+(i+1)+'<\/div>'+
+      '<div style="width:40px;height:40px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--s3)">'+
+        '<img src="'+imgUrl+'" style="width:40px;height:40px;object-fit:cover" loading="lazy" onerror="imgErr(this)">'+
+      '<\/div>'+
+      '<div class="t20bw">'+
+        '<div class="t20name" title="'+p.nome+'" style="font-size:12px">'+p.nome+'<\/div>'+
+        '<div class="t20bg"><div class="t20bar" style="width:'+(p.gmv/maxG*100).toFixed(1)+'%;background:'+(i<3?'var(--accent)':'var(--a2)')+'"><\/div><\/div>'+
+      '<\/div>'+
+      '<div style="text-align:right;flex-shrink:0">'+
+        '<div class="t20val" style="font-size:12px">'+fM(p.gmv)+'<\/div>'+
+        '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted)">'+p.qtd.toLocaleString('pt-BR')+' un<\/div>'+
+      '<\/div>'+
+    '<\/div>';
+  }).join('');
+
+  // Tamanhos from produtosMap — extract size from nome
+  var tamCount = {};
+  Object.values(produtosMap).forEach(function(p) {
+    var m = p.nome.match(/(\d{2})$/);
+    if(m) {
+      var t = m[1];
+      tamCount[t] = (tamCount[t]||0) + p.qtd;
+    }
+  });
+  var tams = Object.entries(tamCount).sort((a,b) => b[1]-a[1]).slice(0,12);
+  var maxT = tams.length > 0 ? tams[0][1] : 1;
+  tamEl.innerHTML = tams.map(function(t,i) {
+    return '<div class="ritem">'+
+      '<div class="rpos '+(medals[i]||'')+'">'+(i+1)+'<\/div>'+
+      '<div class="rlbl">'+t[0]+'<\/div>'+
+      '<div class="rbw"><div class="rbbg"><div class="rbfill" style="width:'+(t[1]/maxT*100).toFixed(1)+'%"><\/div><\/div><\/div>'+
+      '<div class="rcnt">'+t[1].toLocaleString('pt-BR')+'<\/div>'+
+    '<\/div>';
+  }).join('');
+}
+
+
+window.addEventListener('load', function() {
+  try { document.getElementById('f-to').value = td(); } catch(e) {}
+  
+  var saved = localStorage.getItem('fc_url') || DEFAULT_URL;
+  sheetURL = saved;
+  localStorage.setItem('fc_url', saved);
+  try { document.getElementById('url-in').value = saved; } catch(e) {}
+  document.getElementById('sync-lbl').textContent = 'Carregando...';
+  refresh();
+  startTimer();
+});
+</script>
+</body>
+</html>
