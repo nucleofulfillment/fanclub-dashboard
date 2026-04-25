@@ -2150,11 +2150,7 @@ body.light body::before { opacity: 0; }
           <div class="val" id="fc-kpi-saldo" style="font-size:20px">—</div>
           <div class="sub">caixa ini + R e P</div>
         </div>
-        <div class="kpi" style="--cc:#F59E0B">
-          <div class="ico">🔮</div><div class="lbl">Saldo Projetado</div>
-          <div class="val" id="fc-kpi-projetado" style="font-size:20px">—</div>
-          <div class="sub">inclui a vencer (N)</div>
-        </div>
+        <!-- Saldo Projetado removido — Saldo Atual já reflete lançamentos passados -->
       </div>
 
       <!-- Entradas por canal + Despesas (PRIORIDADE VISUAL) -->
@@ -2236,7 +2232,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v55'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v56'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2517,15 +2513,35 @@ function processarDados(pedidos) {
     byProd[p.produto].qtd += 1;
   }
 
-  // Cashflow (só pedidos entregues)
-  for (var e=0; e<entr.length; e++) {
-    var pe = entr[e];
+  // Cashflow — pedidos ainda NÃO recebidos (aprovados + em trânsito)
+  // Representa o que está a caminho e será liberado nos próximos dias
+  var pedidosFuturos = aprov.concat(trans); // aprovados + em transporte
+  for (var e=0; e<pedidosFuturos.length; e++) {
+    var pe = pedidosFuturos[e];
     var pr = PRAZOS[pe.canal]||7;
     var dl = addD(pe.data, pr);
-    cfd[dl] = (cfd[dl]||0) + pe.valor;
-    if (!cfc[pe.canal]) cfc[pe.canal] = {gmv:0, data:null, prazo:pr};
-    cfc[pe.canal].gmv += pe.valor;
-    if (!cfc[pe.canal].data || dl > cfc[pe.canal].data) cfc[pe.canal].data = dl;
+    // Incluir apenas liberações futuras (>= hoje)
+    if(dl >= todayStr) {
+      cfd[dl] = (cfd[dl]||0) + pe.valor;
+      if (!cfc[pe.canal]) cfc[pe.canal] = {gmv:0, data:null, prazo:pr, count:0};
+      cfc[pe.canal].gmv += pe.valor;
+      cfc[pe.canal].count = (cfc[pe.canal].count||0) + 1;
+      // Data de liberação = a mais próxima do futuro (menor data futura)
+      if (!cfc[pe.canal].data || dl < cfc[pe.canal].data) cfc[pe.canal].data = dl;
+    }
+  }
+  // Também incluir pedidos entregues recentemente com liberação ainda futura
+  for (var e2=0; e2<entr.length; e2++) {
+    var pe2 = entr[e2];
+    var pr2 = PRAZOS[pe2.canal]||7;
+    var dl2 = addD(pe2.data, pr2);
+    if(dl2 >= todayStr) {
+      cfd[dl2] = (cfd[dl2]||0) + pe2.valor;
+      if (!cfc[pe2.canal]) cfc[pe2.canal] = {gmv:0, data:null, prazo:pr2, count:0};
+      cfc[pe2.canal].gmv += pe2.valor;
+      cfc[pe2.canal].count = (cfc[pe2.canal].count||0) + 1;
+      if (!cfc[pe2.canal].data || dl2 < cfc[pe2.canal].data) cfc[pe2.canal].data = dl2;
+    }
   }
 
   // Ordenações e slices finais
@@ -2858,6 +2874,7 @@ function renderAll(d){
       const cor=CCORES[canal]||'#888';
       const pct=totalGMVCF>0?(info.gmv/totalGMVCF*100).toFixed(1):'0.0';
       const prevFmt=info.data?new Date(info.data+'T00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'—';
+      const pedCount = info.count || 0;
 
       return '<div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;'+
         'padding:14px 12px;border-top:3px solid '+cor+';display:flex;flex-direction:column;gap:10px;min-width:0">'+
@@ -2890,11 +2907,16 @@ function renderAll(d){
         '<\/div>'+
 
         // Rodapé: prazo, data e participação
+        // Rodapé: próximo pagamento, pedidos e participação
         '<div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:4px">'+
           '<div style="display:flex;justify-content:space-between">'+
-            '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Previsão<\/span>'+
-            '<strong style="font-family:var(--fmono);font-size:9px;color:var(--text)">'+prevFmt+'<\/strong>'+
+            '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Próx. pagto<\/span>'+
+            '<strong style="font-family:var(--fmono);font-size:9px;color:var(--green)">'+prevFmt+'<\/strong>'+
           '<\/div>'+
+          (pedCount > 0 ? '<div style="display:flex;justify-content:space-between">'+
+            '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Pedidos<\/span>'+
+            '<strong style="font-family:var(--fmono);font-size:9px;color:var(--text)">'+pedCount+'<\/strong>'+
+          '<\/div>' : '')+
           '<div style="display:flex;justify-content:space-between">'+
             '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Participação<\/span>'+
             '<strong style="font-family:var(--fmono);font-size:9px;color:'+cor+'">'+pct+'%<\/strong>'+
@@ -2961,7 +2983,32 @@ function makeCharts(d){
   CH.linha=new Chart(gL,{type:'line',data:{labels:d.datas.map(fD),datasets:[
     {label:'Período Atual',data:d.vals,borderColor:'#6EE7B7',backgroundColor:gr,borderWidth:2.5,tension:0.4,fill:true,pointBackgroundColor:'#6EE7B7',pointRadius:window.innerWidth<768?3:5,pointHoverRadius:7},
     datasAnt.length>0 ? {label:'Período Anterior',data:datasAnt,borderColor:'#F43F5E',backgroundColor:grAnt,borderWidth:1.5,tension:0.4,fill:false,borderDash:[5,3],pointBackgroundColor:'#F43F5E',pointRadius:window.innerWidth<768?2:3,pointHoverRadius:5} : null
-  ].filter(Boolean)},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#94A3B8',font:{family:'JetBrains Mono',size:11},boxWidth:12}},tooltip:{backgroundColor:'#181B22',borderColor:'rgba(255,255,255,0.08)',borderWidth:1,titleColor:'#F1F5F9',bodyColor:'#64748B',padding:10,callbacks:{label:function(c){return ' GMV: '+fMF(c.raw);}}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11},callback:function(v){return fM(v);}}}}}});
+  ].filter(Boolean)},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#94A3B8',font:{family:'JetBrains Mono',size:11},boxWidth:12}},tooltip:{backgroundColor:'#181B22',borderColor:'rgba(255,255,255,0.08)',borderWidth:1,titleColor:'#F1F5F9',bodyColor:'#64748B',padding:12,
+    callbacks:{
+      title:function(items){
+        // Mostrar data atual e data do período anterior
+        if(!items.length) return '';
+        var idx=items[0].dataIndex;
+        var filtro=window._filtroAtual||{};
+        var from=filtro.from||'', to=filtro.to||'';
+        var dataAtual = items[0].chart.data.labels[idx] || '';
+        if(from && to) {
+          var dtFrom=new Date(from+'T00:00'), dtTo=new Date(to+'T00:00');
+          var dias=Math.round((dtTo-dtFrom)/86400000)+1;
+          // Data real do período atual
+          var dtAtual = new Date(from+'T00:00'); dtAtual.setDate(dtAtual.getDate()+idx);
+          var dtAnt   = new Date(dtAtual); dtAnt.setDate(dtAnt.getDate()-dias);
+          var fmtAtual = dtAtual.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+          var fmtAnt   = dtAnt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+          return ['Atual: '+fmtAtual+'  ←→  Anterior: '+fmtAnt];
+        }
+        return dataAtual;
+      },
+      label:function(c){
+        var prefix = c.datasetIndex===0 ? '▶ Atual: ' : '◀ Anterior: ';
+        return ' '+prefix+fMF(c.raw);
+      }
+    }}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11},callback:function(v){return fM(v);}}}}}});
 
   // ── Barras canal/mês ─────────────────────────────────────────
   const canalKeys=Object.keys(d.cgm);
@@ -4653,6 +4700,8 @@ function renderFluxoCaixa() {
   // Caixa inicial = do primeiro lançamento do período filtrado
   var caixaInicial = dados[0] ? dados[0].caixaInicial : 0;
 
+  var hoje = new Date().toISOString().slice(0,10);
+
   dados.forEach(function(d) {
     var mov = d.movimento + d.custoFixo;  // custoFixo já é negativo na planilha
 
@@ -4660,14 +4709,16 @@ function renderFluxoCaixa() {
     if(mov > 0) entradas += mov;
     else        saidas   += mov;
 
-    // Saldo ATUAL: apenas lançamentos já realizados (R = recebido, P = pago)
-    if(d.status === 'R' || d.status === 'P') movReal += mov;
+    // Saldo ATUAL: lançamentos realizados (R ou P) OU cuja data já passou
+    // Se a data do lançamento <= hoje, é considerado realizado independente do status
+    var jaPassou = d.data && d.data <= hoje;
+    if(d.status === 'R' || d.status === 'P' || jaPassou) movReal += mov;
 
     // Saldo PROJETADO: todos os lançamentos incluindo a vencer (N)
     movProj += mov;
 
-    // Custo Fixo Projetado: col B com status N (compromissos fixos futuros)
-    if(d.status === 'N' && d.custoFixo !== 0) custoFixoProj += Math.abs(d.custoFixo);
+    // Custo Fixo Projetado: col B com status N E data > hoje (realmente futuro)
+    if(d.status === 'N' && d.custoFixo !== 0 && d.data > hoje) custoFixoProj += Math.abs(d.custoFixo);
   });
 
   // Saldo = Caixa Inicial ± movimentos do período
@@ -4675,7 +4726,7 @@ function renderFluxoCaixa() {
   var saldoProj = caixaInicial + movProj;
 
   var saldoColor = saldoReal >= 0 ? 'var(--green)' : 'var(--red)';
-  var projColor  = saldoProj >= 0 ? 'var(--amber)' : 'var(--red)';
+  // saldoProj mantido para cálculos internos mas KPI removido da UI
 
   try{document.getElementById('fc-kpi-entradas').textContent=fMKPI(entradas);}catch(e){}
   try{document.getElementById('fc-kpi-saidas').textContent=fMKPI(Math.abs(saidas));}catch(e){}
@@ -4688,10 +4739,7 @@ function renderFluxoCaixa() {
     var el=document.getElementById('fc-kpi-saldo');
     el.textContent=fMKPI(saldoReal); el.style.color=saldoColor;
   }catch(e){}
-  try{
-    var ep=document.getElementById('fc-kpi-projetado');
-    ep.textContent=fMKPI(saldoProj); ep.style.color=projColor;
-  }catch(e){}
+  // fc-kpi-projetado removido da UI
   try{document.getElementById('fc-kpi-inicial').textContent=fMKPI(caixaInicial);}catch(e){}
 
   // ── Gráfico diário ────────────────────────────────────────
@@ -6510,7 +6558,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v55');
+    localStorage.removeItem('fc_rows_cache_v56');
     setTimeout(refresh, 200);
   }
 }
@@ -6554,7 +6602,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v55');
+  localStorage.removeItem('fc_rows_cache_v56');
   veltroAplicarLinks(id, links);
 }
 
