@@ -2234,7 +2234,17 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v65'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v66';
+// Limpar caches de versões anteriores automaticamente
+(function(){
+  var keysToRemove = [];
+  for(var i=0; i<localStorage.length; i++){
+    var k = localStorage.key(i);
+    if(k && k.startsWith('fc_rows_cache_') && k !== CACHE_LS_KEY) keysToRemove.push(k);
+  }
+  keysToRemove.forEach(function(k){ localStorage.removeItem(k); });
+  if(keysToRemove.length > 0) console.log('[Veltro] Cache antigo removido:', keysToRemove.join(', '));
+})(); // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2621,6 +2631,14 @@ function restoreFromLight(light) {
 var allRows = [];
 var _pedidosCache = null;  // pedidos mapeados (todos, sem filtro de data)
 var _pedidosCacheKey = '';
+// Restaurar coluna de canal salva (definida via _setCanal ou detecção automática)
+(function(){
+  var savedCol = parseInt(localStorage.getItem('veltro_canal_col')||'-1');
+  if(savedCol >= 0 && savedCol !== _colIdx.canal) {
+    console.log('[Veltro] Restaurando coluna de canal salva: col'+savedCol);
+    _colIdx.canal = savedCol;
+  }
+})();
 
 function getPedidos() {
   var key = cacheKey(allRows);
@@ -5791,15 +5809,16 @@ function _popularSeletorMesProd() {
   // Suporta: "Janeiro-26", "janeiro-26", "jan-26", "jan/26", "jan26",
   //          "janeiro 2026", "Janeiro 26", "01-26", "01/2026"
   function normalizarAba(aba) {
-    if(!aba) return aba;
-    var s = aba.trim();
+    if(!aba) return String(aba||'');
+    var s = String(aba).trim();
+    if(!s) return s;
     var anoAtual = new Date().getFullYear().toString().slice(-2);
 
-    // Tentar extrair ano (2 ou 4 dígitos)
+    // Tentar extrair ano (2 ou 4 dígitos) — com verificação de null
     var anoM4 = s.match(/20(\d{2})/);
     var anoM2 = s.match(/[-\/\s_](\d{2})$/);
     var anoM2b = s.match(/(\d{2})$/);
-    var aa = anoM4 ? anoM4[1] : (anoM2 ? anoM2[1] : (anoM2b ? anoM2b[1] : anoAtual));
+    var aa = (anoM4 && anoM4[1]) ? anoM4[1] : ((anoM2 && anoM2[1]) ? anoM2[1] : ((anoM2b && anoM2b[1]) ? anoM2b[1] : anoAtual));
 
     // Remover o ano para isolar o mês
     var semAno = s.replace(/20\d{2}/,'').replace(/[-\/\s_]\d{2}$/,'').replace(/\d{2}$/,'').trim();
@@ -6748,7 +6767,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v65');
+    localStorage.removeItem('fc_rows_cache_v66');
     setTimeout(refresh, 200);
   }
 }
@@ -6792,7 +6811,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v65');
+  localStorage.removeItem('fc_rows_cache_v66');
   veltroAplicarLinks(id, links);
 }
 
