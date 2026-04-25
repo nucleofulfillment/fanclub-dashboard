@@ -4210,10 +4210,13 @@ async function salvarResumo() {
             var p = produtosVendidosMap[sku];
             if(p && p.por_mes) Object.keys(p.por_mes).forEach(function(m){ todosMesesNoMap.add(m); });
           });
-          // Construir set de meses do período (formato "mes3letras+yy", ex: "abr26")
-          var mesesPeriodo = null;
+          // Construir set de meses do período. Aceita 2 formatos por causa de
+          // como o normalizador gera mesKey: 'abr26' (aba "abril 2026") ou só 'abr' (aba "abril").
+          var mesesPeriodo = null;       // formato com ano: ['abr26']
+          var mesesPeriodoSemAno = null; // formato sem ano: ['abr']
           if(from || to) {
             mesesPeriodo = new Set();
+            mesesPeriodoSemAno = new Set();
             var dF = from ? new Date(from+'T00:00') : new Date();
             var dT = to   ? new Date(to+'T00:00')   : new Date();
             var cur = new Date(dF.getFullYear(), dF.getMonth(), 1);
@@ -4224,12 +4227,14 @@ async function salvarResumo() {
               var mm = cur.getMonth();
               var yy = cur.getFullYear().toString().slice(-2);
               mesesPeriodo.add(nomeMes[mm] + yy);
+              mesesPeriodoSemAno.add(nomeMes[mm]);
               cur.setMonth(cur.getMonth()+1);
             }
           }
           console.log('[Roizen] Produtos vendidos — período:', from+' → '+to,
-            '| meses esperados:', mesesPeriodo ? Array.from(mesesPeriodo) : 'todos',
-            '| meses no map:', Array.from(todosMesesNoMap),
+            '| meses esperados (com ano):', mesesPeriodo ? Array.from(mesesPeriodo) : 'todos',
+            '| (sem ano):',                  mesesPeriodoSemAno ? Array.from(mesesPeriodoSemAno) : 'todos',
+            '| meses no map:',               Array.from(todosMesesNoMap),
             '| total SKUs:', skus.length);
           var total = 0, semPorMes = 0;
           Object.values(produtosVendidosMap).forEach(function(p) {
@@ -4239,7 +4244,11 @@ async function salvarResumo() {
             // Com filtro: soma só os meses dentro do período via por_mes
             if(p.por_mes && Object.keys(p.por_mes).length > 0) {
               Object.keys(p.por_mes).forEach(function(mesKey) {
-                if(mesesPeriodo.has(mesKey)) total += (p.por_mes[mesKey] || 0);
+                // Match exato com ano OU mesKey sem ano (planilha com aba só "abril")
+                var matchComAno    = mesesPeriodo.has(mesKey);
+                var mesKeySemAno   = mesKey.replace(/\d+$/, '');  // 'abr26' → 'abr'
+                var matchSemAno    = mesesPeriodoSemAno.has(mesKeySemAno);
+                if(matchComAno || matchSemAno) total += (p.por_mes[mesKey] || 0);
               });
             } else {
               semPorMes++;
