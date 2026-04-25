@@ -4606,7 +4606,9 @@ function calcPreco() {
       var cmpImposto = preco * impPctGlobal;
       // Custos operacionais (mesmos do formulário)
       // ADS consolidado: mesmo % para todos os canais no comparativo
-      var cmpOpCosts = arm_rs * kit + preco*(fin+adsCanalPct+plat+perdas+fixo_pct)/100;
+      // FIX: Financeiro % aplica APENAS para Loja Própria (marketplaces fazem retenção própria)
+      var cmpFinPct  = c === 'Loja Própria' ? fin : 0;
+      var cmpOpCosts = arm_rs * kit + preco*(cmpFinPct+adsCanalPct+plat+perdas+fixo_pct)/100;
       var cmpTotal   = custoTotal + cmpComissao + cmpImposto + cmpOpCosts;
       var cmpLucro   = preco - cmpTotal;
       var cmpMargem  = preco>0 ? cmpLucro/preco*100 : 0;
