@@ -807,8 +807,6 @@ body.light body::before { opacity: 0; }
   <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:380px">
     <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">Identificador da empresa</div>
     <input type="text" id="veltro-login-id" placeholder="ex: fanclub2019"
-      autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"
-      onfocus="this.value=this.value"
       onkeydown="if(event.key==='Enter') veltroLogin()"
       style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:10px;
              padding:12px 16px;font-family:'Syne',sans-serif;font-size:18px;font-weight:600;
@@ -2225,9 +2223,7 @@ body.light body::before { opacity: 0; }
             <span style="color:var(--green)">▬ Realizado</span>
             <span style="color:var(--amber)">▬ Projetado</span>
           </div></div>
-          <div style="position:relative;height:360px;width:100%">
-            <canvas id="ch-fc-diario"></canvas>
-          </div>
+          <canvas id="ch-fc-diario" style="max-width:100%;height:180px;display:block;"></canvas>
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">Saídas por Categoria</div><div class="cs">Distribuição das despesas</div></div></div>
@@ -2285,7 +2281,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v85';
+const CACHE_LS_KEY = 'fc_rows_cache_v84';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -2511,47 +2507,26 @@ function normStatus(raw) {
 function normPag(raw) {
   var s = String(raw||'').toLowerCase().trim();
   if(!s || s==='-' || s==='null' || s==='undefined') return 'Outros';
-
-  // PIX — variações Magazord e outras plataformas
   if(s.includes('pix')) return 'Pix';
-
-  // Boleto
-  if(s.includes('boleto') || s.includes('bank_slip') || s.includes('bankslip') ||
-     s.includes('bank slip') || s.includes('billet')) return 'Boleto';
-
-  // Cartão de Crédito
+  if(s.includes('boleto') || s.includes('bank_slip') || s.includes('bankslip') || s.includes('billet')) return 'Boleto';
   if(s.includes('credito') || s.includes('crédito') || s.includes('credit') ||
-     s.includes('cartao_cred') || s.includes('cartão_cred') ||
-     s.includes('visa') || s.includes('master') || s.includes('amex') ||
-     s.includes('elo') || s.includes('hipercard') ||
+     s.includes('cartao_cred') || s.includes('visa') || s.includes('master') ||
+     s.includes('amex') || s.includes('elo') || s.includes('hipercard') ||
      (s.includes('cart') && !s.includes('debito') && !s.includes('débito')))
     return 'Cartão Crédito';
-
-  // Cartão de Débito
-  if(s.includes('debito') || s.includes('débito') || s.includes('debit') ||
-     s.includes('cartao_deb') || s.includes('cartão_deb'))
+  if(s.includes('debito') || s.includes('débito') || s.includes('debit') || s.includes('cartao_deb'))
     return 'Cartão Débito';
-
-  // Carteiras Digitais
-  if(s.includes('wallet') || s.includes('carteira') || s.includes('digital') ||
-     s.includes('paypal') || s.includes('ame') || s.includes('picpay') ||
-     s.includes('mercado pago') || s.includes('mercadopago') ||
-     s.includes('shopee pay') || s.includes('shopeepay') ||
+  if(s.includes('wallet') || s.includes('carteira') || s.includes('paypal') ||
+     s.includes('picpay') || s.includes('mercadopago') || s.includes('mercado pago') ||
+     s.includes('shopeepay') || s.includes('shopee pay') ||
      s.includes('nubank') || s.includes('pagbank') || s.includes('pagseguro'))
     return 'Carteira Digital';
-
-  // Parcelado / Financiamento
   if(s.includes('parcel') || s.includes('financi') || s.includes('installment'))
     return 'Parcelado';
-
-  // Brinde / Gratuito
-  if(s.includes('brinde') || s.includes('gratis') || s.includes('gratuito') ||
-     s.includes('free') || s.includes('cortesia'))
+  if(s.includes('brinde') || s.includes('gratis') || s.includes('gratuito') || s.includes('free'))
     return 'Brinde';
-
-  // Log para diagnóstico — ajuda a identificar novos valores
-  console.log('[Roizen] normPag: valor não mapeado →', JSON.stringify(raw));
-  return raw ? String(raw).substring(0,20) : 'Outros';
+  console.log('[Roizen] normPag não mapeado:', JSON.stringify(raw));
+  return 'Outros';
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -3198,7 +3173,7 @@ function makeCharts(d){
   // ── Donut pagamento ──────────────────────────────────────────
   const pL=d.pagamentos.map(function(p){return p[0];}),pV=d.pagamentos.map(function(p){return p[1];}),pT=pV.reduce(function(s,v){return s+v;},0);
   console.log('[Roizen] Pagamentos:', pL.map(function(l,i){return l+'='+pV[i];}));
-  if(CH.pag) { CH.pag.destroy(); CH.pag=null; }
+  if(CH.pag){CH.pag.destroy();CH.pag=null;}
   CH.pag=new Chart(document.getElementById('ch-pag'),{type:'doughnut',data:{labels:pL,datasets:[{data:pV,backgroundColor:PCORES.slice(0,pL.length),borderWidth:3,borderColor:'#111318',hoverOffset:4}]},options:{cutout:'70%',responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' ('+(c.raw/pT*100).toFixed(1)+'%)';}}}}}});
 
   // ── Donut fila por canal ─────────────────────────────────────
@@ -3997,10 +3972,10 @@ function calcMarketing() {
       options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' GMV: '+fMF(c.raw);}}}},scales:{x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10},callback:function(v){return fM(v);}}}}}
     });
   }
-  // Lista vertical GMV por canal com total — usar dados locais (porCanal)
+  // Lista vertical GMV por canal com total — passar GMV e pedidos
   var _qtdMap = window._byQtdCanal || {};
-  var canaisComQtd = canalEntries.map(function(e){
-    return [e[0], {gmv: e[1].gmv, qtd: e[1].qtd || (_qtdMap[e[0]] || 0)}];
+  var canaisComQtd = d.canais.map(function(c){
+    return [c[0], {gmv: c[1], qtd: (_qtdMap[c[0]] || 0)}];
   });
   renderGMVCanalLista(canaisComQtd);
 
@@ -6995,12 +6970,8 @@ function veltroInit() {
       veltroEntrarDashboard(empresa);
       return;
     }
-    // Empresa não existe mais — limpar dados residuais
-    veltroLimparDadosAnteriores();
     localStorage.removeItem(VELTRO_SESSAO_KEY);
   }
-  // Sem sessão ativa — limpar dados residuais por segurança
-  veltroLimparDadosAnteriores();
   // Verificar se é primeiro acesso (sem nenhuma empresa cadastrada)
   var usuarios = veltroGetUsuarios();
   if(usuarios.length === 0) {
@@ -7039,25 +7010,7 @@ function veltroLogin() {
   veltroEntrarDashboard(empresa);
 }
 
-function veltroLimparDadosAnteriores() {
-  var CHAVES = ['fc_url','fc_sheet_url','fc_estoque_url','fc_estados_url',
-                'fc_produtos_vendidos_url','fc_fluxocaixa_url','veltro_canal_col'];
-  CHAVES.forEach(function(k){ localStorage.removeItem(k); });
-  for(var i=localStorage.length-1;i>=0;i--){
-    var k=localStorage.key(i);
-    if(k&&k.startsWith('fc_rows_cache_')) localStorage.removeItem(k);
-  }
-  try{
-    window._lastProcessedData=null; window._byQtdCanal=null; window._byCanal=null;
-    window.allRows=[]; window.sheetURL=''; window._fcDados=[];
-    window._fcMeses=[]; window.produtosVendidosMap={}; window._prodAbasEncontradas=[];
-  }catch(e){}
-  console.log('[Roizen] 🔒 Sessão isolada — dados anteriores limpos');
-}
-
 function veltroEntrarDashboard(empresa) {
-  // SEGURANÇA: isolar sessão — limpar dados do usuário anterior
-  veltroLimparDadosAnteriores();
   // Inicializar plataforma ativa
   try { plataformaInit(); } catch(e) {}
   // Ocultar telas de acesso
@@ -7078,16 +7031,15 @@ function veltroEntrarDashboard(empresa) {
   // Carregar links da empresa
   var links = veltroGetLinks(empresa.id);
 
-  // Sempre aplicar links secundários (fluxo, estoque, produtos) mesmo sem planilha principal
-  // Isso garante que URLs configuradas persistam entre sessões
-  veltroAplicarLinks(empresa.id, links);
-
-  // Verificar se tem planilha principal configurada
+  // Verificar se tem links configurados
   if(!links.principal) {
-    // Sem planilha principal — mostrar onboarding para configurar
+    // Sem planilha principal — mostrar onboarding
     veltroMostrarOnboarding(empresa);
     return;
   }
+
+  // Aplicar links nos campos do sistema existente
+  veltroAplicarLinks(empresa.id, links);
   // Garantir que sheetURL está definida antes do refresh automático
   if(links.principal && !sheetURL) {
     try{ sheetURL = _toGvizUrl(links.principal, '1435598200'); }catch(e){}
@@ -7100,13 +7052,12 @@ function veltroMostrarOnboarding(empresa) {
   var onb = document.getElementById('veltro-onboarding');
   if(onb) onb.style.display = 'block';
   try{ document.getElementById('onb-nome-empresa').textContent = empresa.nome || empresa.id; }catch(e){}
-  // Pré-preencher TODOS os links salvos (incluindo fluxo)
+  // Pré-preencher se já tem algum link
   var links = veltroGetLinks(empresa.id);
   try{ document.getElementById('onb-url-principal').value = links.principal||''; }catch(e){}
   try{ document.getElementById('onb-url-estoque').value   = links.estoque||'';   }catch(e){}
   try{ document.getElementById('onb-url-estados').value   = links.estados||'';   }catch(e){}
   try{ document.getElementById('onb-url-produtos').value  = links.produtos||'';  }catch(e){}
-  try{ document.getElementById('onb-url-fluxo').value     = links.fluxo||'';     }catch(e){}
 }
 
 
@@ -7286,19 +7237,12 @@ function veltroSalvarConfig(pular) {
   }
   if(erroEl) erroEl.textContent = '';
 
-  // Preservar links já salvos — nunca sobrescrever com string vazia
-  var linksAtuais = veltroGetLinks(id);
-  var novoEstoque  = ((document.getElementById('onb-url-estoque')||{}).value||'').trim();
-  var novoEstados  = ((document.getElementById('onb-url-estados')||{}).value||'').trim();
-  var novoProdutos = ((document.getElementById('onb-url-produtos')||{}).value||'').trim();
-  var novoFluxo    = ((document.getElementById('onb-url-fluxo')||{}).value||'').trim();
-
   var links = {
-    principal: principal    || linksAtuais.principal || '',
-    estoque:   novoEstoque  || linksAtuais.estoque   || '',
-    estados:   novoEstados  || linksAtuais.estados   || '',
-    produtos:  novoProdutos || linksAtuais.produtos  || '',
-    fluxo:     novoFluxo    || linksAtuais.fluxo     || ''
+    principal: principal,
+    estoque:   ((document.getElementById('onb-url-estoque')||{}).value||'').trim(),
+    estados:   ((document.getElementById('onb-url-estados')||{}).value||'').trim(),
+    produtos:  ((document.getElementById('onb-url-produtos')||{}).value||'').trim(),
+    fluxo:     ((document.getElementById('onb-url-fluxo')||{}).value||'').trim()
   };
   veltroSaveLinks(id, links);
 
@@ -7346,7 +7290,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v85');
+    localStorage.removeItem('fc_rows_cache_v84');
     setTimeout(refresh, 200);
   }
 }
@@ -7390,14 +7334,13 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v85');
+  localStorage.removeItem('fc_rows_cache_v84');
   veltroAplicarLinks(id, links);
 }
 
 /* ─ Logout ─ */
 function veltroLogout() {
-  if(!confirm('Sair da sessão atual?')) return;
-  veltroLimparDadosAnteriores();
+  if(!confirm('Sair do Veltro?')) return;
   localStorage.removeItem(VELTRO_SESSAO_KEY);
   location.reload();
 }
