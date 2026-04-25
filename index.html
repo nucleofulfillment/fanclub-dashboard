@@ -2281,7 +2281,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v83';
+const CACHE_LS_KEY = 'fc_rows_cache_v85';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -6953,8 +6953,12 @@ function veltroInit() {
       veltroEntrarDashboard(empresa);
       return;
     }
+    // Empresa não existe mais — limpar dados residuais
+    veltroLimparDadosAnteriores();
     localStorage.removeItem(VELTRO_SESSAO_KEY);
   }
+  // Sem sessão ativa — limpar dados residuais por segurança
+  veltroLimparDadosAnteriores();
   // Verificar se é primeiro acesso (sem nenhuma empresa cadastrada)
   var usuarios = veltroGetUsuarios();
   if(usuarios.length === 0) {
@@ -6993,7 +6997,25 @@ function veltroLogin() {
   veltroEntrarDashboard(empresa);
 }
 
+function veltroLimparDadosAnteriores() {
+  var CHAVES = ['fc_url','fc_sheet_url','fc_estoque_url','fc_estados_url',
+                'fc_produtos_vendidos_url','fc_fluxocaixa_url','veltro_canal_col'];
+  CHAVES.forEach(function(k){ localStorage.removeItem(k); });
+  for(var i=localStorage.length-1;i>=0;i--){
+    var k=localStorage.key(i);
+    if(k&&k.startsWith('fc_rows_cache_')) localStorage.removeItem(k);
+  }
+  try{
+    window._lastProcessedData=null; window._byQtdCanal=null; window._byCanal=null;
+    window.allRows=[]; window.sheetURL=''; window._fcDados=[];
+    window._fcMeses=[]; window.produtosVendidosMap={}; window._prodAbasEncontradas=[];
+  }catch(e){}
+  console.log('[Roizen] 🔒 Sessão isolada — dados anteriores limpos');
+}
+
 function veltroEntrarDashboard(empresa) {
+  // SEGURANÇA: isolar sessão — limpar dados do usuário anterior
+  veltroLimparDadosAnteriores();
   // Inicializar plataforma ativa
   try { plataformaInit(); } catch(e) {}
   // Ocultar telas de acesso
@@ -7273,7 +7295,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v83');
+    localStorage.removeItem('fc_rows_cache_v85');
     setTimeout(refresh, 200);
   }
 }
@@ -7317,13 +7339,14 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v83');
+  localStorage.removeItem('fc_rows_cache_v85');
   veltroAplicarLinks(id, links);
 }
 
 /* ─ Logout ─ */
 function veltroLogout() {
-  if(!confirm('Sair do Veltro?')) return;
+  if(!confirm('Sair da sessão atual?')) return;
+  veltroLimparDadosAnteriores();
   localStorage.removeItem(VELTRO_SESSAO_KEY);
   location.reload();
 }
@@ -7414,12 +7437,15 @@ function veltroExportarConfig() {
   var config = {
     usuarios: veltroGetUsuarios(),
     links:    {},
-    versao:   '1.0',
+    plataformas: {},
+    versao:   '1.1',
     exportadoEm: new Date().toISOString()
   };
-  // Incluir links de todas as empresas
+  // Incluir links e plataforma de todas as empresas
   config.usuarios.forEach(function(u) {
     config.links[u.id] = veltroGetLinks(u.id);
+    var plat = localStorage.getItem(PLAT_KEY + u.id);
+    if(plat) config.plataformas[u.id] = plat;
   });
   var json = JSON.stringify(config);
   var code = btoa(unescape(encodeURIComponent(json)));
@@ -7441,7 +7467,9 @@ function veltroCopirarCodigo() {
 }
 
 function veltroImportarConfig() {
-  var code = window.prompt('Cole o código de exportação abaixo:');
+  // Usar textarea inline se existir, senão usar prompt
+  var taImport = document.getElementById('admin-import-textarea');
+  var code = taImport ? taImport.value.trim() : window.prompt('Cole o código de exportação abaixo:');
   if(!code || !code.trim()) return;
   try {
     var json = decodeURIComponent(escape(atob(code.trim())));
@@ -7461,9 +7489,16 @@ function veltroImportarConfig() {
       if(config.links && config.links[u.id]) {
         veltroSaveLinks(u.id, config.links[u.id]);
       }
+      // Importar plataforma
+      if(config.plataformas && config.plataformas[u.id]) {
+        localStorage.setItem(PLAT_KEY + u.id, config.plataformas[u.id]);
+      }
     });
     veltroSaveUsuarios(existentes);
     veltroRenderListaEmpresas();
+    
+    // Garantir que não há sessão ativa (outro usuário pode estar logado)
+    localStorage.removeItem(VELTRO_SESSAO_KEY);
     
     // Fechar admin e preparar login
     veltroFecharAdmin();
@@ -7482,7 +7517,18 @@ function veltroImportarConfig() {
       // Pré-preencher com o primeiro
       try{ document.getElementById('veltro-login-id').value = existentes[0].id; }catch(e){}
     }
-    alert(msg);
+    // Mostrar confirmação mais amigável sem alert bloqueante
+    var confirmDiv = document.getElementById('import-confirm');
+    if(confirmDiv) {
+      confirmDiv.innerHTML =
+        '<div style="background:rgba(110,231,183,.1);border:1px solid rgba(110,231,183,.3);'+
+        'border-radius:8px;padding:12px;margin-top:8px;font-family:JetBrains Mono,monospace;'+
+        'font-size:11px;color:var(--green)">'+
+        '✅ Importado com sucesso — ' + importados + ' usuário(s) adicionado(s).<br>'+
+        'Feche o Admin e faça login com seu identificador.</div>';
+    } else {
+      alert(msg);
+    }
   } catch(e) {
     alert('❌ Erro ao importar: ' + e.message + '\nVerifique se o código está completo e correto.');
   }
@@ -7596,9 +7642,11 @@ window.addEventListener('load', function() {
         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#818CF8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🔄 Configuração Multi-Dispositivo</div>
         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.6">
           <strong style="color:#818CF8">Como usar em outro dispositivo/navegador:</strong><br>
-          1. Aqui → clique <strong>📤 Exportar</strong> → copie o código<br>
-          2. No outro navegador → Admin → <strong>📥 Importar</strong> → cole o código<br>
-          3. Feche o Admin → faça login normalmente com seu identificador
+          1. Aqui → clique <strong>📤 Exportar Código</strong><br>
+          2. Clique em <strong>📋 Copiar Código</strong> para copiar<br>
+          3. No outro navegador/dispositivo → acesse o sistema<br>
+          4. Clique em <strong>Admin</strong> → senha admin → <strong>📥 Importar Código</strong><br>
+          5. Cole o código → faça login com seu identificador de empresa
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button onclick="veltroExportarConfig()"
@@ -7610,6 +7658,15 @@ window.addEventListener('load', function() {
             📥 Importar Código
           </button>
         </div>
+        <div id="import-area" style="margin-top:8px">
+          <textarea id="admin-import-textarea"
+            style="width:100%;height:55px;background:var(--s3);border:1px solid var(--border2);
+                   border-radius:6px;padding:6px;font-family:'JetBrains Mono',monospace;
+                   font-size:9px;color:var(--text);resize:none;outline:none;
+                   color-scheme:dark;box-sizing:border-box"
+            placeholder="Cole aqui o código de importação..."></textarea>
+        </div>
+        <div id="import-confirm" style="margin-top:6px"></div>
         <div id="admin-export-code" style="display:none;margin-top:10px">
           <textarea id="admin-export-textarea" readonly
             style="width:100%;height:60px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;
