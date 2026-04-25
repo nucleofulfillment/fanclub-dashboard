@@ -4143,7 +4143,17 @@ function salvarResumo() {
 
   var cnt  = d.aprov.length + d.trans.length + d.entr.length;
   var rate = parseFloat((document.getElementById('tax-rate')||{}).value)||6;
-  var mkt  = window._mktDataIA ? window._mktDataIA.investimento.total : 0;
+  // % de Mídia: prioriza o valor digitado pelo usuário em Financeiro (campo fin-mkt-pct);
+  // se vazio, cai pro investimento da planilha de Marketing (_mktDataIA).
+  var mktPctManual = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
+  var mkt;
+  if(mktPctManual > 0) {
+    mkt = d.total * (mktPctManual/100);  // valor calculado a partir do % manual
+  } else if(window._mktDataIA && window._mktDataIA.investimento) {
+    mkt = window._mktDataIA.investimento.total || 0;
+  } else {
+    mkt = 0;
+  }
 
   // Snapshot AGREGADO — preserva tudo necessário para reconstruir gráficos e KPIs
   // Não salva os arrays brutos aprov/trans/entr (substituídos por contagens + agregados)
@@ -4268,6 +4278,14 @@ function renderResumos() {
 
   el.innerHTML = lista.map(function(r, i) {
     var k = r.kpis;
+    // Fallback: resumos antigos não têm produtosVendidos no kpis. Reconstrói da topProdutos salva.
+    var prodVend = (k.produtosVendidos && k.produtosVendidos > 0) ? k.produtosVendidos : 0;
+    if(prodVend === 0 && Array.isArray(r.topProdutos) && r.topProdutos.length) {
+      prodVend = r.topProdutos.reduce(function(s,p){ return s+(p.qtd||0); }, 0);
+    }
+    // Fallback: pctMidia em zero pode ser por mkt salvo sem o pct calculado. Recalcula de mkt/gmv.
+    var pctMidia = (k.pctMidia && k.pctMidia > 0) ? k.pctMidia
+                 : (k.mkt > 0 && k.gmv > 0 ? (k.mkt / k.gmv * 100) : 0);
     var periodoStr = r.periodo && r.periodo.from ? r.periodo.from + ' → ' + (r.periodo.to||'hoje') : 'Período completo';
     var temDadosCompletos = !!(r.dadosCompletos);  // só resumos v2+ podem ser visualizados no dashboard
     var btnVisualizar = temDadosCompletos
@@ -4290,8 +4308,8 @@ function renderResumos() {
         _resumoKPI('💰','GMV',fM(k.gmv),'')+
         _resumoKPI('📦','Pedidos',k.pedidos.toLocaleString('pt-BR'),'')+
         _resumoKPI('🎯','Ticket Médio',fM(k.ticket),'')+
-        _resumoKPI('🛍️','Produtos Vendidos',(k.produtosVendidos>0?k.produtosVendidos.toLocaleString('pt-BR'):'—'),'')+
-        _resumoKPI('📊','% Mídia',(k.pctMidia>0?k.pctMidia.toFixed(1)+'%':'—'),'')+
+        _resumoKPI('🛍️','Produtos Vendidos',(prodVend>0?prodVend.toLocaleString('pt-BR'):'—'),'')+
+        _resumoKPI('📊','% Mídia',(pctMidia>0?pctMidia.toFixed(1)+'%':'—'),'')+
         _resumoKPI('🧾','Impostos',fM(k.impostos),'')+
       '</div>'+
     '</div>';
