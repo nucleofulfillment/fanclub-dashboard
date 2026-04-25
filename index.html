@@ -1504,7 +1504,17 @@ body.light body::before { opacity: 0; }
       </div>
 
       <!-- 4. Top 30 produtos -->
-      <div class="slabel">top 30 produtos — por quantidade vendida</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <div class="slabel" style="margin-bottom:0">top 30 produtos — por quantidade vendida</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">Mês:</span>
+          <select id="prod-mes-sel" onchange="renderEstoqueIndicadores()"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:7px;padding:5px 10px;
+                   font-family:var(--fhead);font-size:11px;color:var(--text);outline:none;cursor:pointer;color-scheme:dark">
+            <option value="todos">Todos</option>
+          </select>
+        </div>
+      </div>
 
       <!-- Card de conexão da planilha de produtos vendidos -->
       <div class="card" style="max-width:700px;margin-bottom:14px">
@@ -1714,7 +1724,9 @@ body.light body::before { opacity: 0; }
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px" class="g3-charts">
         <div class="card">
           <div class="ch"><div><div class="ct">GMV por Canal</div><div class="cs">Receita real do período por marketplace</div></div></div>
-          <canvas id="ch-mkt-inv" height="200"></canvas>
+          <canvas id="ch-mkt-inv" height="160"></canvas>
+          <!-- Lista vertical com total -->
+          <div id="gmv-canal-lista" style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px"></div>
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">ROAS por Canal</div><div class="cs">Calculado individualmente por canal</div></div></div>
@@ -2089,8 +2101,13 @@ body.light body::before { opacity: 0; }
       <!-- campo hidden para compatibilidade -->
       <input type="hidden" id="fc-url-input">
 
-      <!-- KPIs principais -->
+      <!-- KPIs principais — ordem: Caixa Inicial | Entradas | Saídas | Custo Fixo Proj | Saldo Atual | Saldo Projetado -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px" id="fc-kpis">
+        <div class="kpi" style="--cc:#34D399">
+          <div class="ico">🏦</div><div class="lbl">Caixa Inicial</div>
+          <div class="val" id="fc-kpi-inicial" style="font-size:18px">—</div>
+          <div class="sub">início do período</div>
+        </div>
         <div class="kpi" style="--cc:#6EE7B7">
           <div class="ico">⬆️</div><div class="lbl">Total Entradas</div>
           <div class="val" id="fc-kpi-entradas" style="font-size:18px">—</div>
@@ -2104,22 +2121,17 @@ body.light body::before { opacity: 0; }
         <div class="kpi" style="--cc:#FB923C">
           <div class="ico">📋</div><div class="lbl">Custo Fixo Projetado</div>
           <div class="val" id="fc-kpi-fixo-proj" style="font-size:18px">—</div>
-          <div class="sub">col B com status N</div>
+          <div class="sub">col B · status N</div>
         </div>
         <div class="kpi" style="--cc:#818CF8">
           <div class="ico">💰</div><div class="lbl">Saldo Atual</div>
           <div class="val" id="fc-kpi-saldo" style="font-size:20px">—</div>
-          <div class="sub">realizado (R+P)</div>
+          <div class="sub">caixa ini + R e P</div>
         </div>
         <div class="kpi" style="--cc:#F59E0B">
           <div class="ico">🔮</div><div class="lbl">Saldo Projetado</div>
           <div class="val" id="fc-kpi-projetado" style="font-size:20px">—</div>
           <div class="sub">inclui a vencer (N)</div>
-        </div>
-        <div class="kpi" style="--cc:#34D399">
-          <div class="ico">📦</div><div class="lbl">Caixa Inicial</div>
-          <div class="val" id="fc-kpi-inicial" style="font-size:18px">—</div>
-          <div class="sub">início do período</div>
         </div>
       </div>
 
@@ -2202,7 +2214,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v45'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v48'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2836,7 +2848,37 @@ function makeCharts(d){
   const gL=document.getElementById('ch-linha').getContext('2d');
   const gr=gL.createLinearGradient(0,0,0,280);
   gr.addColorStop(0,'rgba(110,231,183,0.22)');gr.addColorStop(1,'rgba(110,231,183,0)');
-  CH.linha=new Chart(gL,{type:'line',data:{labels:d.datas.map(fD),datasets:[{label:'GMV',data:d.vals,borderColor:'#6EE7B7',backgroundColor:gr,borderWidth:2.5,tension:0.4,fill:true,pointBackgroundColor:'#6EE7B7',pointRadius:window.innerWidth<768?3:5,pointHoverRadius:7}]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#94A3B8',font:{family:'JetBrains Mono',size:11},boxWidth:12}},tooltip:{backgroundColor:'#181B22',borderColor:'rgba(255,255,255,0.08)',borderWidth:1,titleColor:'#F1F5F9',bodyColor:'#64748B',padding:10,callbacks:{label:function(c){return ' GMV: '+fMF(c.raw);}}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11},callback:function(v){return fM(v);}}}}}});
+  // Calcular dados do período anterior para comparação
+  var datasAnt = [], valsAnt = [];
+  var from = document.getElementById('f-from').value;
+  var to   = document.getElementById('f-to').value;
+  if(from && to) {
+    var dtFrom = new Date(from+'T00:00'), dtTo = new Date(to+'T00:00');
+    var dias = Math.round((dtTo - dtFrom) / 86400000) + 1;
+    var antFrom = new Date(dtFrom); antFrom.setDate(antFrom.getDate() - dias);
+    var antTo   = new Date(dtFrom); antTo.setDate(antTo.getDate() - 1);
+    var antFromStr = antFrom.toISOString().slice(0,10);
+    var antToStr   = antTo.toISOString().slice(0,10);
+    // Filtrar rows do período anterior
+    var rowsAnt = _ROWS.filter(function(r){ return r[_colIdx.data]>=antFromStr && r[_colIdx.data]<=antToStr; });
+    var byDataAnt = {};
+    rowsAnt.forEach(function(r){
+      var dt = r[_colIdx.data]; var v = parseFloat(r[_colIdx.valor])||0;
+      byDataAnt[dt] = (byDataAnt[dt]||0) + v;
+    });
+    // Alinhar às mesmas posições de datas do período atual (offset)
+    datasAnt = d.datas.map(function(dt, i) {
+      var dtOffset = new Date(dt+'T00:00'); dtOffset.setDate(dtOffset.getDate() - dias);
+      return byDataAnt[dtOffset.toISOString().slice(0,10)] || 0;
+    });
+  }
+  const grAnt=gL.createLinearGradient(0,0,0,280);
+  grAnt.addColorStop(0,'rgba(244,63,94,0.1)');grAnt.addColorStop(1,'rgba(244,63,94,0)');
+
+  CH.linha=new Chart(gL,{type:'line',data:{labels:d.datas.map(fD),datasets:[
+    {label:'Período Atual',data:d.vals,borderColor:'#6EE7B7',backgroundColor:gr,borderWidth:2.5,tension:0.4,fill:true,pointBackgroundColor:'#6EE7B7',pointRadius:window.innerWidth<768?3:5,pointHoverRadius:7},
+    datasAnt.length>0 ? {label:'Período Anterior',data:datasAnt,borderColor:'#F43F5E',backgroundColor:grAnt,borderWidth:1.5,tension:0.4,fill:false,borderDash:[5,3],pointBackgroundColor:'#F43F5E',pointRadius:window.innerWidth<768?2:3,pointHoverRadius:5} : null
+  ].filter(Boolean)},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{labels:{color:'#94A3B8',font:{family:'JetBrains Mono',size:11},boxWidth:12}},tooltip:{backgroundColor:'#181B22',borderColor:'rgba(255,255,255,0.08)',borderWidth:1,titleColor:'#F1F5F9',bodyColor:'#64748B',padding:10,callbacks:{label:function(c){return ' GMV: '+fMF(c.raw);}}}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11},callback:function(v){return fM(v);}}}}}});
 
   // ── Barras canal/mês ─────────────────────────────────────────
   const canalKeys=Object.keys(d.cgm);
@@ -3468,6 +3510,8 @@ function calcMarketing() {
       options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' GMV: '+fMF(c.raw);}}}},scales:{x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10},callback:function(v){return fM(v);}}}}}
     });
   }
+  // Lista vertical GMV por canal com total
+  renderGMVCanalLista(d.canais);
 
   // ── Gráfico ROAS INDIVIDUAL por canal ────────────────────
   var el2 = document.getElementById('ch-mkt-roas');
@@ -4517,21 +4561,32 @@ function renderFluxoCaixa() {
   if(!dados.length) return;
 
   // ── KPIs ──────────────────────────────────────────────────
-  var entradas   = 0, saidas = 0, saldoReal = 0, saldoProj = 0, custoFixoProj = 0;
+  var entradas = 0, saidas = 0, custoFixoProj = 0;
+  var movReal = 0, movProj = 0;
+
+  // Caixa inicial = do primeiro lançamento do período filtrado
   var caixaInicial = dados[0] ? dados[0].caixaInicial : 0;
 
   dados.forEach(function(d) {
-    var mov = d.movimento + d.custoFixo;  // custoFixo é negativo
+    var mov = d.movimento + d.custoFixo;  // custoFixo já é negativo na planilha
+
+    // Totais brutos para os KPIs de entradas/saídas
     if(mov > 0) entradas += mov;
     else        saidas   += mov;
-    if(d.status === 'R' || d.status === 'P') saldoReal += mov;
-    saldoProj += mov;
-    // Custo Fixo Projetado: col B (custoFixo) com status N
+
+    // Saldo ATUAL: apenas lançamentos já realizados (R = recebido, P = pago)
+    if(d.status === 'R' || d.status === 'P') movReal += mov;
+
+    // Saldo PROJETADO: todos os lançamentos incluindo a vencer (N)
+    movProj += mov;
+
+    // Custo Fixo Projetado: col B com status N (compromissos fixos futuros)
     if(d.status === 'N' && d.custoFixo !== 0) custoFixoProj += Math.abs(d.custoFixo);
   });
 
-  saldoReal += caixaInicial;
-  saldoProj += caixaInicial;
+  // Saldo = Caixa Inicial ± movimentos do período
+  var saldoReal = caixaInicial + movReal;
+  var saldoProj = caixaInicial + movProj;
 
   var saldoColor = saldoReal >= 0 ? 'var(--green)' : 'var(--red)';
   var projColor  = saldoProj >= 0 ? 'var(--amber)' : 'var(--red)';
@@ -4747,6 +4802,41 @@ function renderFluxoCaixaPage() {
   if(saved) loadFluxoCaixa();
 }
 
+/* ─ Lista vertical GMV por canal com total ─ */
+function renderGMVCanalLista(canais) {
+  var el = document.getElementById('gmv-canal-lista');
+  if(!el || !canais || !canais.length) return;
+
+  var total = canais.reduce(function(s, c){ return s + c[1]; }, 0);
+  var maxVal = canais[0][1] || 1;
+
+  el.innerHTML = canais.map(function(c) {
+    var cor = CCORES[c[0]] || '#64748B';
+    var pct = total > 0 ? (c[1]/total*100).toFixed(1) : '0.0';
+    var barW = (c[1]/maxVal*100).toFixed(1);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.04)">'+
+      '<div style="width:3px;height:30px;border-radius:2px;background:'+cor+';flex-shrink:0"></div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">'+
+          '<span style="font-family:var(--fmono);font-size:10px;color:'+cor+';font-weight:600">'+c[0]+'</span>'+
+          '<span style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:var(--text)">'+fMF(c[1])+'</span>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:6px">'+
+          '<div style="flex:1;height:3px;background:var(--s3);border-radius:2px">'+
+            '<div style="width:'+barW+'%;height:3px;background:'+cor+';border-radius:2px;transition:width .4s"></div>'+
+          '</div>'+
+          '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted);min-width:32px;text-align:right">'+pct+'%</span>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('') +
+  // Linha de total
+  '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px 2px;margin-top:2px">'+
+    '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Total Geral</span>'+
+    '<span style="font-family:var(--fdisplay);font-size:14px;font-weight:800;color:var(--accent)">'+fMF(total)+'</span>'+
+  '</div>';
+}
+
 function toggleSidebar() {
   var sb = document.getElementById('sidebar');
   sb.classList.toggle('open');
@@ -4920,7 +5010,9 @@ function renderEstoqueTabela() {
     var stColor = isZero ? 'var(--red)' : isLow ? 'var(--amber)' : 'var(--green)';
     var stLabel = isZero ? '🔴 Zerado' : isLow ? '⚠️ Baixo' : '✅ OK';
     var diffColor = item.diferenca < 0 ? 'var(--red)' : item.diferenca > 0 ? 'var(--amber)' : 'var(--muted)';
-    var buscaUrl = 'https://www.usefanclub.com.br/busca?q=' + encodeURIComponent(item.sku || item.nome);
+    // Usar SKU pai (sem variação de tamanho) para link do estoque
+    var skuPaiEstoque = (item.sku || '').replace(/-\d{2,3}$/, '') || item.nome;
+    var buscaUrl = 'https://www.usefanclub.com.br/busca?q=' + encodeURIComponent(skuPaiEstoque);
     return '<tr>'+
       '<td><a href="'+buscaUrl+'" target="_blank" rel="noopener" style="text-decoration:none"><span style="font-family:var(--fmono);font-size:11px;color:var(--accent);transition:opacity .15s" onmouseover="this.style.opacity=\'.7\'" onmouseout="this.style.opacity=\'1\'">'+item.sku+'</span></a></td>'+
       '<td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+item.nome+'"><a href="'+buscaUrl+'" target="_blank" rel="noopener" style="text-decoration:none;color:inherit" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'inherit\'">'+item.nome+'</a></td>'+
@@ -5186,6 +5278,9 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   // Fechar config após sucesso
   try{ document.getElementById('produtosv-config').style.display='none'; }catch(e){}
 
+  // Popular seletor de meses com as abas carregadas
+  _popularSeletorMesProd();
+
   // Atualizar indicadores se estoque page estiver ativa
   var ep = document.getElementById('page-estoque');
   if(ep && ep.classList.contains('active')) renderEstoqueIndicadores();
@@ -5262,6 +5357,20 @@ function recarregarProdutosVendidos() {
   }
 }
 
+/* ─ Popular seletor de mês dos produtos ─ */
+function _popularSeletorMesProd() {
+  var sel = document.getElementById('prod-mes-sel');
+  if(!sel) return;
+  // Coletar todos os meses disponíveis no produtosVendidosMap
+  var mesesSet = new Set();
+  Object.values(produtosVendidosMap).forEach(function(p) {
+    if(p.por_mes) Object.keys(p.por_mes).forEach(function(m){ mesesSet.add(m); });
+  });
+  var meses = Array.from(mesesSet).sort();
+  sel.innerHTML = '<option value="todos">Todos os meses</option>' +
+    meses.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
+}
+
 /* ─ Aplicar filtro de categoria — atualiza tudo ─ */
 function aplicarFiltroEstoque() {
   var catFilter = (document.getElementById('estoque-cat-filter')||{}).value || '';
@@ -5280,11 +5389,25 @@ function renderEstoqueIndicadores() {
   var tamEl = document.getElementById('r-tam-estoque');
 
   // ── Fonte de dados: usar produtosVendidosMap (nova planilha) se disponível ────
+  var mesSel = (document.getElementById('prod-mes-sel')||{}).value || 'todos';
   var usandoNovaPlanilha = Object.keys(produtosVendidosMap).length > 0;
   var fonteMap = null;
 
   if(usandoNovaPlanilha) {
-    fonteMap = produtosVendidosMap;
+    // Filtrar por mês selecionado se necessário
+    if(mesSel !== 'todos') {
+      var mapFiltrado = {};
+      Object.keys(produtosVendidosMap).forEach(function(sku) {
+        var p = produtosVendidosMap[sku];
+        var qtdMes = (p.por_mes && p.por_mes[mesSel]) || 0;
+        if(qtdMes > 0) {
+          mapFiltrado[sku] = Object.assign({}, p, {qtd: qtdMes});
+        }
+      });
+      fonteMap = mapFiltrado;
+    } else {
+      fonteMap = produtosVendidosMap;
+    }
   } else {
     // Verificar se produtosMap tem dados válidos de produtos (não clientes)
     var CLIENTE_PATTERNS = /\b(entregue|transporte|aprovado|cancelado|fiscal|integrado|emitida)\b/i;
@@ -5423,13 +5546,14 @@ function renderEstoqueIndicadores() {
     return '<div class="ritem">'+
       '<div class="rpos '+(MEDALS[i]||'')+'">'+(i+1)+'<\/div>'+
       '<div class="rlbl">'+t[0]+'<\/div>'+
-      '<div class="rbw" style="flex:1;min-width:0;max-width:55%"><div class="rbbg"><div class="rbfill" style="width:'+(t[1]/maxT*100).toFixed(1)+'%"><\/div><\/div><\/div>'+
-      '<div class="rcnt" style="min-width:55px;text-align:right;flex-shrink:0;font-family:var(--fmono);font-size:12px;font-weight:600">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
+      '<div style="flex:1;min-width:0;max-width:50%"><div class="rbbg"><div class="rbfill" style="width:'+(t[1]/maxT*100).toFixed(1)+'%"><\/div><\/div><\/div>'+
+      '<div style="min-width:55px;text-align:right;flex-shrink:0;font-family:var(--fmono);font-size:12px;font-weight:600;padding-left:6px">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
     '<\/div>';
   }).join('');
 }
 
 function renderEstoque() {
+  _popularSeletorMesProd();
   if(estoqueData.length > 0){ renderEstoqueKPIs(); renderEstoqueTabela(); }
   var savedUrl = localStorage.getItem(ESTOQUE_URL_KEY);
   if(savedUrl) try{document.getElementById('estoque-url').value=savedUrl;}catch(e){}
@@ -6125,7 +6249,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v45');
+    localStorage.removeItem('fc_rows_cache_v48');
     setTimeout(refresh, 200);
   }
 }
@@ -6169,7 +6293,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v45');
+  localStorage.removeItem('fc_rows_cache_v48');
   veltroAplicarLinks(id, links);
 }
 
