@@ -2234,7 +2234,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v69';
+const CACHE_LS_KEY = 'fc_rows_cache_v70';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -5607,8 +5607,8 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           // SKU fallback: usar nome se SKU vazio
           if(!sku) sku = nome.substring(0,20);
 
-          var skuBase  = sku.replace(/-\d{2,3}$/, '');
-          var nomeBase = nome.replace(/\s*[-–]\s*\d{2,3}\s*$/, '').replace(/\s+\d{2,3}\s*$/, '').trim() || nome;
+          var skuBase  = sku.replace(/-\d{2,4}$/, '');
+          var nomeBase = nome.replace(/\s*[-–]\s*\d{2,4}\s*$/, '').replace(/\s+\d{2,4}\s*$/, '').trim() || nome;
           if(!skuBase) skuBase = nomeBase.substring(0,20);
 
           if(!novoMap[skuBase]) novoMap[skuBase] = {nome: nomeBase, sku: skuBase, cod: skuBase, gmv:0, qtd: 0, tamanhos: {}, por_mes: {}};
@@ -5663,7 +5663,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
               if(!r||r.length<2) return;
               var sku=String(r[colSku]||'').trim(), nome=String(r[colNome]||'').trim(), qtd=parseFloat(r[colQtd])||0;
               if(!sku||!nome||qtd<=0||qtd>1000000) return;
-              var skuBase=sku.replace(/-\d{2,3}$/,'');
+              var skuBase=sku.replace(/-\d{2,4}$/,'');
               if(!novoMap[skuBase]) novoMap[skuBase]={nome:nome,sku:skuBase,cod:skuBase,gmv:0,qtd:0,tamanhos:{},por_mes:{}};
               novoMap[skuBase].qtd+=qtd;
               var tamM=sku.match(/-(\d{2,3})$/)||nome.match(/[-\s](\d{2,3})\s*$/);
@@ -6763,7 +6763,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v69');
+    localStorage.removeItem('fc_rows_cache_v70');
     setTimeout(refresh, 200);
   }
 }
@@ -6807,7 +6807,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v69');
+  localStorage.removeItem('fc_rows_cache_v70');
   veltroAplicarLinks(id, links);
 }
 
