@@ -2232,7 +2232,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v57'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v60'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2407,15 +2407,27 @@ function normCanal(raw) {
   // Rejeita números puros e paths de imagem
   if(!isNaN(parseFloat(s)) && isFinite(s)) return 'Loja Própria';
   if(sl.includes('img/') || sl.includes('.png') || sl.includes('.jpg')) return 'Loja Própria';
-  // Padrão real da planilha: "63 - Shopee", "41 - Mercado Livre", etc.
-  if(sl.includes('shopee'))        return 'Shopee';
-  if(sl.includes('mercado livre')) return 'Mercado Livre';
-  if(sl.includes('mercado'))       return 'Mercado Livre';
-  if(sl.includes('shein'))         return 'Shein';
-  if(sl.includes('tiktok') || sl.includes('tik tok')) return 'TikTok Shop';
-  if(sl.includes('dafiti'))        return 'Dafiti';
-  if(sl.includes('netshoes'))      return 'Netshoes';
-  if(sl.includes('fanclub') || sl.includes('loja própria') || sl.includes('loja propria') || sl.includes('site')) return 'Loja Própria';
+  // Padrão real da planilha: "63 - Shopee", "41 - Mercado Livre", "SHOPEE", etc.
+  if(sl.includes('shopee'))                                    return 'Shopee';
+  if(sl.includes('mercado livre') || sl.includes('meli') || sl.includes('ml ') || sl === 'ml') return 'Mercado Livre';
+  if(sl.includes('mercado'))                                   return 'Mercado Livre';
+  if(sl.includes('shein'))                                     return 'Shein';
+  if(sl.includes('tiktok') || sl.includes('tik tok') || sl.includes('tik-tok')) return 'TikTok Shop';
+  if(sl.includes('dafiti'))                                    return 'Dafiti';
+  if(sl.includes('netshoes'))                                  return 'Netshoes';
+  if(sl.includes('amazon'))                                    return 'Amazon';
+  if(sl.includes('magalu') || sl.includes('magazine luiza'))  return 'Magalu';
+  if(sl.includes('americanas') || sl.includes('americanas.com')) return 'Americanas';
+  if(sl.includes('b2w') || sl.includes('submarino'))          return 'B2W';
+  // Loja própria e variações
+  if(sl.includes('fanclub') || sl.includes('loja própria') ||
+     sl.includes('loja propria') || sl.includes('site') ||
+     sl.includes('loja pr') || sl.includes('ecommerce') ||
+     sl.includes('e-commerce') || sl.includes('vtex') ||
+     sl.includes('nuvemshop') || sl.includes('magazord') ||
+     sl.includes('woocommerce') || sl.includes('shopify')) return 'Loja Própria';
+  // Se nada identificou — logar para diagnóstico e retornar o valor original
+  console.warn('[Veltro] Canal não identificado:', JSON.stringify(s), '— usando como Loja Própria');
   return 'Loja Própria';
 }
 
@@ -3295,12 +3307,123 @@ async function loadGS(url){
   const res=await fetch(url+'&nocache='+Date.now());
   const txt=await res.text();
   const rows=parseGS(txt);
-  // Pular linha de cabeçalho se col 4 não for número
-  const data=rows[0]&&isNaN(parseFloat(rows[0][4]))?rows.slice(1):rows;
-  // Manter apenas linhas com pedidoId (col4) e valor (col30)
+  // Detectar cabeçalho e mapear colunas automaticamente
+  var header = null;
+  var dataStart = 0;
+  if(rows[0] && isNaN(parseFloat(rows[0][4]))) {
+    header = rows[0];
+    dataStart = 1;
+  }
+  // DETECÇÃO DE CANAL — 3 estratégias em cascata
+  
+  // Log do cabeçalho completo para diagnóstico
+  if(header) {
+    console.log('[Veltro] Cabeçalho completo ('+header.length+' colunas):');
+    header.forEach(function(h,i){ if(h) console.log('  col'+i+':', String(h)); });
+  }
+
+  // Estratégia A: buscar no cabeçalho palavras relacionadas a canal/marketplace
+  var canalPorHeader = -1;
+  if(header) {
+    var KW_HEADER_CANAL = ['canal','marketplace','plataforma','origem','loja','source','ecommerce','e-commerce','integração'];
+    header.forEach(function(h, ci) {
+      if(canalPorHeader >= 0) return;
+      var hl = String(h||'').toLowerCase().trim();
+      KW_HEADER_CANAL.forEach(function(kw){ if(hl.includes(kw)) canalPorHeader = ci; });
+    });
+    if(canalPorHeader >= 0) console.log('[Veltro] Canal encontrado no cabeçalho: col'+canalPorHeader+' = "'+header[canalPorHeader]+'"');
+  }
+
+  // Estratégia B: varrer dados procurando valores de marketplace conhecidos
+  var KW_CANAIS_DETECT = ['shopee','mercado livre','mercado','shein','tiktok','tik tok','dafiti','netshoes','amazon','magalu','magazine','americanas','submarino'];
+  var canalColScore = {};
+  var amostra = rows.slice(dataStart, Math.min(dataStart+50, rows.length));
+  amostra.forEach(function(r) {
+    if(!r) return;
+    r.forEach(function(cell, ci) {
+      if(!cell) return;
+      var sl = String(cell).toLowerCase();
+      KW_CANAIS_DETECT.forEach(function(kw) {
+        if(sl.includes(kw)) canalColScore[ci] = (canalColScore[ci]||0) + 1;
+      });
+    });
+  });
+  var scoreEntries = Object.entries(canalColScore).sort(function(a,b){return b[1]-a[1];});
+  var melhorCanalCol = scoreEntries[0];
+  if(melhorCanalCol) console.log('[Veltro] Top colunas com nomes de canal:', scoreEntries.slice(0,3).map(function(e){return 'col'+e[0]+'('+e[1]+'x)';}).join(', '));
+
+  // Estratégia C: log de TODAS as colunas com valores únicos para ajudar diagnóstico manual
+  if(!melhorCanalCol && !canalPorHeader >= 0) {
+    console.warn('[Veltro] Não detectou canal automaticamente. Diagnóstico:');
+    if(amostra[0]) {
+      console.log('[Veltro] Linha 1 completa ('+amostra[0].length+' colunas):');
+      amostra[0].forEach(function(v,i){ console.log('  col'+i+':', JSON.stringify(v)); });
+    }
+  }
+
+  // Aplicar o melhor resultado encontrado
+  var novaCanalCol = canalPorHeader >= 0 ? canalPorHeader
+                   : (melhorCanalCol ? parseInt(melhorCanalCol[0]) : -1);
+  
+  if(novaCanalCol >= 0 && novaCanalCol !== _colIdx.canal) {
+    console.log('[Veltro] ✅ Coluna de canal atualizada: '+_colIdx.canal+' → '+novaCanalCol);
+    _colIdx.canal = novaCanalCol;
+    // Salvar para próxima sessão
+    try { localStorage.setItem('veltro_canal_col', novaCanalCol); } catch(e){}
+  } else if(novaCanalCol < 0) {
+    // Tentar recuperar da sessão anterior
+    var savedCol = parseInt(localStorage.getItem('veltro_canal_col')||'-1');
+    if(savedCol >= 0 && savedCol !== _colIdx.canal) {
+      console.log('[Veltro] Usando coluna de canal salva: col'+savedCol);
+      _colIdx.canal = savedCol;
+    } else {
+      console.warn('[Veltro] ⚠️ Canal não detectado automaticamente. Use: _setCanal(N) para definir manualmente.');
+    }
+  }
+  // Se encontrou cabeçalho, detectar índices reais das colunas
+  if(header) {
+    var novoIdx = {};
+    header.forEach(function(h, ci) {
+      if(!h) return;
+      var s = String(h).toLowerCase().trim();
+      // Canal de venda
+      if(s.includes('canal') || s.includes('marketplace') || s.includes('plataforma')) novoIdx.canal = ci;
+      // Status do pedido
+      else if(s === 'status' || s === 'situação' || (s.includes('status') && !s.includes('pagto') && !s.includes('pag'))) novoIdx.status = ci;
+      // Data do pedido
+      else if(s === 'data' || s === 'data pedido' || s === 'data da venda' || s === 'criado em') novoIdx.data = ci;
+      // Valor total
+      else if(s === 'total' || s === 'valor total' || s === 'gmv' || s === 'valor' || s.includes('total do pedido')) novoIdx.valor = ci;
+      // Frete
+      else if(s === 'frete' || s === 'frete cobrado' || s.includes('frete')) novoIdx.frete = ci;
+      // ID do pedido
+      else if(s === 'pedido' || s === 'nº pedido' || s === 'numero pedido' || s === 'id pedido' || s.includes('pedido')) novoIdx.pedido = ci;
+      // Cliente
+      else if(s === 'cliente' || s === 'nome' || s === 'comprador' || s.includes('cliente')) novoIdx.cliente = ci;
+      // Pagamento
+      else if(s.includes('pagamento') || s.includes('forma de pag') || s === 'pagto') novoIdx.pag = ci;
+    });
+    // Atualizar _colIdx apenas para os campos encontrados
+    var updated = [];
+    if(novoIdx.canal   !== undefined && novoIdx.canal   !== _colIdx.canal)   { _colIdx.canal   = novoIdx.canal;   updated.push('canal='+novoIdx.canal); }
+    if(novoIdx.status  !== undefined && novoIdx.status  !== _colIdx.status)  { _colIdx.status  = novoIdx.status;  updated.push('status='+novoIdx.status); }
+    if(novoIdx.data    !== undefined && novoIdx.data    !== _colIdx.data)    { _colIdx.data    = novoIdx.data;    updated.push('data='+novoIdx.data); }
+    if(novoIdx.valor   !== undefined && novoIdx.valor   !== _colIdx.valor)   { _colIdx.valor   = novoIdx.valor;   updated.push('valor='+novoIdx.valor); }
+    if(novoIdx.frete   !== undefined && novoIdx.frete   !== _colIdx.frete)   { _colIdx.frete   = novoIdx.frete;   updated.push('frete='+novoIdx.frete); }
+    if(novoIdx.pedido  !== undefined && novoIdx.pedido  !== _colIdx.pedido)  { _colIdx.pedido  = novoIdx.pedido;  updated.push('pedido='+novoIdx.pedido); }
+    if(novoIdx.cliente !== undefined && novoIdx.cliente !== _colIdx.cliente) { _colIdx.cliente = novoIdx.cliente; updated.push('cliente='+novoIdx.cliente); }
+    if(novoIdx.pag     !== undefined && novoIdx.pag     !== _colIdx.pag)     { _colIdx.pag     = novoIdx.pag;     updated.push('pag='+novoIdx.pag); }
+    if(updated.length > 0) console.log('[Veltro] Colunas auto-detectadas pelo cabeçalho:', updated.join(', '));
+    else console.log('[Veltro] Colunas: usando índices padrão (cabeçalho não mapeou novos campos)');
+    console.log('[Veltro] _colIdx atual:', JSON.stringify(_colIdx));
+    // Log do cabeçalho para diagnóstico
+    console.log('[Veltro] Cabeçalho detectado:', header.map(function(h,i){ return i+':'+h; }).filter(Boolean).join(' | '));
+  }
+  const data = rows.slice(dataStart);
+  // Filtrar linhas com pedidoId e valor > 0
   return data.filter(function(r){
-    if(!r||r.length<20) return false;
-    return r[4] && parseFloat(r[30]) > 0;
+    if(!r||r.length<10) return false;
+    return r[_colIdx.pedido] && parseFloat(r[_colIdx.valor]) > 0;
   });
 }
 
@@ -5032,6 +5155,15 @@ function renderGMVCanalLista(canais) {
   '</div>';
 }
 
+// Função para definir manualmente a coluna de canal (use no console: _setCanal(3))
+window._setCanal = function(col) {
+  _colIdx.canal = parseInt(col);
+  localStorage.setItem('veltro_canal_col', col);
+  _pedidosCache = null; // limpar cache
+  refresh();
+  console.log('[Veltro] Coluna de canal definida para col'+col+'. Recarregando...');
+};
+
 function toggleSidebar() {
   var sb = document.getElementById('sidebar');
   var ov = document.getElementById('sidebar-overlay');
@@ -6557,7 +6689,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v57');
+    localStorage.removeItem('fc_rows_cache_v60');
     setTimeout(refresh, 200);
   }
 }
@@ -6601,7 +6733,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v57');
+  localStorage.removeItem('fc_rows_cache_v60');
   veltroAplicarLinks(id, links);
 }
 
