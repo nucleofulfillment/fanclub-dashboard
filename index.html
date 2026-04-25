@@ -2240,7 +2240,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v80';
+const CACHE_LS_KEY = 'fc_rows_cache_v81';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -2981,6 +2981,44 @@ function renderAll(d){
   makeCharts(d);
   syncFinanceiroKPIs(d);
   window._lastProcessedData = d; // cache para atualizarResultado()
+
+  // ── Validação de sanidade (não altera dados, apenas alerta) ──
+  _validarDados(d);
+}
+
+function _validarDados(d) {
+  if(!d) return;
+  var alertas = [];
+
+  // 1. Verificar se canal está sendo detectado corretamente
+  if(d.canais && d.canais.length > 0) {
+    var totalPed = d.canais.reduce(function(s,c){ return s + (c[1]||0); }, 0);
+    var lojaPropria = d.canais.find(function(c){ return c[0]==='Loja Própria'; });
+    var pctLoja = lojaPropria && totalPed > 0 ? (lojaPropria[1]/totalPed*100) : 0;
+    if(pctLoja > 95 && d.canais.length === 1) {
+      alertas.push('⚠️ Canal: 100% Loja Própria — verifique a coluna de canal (use _setCanal(N) no console)');
+    }
+  }
+
+  // 2. Verificar se GMV > 0
+  if(d.total === 0 && d.qtd > 0) {
+    alertas.push('⚠️ GMV zerado com ' + d.qtd + ' pedidos — verifique a coluna de valor');
+  }
+
+  // 3. Verificar se datas foram lidas
+  if(d.datas && d.datas.length === 0 && d.qtd > 0) {
+    alertas.push('⚠️ Sem datas válidas — verifique a coluna de data');
+  }
+
+  // Exibir alertas no status bar
+  if(alertas.length > 0) {
+    alertas.forEach(function(a){ console.warn('[Veltro Validação]', a); });
+    var lbl = document.getElementById('sync-lbl');
+    if(lbl) {
+      lbl.textContent = alertas[0];
+      lbl.style.color = 'var(--red)';
+    }
+  }
 }
 
 function makeCharts(d){
@@ -7011,7 +7049,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v80');
+    localStorage.removeItem('fc_rows_cache_v81');
     setTimeout(refresh, 200);
   }
 }
@@ -7055,7 +7093,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v80');
+  localStorage.removeItem('fc_rows_cache_v81');
   veltroAplicarLinks(id, links);
 }
 
