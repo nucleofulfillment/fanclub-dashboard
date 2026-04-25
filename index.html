@@ -4239,20 +4239,33 @@ async function salvarResumo() {
           var total = 0, semPorMes = 0;
           Object.values(produtosVendidosMap).forEach(function(p) {
             if(!p) return;
-            // Sem filtro de período: usa qtd total
-            if(!mesesPeriodo) { total += (p.qtd || 0); return; }
-            // Com filtro: soma só os meses dentro do período via por_mes
+            // DEDUPLICAÇÃO universal: a planilha pode ter múltiplas abas pro mesmo mês
+            // ('abril', 'abril-26', 'Abril 2026') gerando entradas duplicadas em por_mes.
+            // Agrupamos por sigla (3 letras do mês, sem ano) e pegamos o MAIOR valor
+            // entre as variações — assume que abas duplicadas têm dados idênticos.
+            var porMesNorm = {};  // 'abr' → maior qtd vista nesse mês
             if(p.por_mes && Object.keys(p.por_mes).length > 0) {
               Object.keys(p.por_mes).forEach(function(mesKey) {
-                // Match exato com ano OU mesKey sem ano (planilha com aba só "abril")
-                var matchComAno    = mesesPeriodo.has(mesKey);
-                var mesKeySemAno   = mesKey.replace(/\d+$/, '');  // 'abr26' → 'abr'
-                var matchSemAno    = mesesPeriodoSemAno.has(mesKeySemAno);
-                if(matchComAno || matchSemAno) total += (p.por_mes[mesKey] || 0);
+                var sigla = mesKey.replace(/\d+$/, '');  // 'abr26' → 'abr'
+                var v = p.por_mes[mesKey] || 0;
+                if(porMesNorm[sigla] === undefined || v > porMesNorm[sigla]) {
+                  porMesNorm[sigla] = v;
+                }
               });
             } else {
               semPorMes++;
             }
+            // Sem filtro: soma todos os meses normalizados (deduplicado)
+            if(!mesesPeriodo) {
+              Object.values(porMesNorm).forEach(function(v){ total += v; });
+              return;
+            }
+            // Com filtro: soma só os meses dentro do período (compara pela sigla)
+            Object.keys(porMesNorm).forEach(function(sigla) {
+              if(mesesPeriodoSemAno && mesesPeriodoSemAno.has(sigla)) {
+                total += porMesNorm[sigla];
+              }
+            });
           });
           if(semPorMes > 0) {
             console.warn('[Roizen] '+semPorMes+' produto(s) sem por_mes — não puderam ser filtrados por período');
