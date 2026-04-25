@@ -2234,7 +2234,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v64'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v65'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2456,23 +2456,24 @@ function normPag(raw) {
    MAPEAMENTO DE LINHA RAW → OBJETO PEDIDO
 ═══════════════════════════════════════════════════════════════ */
 function mapRow(r) {
-  if (!r || r.length < 20) return null;
-  // Índices confirmados via console: col AE(30)=valor, AC(28)=frete, col6=data, col19=canal
-  var data = parseGSDate(r[6]);
+  if (!r || r.length < 10) return null;
+  // Usar _colIdx para todos os campos — suporta planilhas com estrutura variável
+  var ci = _colIdx;
+  var data = parseGSDate(r[ci.data]);
   if (!data || data.length < 10) return null;
-  var valor = parseFloat(r[30]) || 0;
+  var valor = parseFloat(r[ci.valor]) || 0;
   if (valor <= 0) return null;
   return {
     data:    data,
-    id:      String(r[4]||'').replace('.0',''),
-    cliente: String(r[10]||''),
+    id:      String(r[ci.pedido]||'').replace('.0',''),
+    cliente: String(r[ci.cliente]||''),
     produto: 'Produto',
     tamanho: 'N/D',
-    pag:     normPag(r[18]),
-    canal:   normCanal(r[19]),
-    status:  normStatus(r[14]),
+    pag:     normPag(r[ci.pag]),
+    canal:   normCanal(r[ci.canal]),
+    status:  normStatus(r[ci.status]),
     valor:   valor,
-    frete:   parseFloat(r[28]) || 0,
+    frete:   parseFloat(r[ci.frete]) || 0,
   };
 }
 
@@ -2633,12 +2634,15 @@ function getPedidos() {
     return _pedidosCache;
   }
 
-  // Mapear com índices fixos confirmados
+  // Mapear com _colIdx (atualizado pela detecção automática de colunas)
+  console.log('[Veltro] Mapeando pedidos com _colIdx.canal='+_colIdx.canal+' _colIdx.valor='+_colIdx.valor);
   var mapped = [];
   for (var i=0; i<allRows.length; i++) {
     var obj = mapRow(allRows[i]);
     if (obj) mapped.push(obj);
   }
+  // Log dos primeiros 3 para diagnóstico
+  console.log('[Veltro] Primeiros 3 pedidos mapeados:', mapped.slice(0,3).map(function(p){ return p.canal+'/'+p.valor; }));
   _pedidosCache = mapped;
   _pedidosCacheKey = key;
   saveToLS(key, mapped);
@@ -3370,6 +3374,10 @@ async function loadGS(url){
   if(novaCanalCol >= 0 && novaCanalCol !== _colIdx.canal) {
     console.log('[Veltro] ✅ Coluna de canal atualizada: '+_colIdx.canal+' → '+novaCanalCol);
     _colIdx.canal = novaCanalCol;
+    // CRÍTICO: invalidar cache de pedidos — mapRow usa _colIdx.canal
+    _pedidosCache = null;
+    _pedidosCacheKey = '';
+    localStorage.removeItem(CACHE_LS_KEY);
     // Salvar para próxima sessão
     try { localStorage.setItem('veltro_canal_col', novaCanalCol); } catch(e){}
   } else if(novaCanalCol < 0) {
@@ -6740,7 +6748,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v64');
+    localStorage.removeItem('fc_rows_cache_v65');
     setTimeout(refresh, 200);
   }
 }
@@ -6784,7 +6792,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v64');
+  localStorage.removeItem('fc_rows_cache_v65');
   veltroAplicarLinks(id, links);
 }
 
