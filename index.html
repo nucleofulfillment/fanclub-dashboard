@@ -851,6 +851,21 @@ body.light body::before { opacity: 0; }
       </div>
     </div>
 
+    <!-- SELETOR DE PLATAFORMA -->
+    <div class="card" style="padding:18px;margin-bottom:16px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);
+           text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">
+        🏪 Plataforma / ERP
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:12px">
+        Selecione a plataforma de onde os relatórios são exportados
+      </div>
+      <div id="plataforma-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
+      </div>
+      <div id="plataforma-hint" style="margin-top:10px;font-family:'JetBrains Mono',monospace;
+           font-size:10px;color:var(--muted);display:none"></div>
+    </div>
+
     <!-- Links de planilhas -->
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
 
@@ -939,6 +954,15 @@ body.light body::before { opacity: 0; }
     <div class="live-badge"><span class="live-dot"></span><span id="sync-lbl">AO VIVO</span></div>
     <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" title="Alternar tema">🌙</button>
     <button class="btn-cfg" onclick="openDrawer()">⚙ Planilha</button>
+    <div id="plat-badge" onclick="veltroMostrarOnboarding(veltroGetEmpresaAtualObj())"
+      title="Plataforma ativa — clique para alterar"
+      style="display:inline-flex;align-items:center;gap:4px;background:var(--s2);
+             border:1px solid var(--border2);border-radius:8px;padding:5px 10px;
+             font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);
+             cursor:pointer;transition:all .2s">
+      <span id="plat-badge-emoji">🏪</span>
+      <span id="plat-badge-nome">Magazord</span>
+    </div>
     <button class="btn-cfg" id="btn-clear-cache" onclick="limparCacheTotal()" 
       title="Limpar cache e recarregar dados das planilhas"
       style="background:transparent;border:1px solid var(--border2);color:var(--muted);font-size:11px;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--fmono);transition:all .2s">
@@ -2257,7 +2281,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v82';
+const CACHE_LS_KEY = 'fc_rows_cache_v83';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -6895,6 +6919,22 @@ function veltroSaveUsuarios(lista) {
 function veltroGetEmpresaAtual() {
   return localStorage.getItem(VELTRO_SESSAO_KEY) || null;
 }
+function veltroGetEmpresaAtualObj() {
+  var id = veltroGetEmpresaAtual();
+  if(!id) return null;
+  var users = veltroGetUsuarios();
+  return users.find(function(u){ return u.id === id; }) || {id:id, nome:id};
+}
+function plataformaAtualizarBadge() {
+  var id = plataformaGet();
+  var plat = PLATAFORMAS.find(function(p){ return p.id === id; }) || PLATAFORMAS[0];
+  try {
+    document.getElementById('plat-badge-emoji').textContent = plat.emoji;
+    document.getElementById('plat-badge-nome').textContent  = plat.nome;
+    document.getElementById('plat-badge').style.borderColor =
+      plat.status === 'ativo' ? plat.cor.replace(')', ',.4)').replace('rgb','rgba') : 'var(--border2)';
+  } catch(e) {}
+}
 function veltroGetLinks(id) {
   try { return JSON.parse(localStorage.getItem('veltro_links_'+id)||'{}'); } catch(e) { return {}; }
 }
@@ -6954,6 +6994,8 @@ function veltroLogin() {
 }
 
 function veltroEntrarDashboard(empresa) {
+  // Inicializar plataforma ativa
+  try { plataformaInit(); } catch(e) {}
   // Ocultar telas de acesso
   try{ document.getElementById('veltro-login').style.display = 'none'; }catch(e){}
   try{ document.getElementById('veltro-onboarding').style.display = 'none'; }catch(e){}
@@ -6988,6 +7030,8 @@ function veltroEntrarDashboard(empresa) {
 }
 
 function veltroMostrarOnboarding(empresa) {
+  // Renderizar seletor de plataforma
+  try { setTimeout(plataformaRenderGrid, 50); } catch(e) {}
   var onb = document.getElementById('veltro-onboarding');
   if(onb) onb.style.display = 'block';
   try{ document.getElementById('onb-nome-empresa').textContent = empresa.nome || empresa.id; }catch(e){}
@@ -6997,6 +7041,170 @@ function veltroMostrarOnboarding(empresa) {
   try{ document.getElementById('onb-url-estoque').value   = links.estoque||'';   }catch(e){}
   try{ document.getElementById('onb-url-estados').value   = links.estados||'';   }catch(e){}
   try{ document.getElementById('onb-url-produtos').value  = links.produtos||'';  }catch(e){}
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PLATAFORMAS — Definição e seleção
+   Cada plataforma define seu adaptador de colunas.
+   O Magazord é o adaptador atual (100% compatível com código existente).
+   Novas plataformas adicionam seus próprios mapeamentos aqui.
+═══════════════════════════════════════════════════════════════ */
+
+var PLATAFORMAS = [
+  {
+    id: 'magazord',
+    nome: 'Magazord',
+    emoji: '🏪',
+    cor: '#6EE7B7',
+    status: 'ativo',
+    hint: 'Relatório padrão Magazord — configuração atual do sistema',
+    // Mapeamento de colunas (formato Magazord — igual ao _colIdx atual)
+    colunas: {
+      pedido:  4,   // col E — número do pedido
+      data:    6,   // col G — data do pedido
+      cliente: 10,  // col K — nome do cliente
+      status:  14,  // col O — status do pedido
+      canal:   17,  // col R — canal de venda (detectado automaticamente)
+      pag:     18,  // col S — forma de pagamento
+      frete:   28,  // col AC — valor do frete
+      valor:   30   // col AE — valor total
+    }
+  },
+  {
+    id: 'nuvemshop',
+    nome: 'Nuvem Shop',
+    emoji: '☁️',
+    cor: '#818CF8',
+    status: 'em_breve',
+    hint: 'Em configuração — envie o relatório exportado para habilitar'
+  },
+  {
+    id: 'lojaintegrada',
+    nome: 'Loja Integrada',
+    emoji: '🔗',
+    cor: '#F59E0B',
+    status: 'em_breve',
+    hint: 'Em configuração — envie o relatório exportado para habilitar'
+  },
+  {
+    id: 'tiny',
+    nome: 'Tiny ERP',
+    emoji: '📦',
+    cor: '#34D399',
+    status: 'em_breve',
+    hint: 'Em configuração — envie o relatório exportado para habilitar'
+  },
+  {
+    id: 'shopify',
+    nome: 'Shopify',
+    emoji: '🛍️',
+    cor: '#10B981',
+    status: 'em_breve',
+    hint: 'Em configuração — envie o relatório exportado para habilitar'
+  },
+  {
+    id: 'vtex',
+    nome: 'VTEX',
+    emoji: '⚡',
+    cor: '#EF4444',
+    status: 'em_breve',
+    hint: 'Em configuração — envie o relatório exportado para habilitar'
+  },
+  {
+    id: 'bling',
+    nome: 'Bling',
+    emoji: '💼',
+    cor: '#F97316',
+    status: 'em_breve',
+    hint: 'Em configuração — envie o relatório exportado para habilitar'
+  }
+];
+
+var PLAT_KEY = 'veltro_plataforma_';  // prefixo + empresa ID
+
+// Obter plataforma da empresa atual
+function plataformaGet() {
+  var empId = veltroGetEmpresaAtual();
+  if(!empId) return 'magazord';
+  return localStorage.getItem(PLAT_KEY + empId) || 'magazord';
+}
+
+// Salvar plataforma da empresa
+function plataformaSet(id) {
+  var empId = veltroGetEmpresaAtual();
+  if(!empId) return;
+  localStorage.setItem(PLAT_KEY + empId, id);
+  window._plataformaAtual = id;
+  console.log('[Roizen] Plataforma definida:', id);
+}
+
+// Renderizar grid de plataformas no onboarding
+function plataformaRenderGrid() {
+  var grid = document.getElementById('plataforma-grid');
+  if(!grid) return;
+  var atual = plataformaGet();
+  grid.innerHTML = PLATAFORMAS.map(function(p) {
+    var ativo = p.status === 'ativo';
+    var selecionado = p.id === atual;
+    var borda = selecionado ? '2px solid '+p.cor : '1px solid var(--border2)';
+    var bg = selecionado ? 'rgba('+hexToRgb(p.cor)+',.08)' : 'var(--s2)';
+    var opacity = ativo ? '1' : '0.5';
+    var cursor = ativo ? 'pointer' : 'not-allowed';
+    var badge = ativo ? '' :
+      '<div style="font-size:9px;background:var(--s3);color:var(--muted);'+
+      'padding:2px 6px;border-radius:10px;margin-top:4px">Em breve</div>';
+    var onclick = ativo ? 'onclick="plataformaSelecionarUI(this.dataset.id)" data-id="' + p.id + '"' : '';
+    return '<div '+onclick+' id="plat-btn-'+p.id+'"'+
+      ' style="border:'+borda+';background:'+bg+';border-radius:10px;'+
+      'padding:12px 8px;text-align:center;cursor:'+cursor+';opacity:'+opacity+';'+
+      'transition:all .2s;user-select:none">'+
+      '<div style="font-size:20px;margin-bottom:4px">'+p.emoji+'</div>'+
+      '<div style="font-family:JetBrains Mono,monospace;font-size:10px;'+
+      'font-weight:700;color:var(--text)">'+p.nome+'</div>'+
+      badge+
+    '</div>';
+  }).join('');
+  plataformaAtualizarHint(atual);
+}
+
+// Selecionar plataforma via UI
+function plataformaSelecionarUI(id) {
+  var plat = PLATAFORMAS.find(function(p){ return p.id === id; });
+  if(!plat || plat.status !== 'ativo') return;
+  plataformaSet(id);
+  plataformaRenderGrid();
+  plataformaAtualizarBadge();
+}
+
+// Atualizar hint da plataforma selecionada
+function plataformaAtualizarHint(id) {
+  var hint = document.getElementById('plataforma-hint');
+  if(!hint) return;
+  var plat = PLATAFORMAS.find(function(p){ return p.id === id; });
+  if(plat && plat.hint) {
+    hint.textContent = 'ℹ️ ' + plat.hint;
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+// Helper: hex para rgb
+function hexToRgb(hex) {
+  var r = parseInt(hex.slice(1,3),16);
+  var g = parseInt(hex.slice(3,5),16);
+  var b = parseInt(hex.slice(5,7),16);
+  return r+','+g+','+b;
+}
+
+// Inicializar plataforma ao entrar no dashboard
+function plataformaInit() {
+  window._plataformaAtual = plataformaGet();
+  console.log('[Roizen] Plataforma ativa:', window._plataformaAtual);
+  // Atualizar badge no header
+  setTimeout(plataformaAtualizarBadge, 100);
+  // Por enquanto só Magazord está ativo — sem alteração no comportamento
 }
 
 function veltroSalvarConfig(pular) {
@@ -7065,7 +7273,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v82');
+    localStorage.removeItem('fc_rows_cache_v83');
     setTimeout(refresh, 200);
   }
 }
@@ -7109,7 +7317,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v82');
+  localStorage.removeItem('fc_rows_cache_v83');
   veltroAplicarLinks(id, links);
 }
 
