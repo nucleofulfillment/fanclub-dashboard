@@ -441,9 +441,7 @@ body.light body::before { opacity: 0; }
 
 /* ── Rank bars ──────────────────────────────────────── */
 .rlist { display:flex; flex-direction:column; gap:10px; }
-.ritem { display:flex; align-items:center; gap:6px; overflow:hidden; }
-.rbfill { height:5px; border-radius:3px; background:var(--accent); transition:width .4s; }
-.rbbg   { height:5px; border-radius:3px; background:var(--s3); overflow:hidden; }
+.ritem { display:grid; grid-template-columns:20px 32px 1fr 60px; align-items:center; gap:6px; }
 .rpos { font-family:var(--fmono); font-size:11px; font-weight:600; color:var(--muted); width:16px; text-align:right; flex-shrink:0; }
 .rpos.g { color:#F59E0B; } .rpos.s { color:#94A3B8; } .rpos.b { color:#B45309; }
 .rlbl { font-family:var(--fdisplay); font-size:14px; font-weight:600; width:40px; text-align:center; flex-shrink:0; }
@@ -1593,6 +1591,7 @@ body.light body::before { opacity: 0; }
           <button class="ftab" onclick="filtrarPedidos('ok',this)">✅ No prazo</button>
           <button class="ftab" onclick="filtrarPedidos('atrasado',this)">❌ Atrasado</button>
           <button class="ftab" onclick="filtrarPedidos('aprovado',this)">📦 Aguardando</button>
+          <button class="ftab" onclick="filtrarPedidos('entregue',this)">✔ Entregue</button>
         </div>
         <div class="fsep"></div>
         <!-- Filtro data+hora -->
@@ -2235,7 +2234,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v68';
+const CACHE_LS_KEY = 'fc_rows_cache_v69';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -2908,9 +2907,9 @@ function renderAll(d){
     .sort((a,b)=>(a[1].data||'').localeCompare(b[1].data||''))
     .map(function([canal,info]){
       const diff=info.data?Math.round((new Date(info.data)-new Date(today))/86400000):999;
-      const lbl=diff<=0?'✓ Disponível':'Em '+diff+'d';
-      const stBg=diff<=0?'rgba(110,231,183,.15)':diff<=7?'rgba(245,158,11,.12)':'rgba(100,116,139,.1)';
-      const stColor=diff<=0?'var(--green)':diff<=7?'var(--amber)':'var(--muted)';
+      const lbl=diff<=0?'⏳ A Receber':'Em '+diff+'d';
+      const stBg=diff<=0?'rgba(99,102,241,.18)':diff<=7?'rgba(245,158,11,.12)':'rgba(100,116,139,.1)';
+      const stColor=diff<=0?'#818CF8':diff<=7?'var(--amber)':'var(--muted)';
       const comRate=COMISSOES[canal]||0.15;
       const comVal=info.gmv*comRate;
       const liq=info.gmv-comVal;
@@ -3600,6 +3599,7 @@ function renderPedidos(filtro) {
     if(filtro==='ok')       return r.slaOk && r.isAprov;
     if(filtro==='atrasado') return r.atrasado;
     if(filtro==='aprovado') return r.isAprov;
+    if(filtro==='entregue') return r.p && r.p.status === 'Entregue';
     return true;
   });
   _pedCurrentPage = 0;
@@ -3856,6 +3856,15 @@ function calcMarketing() {
     }),
     geradoEm:new Date().toISOString()
   };
+
+  // Atualizar grid GMV por canal no Marketing
+  if(window._lastProcessedData && window._lastProcessedData.canais) {
+    var d = window._lastProcessedData;
+    var canaisComQtd = d.canais.map(function(c){
+      return [c[0], {gmv: c[1], qtd: (byQtdCanal && byQtdCanal[c[0]]) || 0}];
+    });
+    renderGMVCanalLista(canaisComQtd);
+  }
 }
 
 function exportarDadosMkt() {
@@ -6050,12 +6059,10 @@ function renderEstoqueIndicadores() {
     return '<div class="ritem">'+
       '<div class="rpos '+(MEDALS[i]||'')+'">'+(i+1)+'<\/div>'+
       '<div class="rlbl">'+t[0]+'<\/div>'+
-      '<div style="flex:1;min-width:0;margin-right:8px;max-width:calc(100% - 70px)">'+
-        '<div style="background:var(--s3);height:6px;border-radius:3px;width:100%;overflow:hidden">'+
-          '<div style="height:6px;border-radius:3px;background:var(--accent);width:'+(t[1]/maxT*100).toFixed(1)+'%;max-width:100%;display:block"></div>'+
-        '<\/div>'+
+      '<div style="background:var(--s3);height:6px;border-radius:3px;overflow:hidden;min-width:0">'+
+        '<div style="height:6px;border-radius:3px;background:var(--accent);width:'+(t[1]/maxT*100).toFixed(1)+'%"></div>'+
       '<\/div>'+
-      '<div style="width:60px;text-align:right;font-family:var(--fmono);font-size:11px;font-weight:700;flex-shrink:0;color:var(--text)">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
+      '<div style="text-align:right;font-family:var(--fmono);font-size:11px;font-weight:700;color:var(--text);white-space:nowrap">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
     '<\/div>';
   }).join('');
 }
@@ -6756,7 +6763,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v68');
+    localStorage.removeItem('fc_rows_cache_v69');
     setTimeout(refresh, 200);
   }
 }
@@ -6800,7 +6807,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v68');
+  localStorage.removeItem('fc_rows_cache_v69');
   veltroAplicarLinks(id, links);
 }
 
