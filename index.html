@@ -2240,7 +2240,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v73';
+const CACHE_LS_KEY = 'fc_rows_cache_v75';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -3101,7 +3101,9 @@ function makeCharts(d){
   var cfCanais = new Set();
   var cfTodayD = td();
   var cfFut = addD(cfTodayD, 60);
-  d.entr.forEach(function(p){
+  // Usar mesma base do Calendário: aprov + trans + entr com liberação futura
+  var todosParaPrevisao = d.aprov.concat(d.trans).concat(d.entr);
+  todosParaPrevisao.forEach(function(p){
     var prazo = PRAZOS[p.canal]||7;
     var dt = addD(p.data, prazo);
     if(dt < cfTodayD || dt > cfFut) return;
@@ -3596,6 +3598,18 @@ function showPage(pageId, navEl) {
   if(pageId === 'fluxocaixa') renderFluxoCaixaPage();
   // If financeiro page, initialize filter
   if(pageId === 'financeiro') {
+    // Garantir que filtro de data está preenchido ao abrir
+    try {
+      var ffrom = document.getElementById('fin-f-from');
+      var fto   = document.getElementById('fin-f-to');
+      if(ffrom && !ffrom.value) {
+        var now = new Date();
+        ffrom.value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';
+      }
+      if(fto && !fto.value) {
+        fto.value = new Date().toISOString().split('T')[0];
+      }
+    } catch(e) {}
     // Inicializar datas do financeiro se vazias
     try{
       var ft = document.getElementById('fin-to');
@@ -4792,6 +4806,29 @@ async function loadFluxoCaixa() {
 
       // ── Detectar posição real das colunas pelo cabeçalho (linha 2) ──
       // Planilha: A=Data B=Custo Fixo C=Movimento D=Classificação E=Descrição F=R/P/N G=Saldo
+      // ══ DETECÇÃO DE FORMATO DA ABA ══
+      // Formato RESUMO: col0 = nome do mês ('Janeiro-26'), col1=entradas, col2=saídas, col4=saldo
+      // Formato LANÇAMENTOS: col0 = data, demais colunas = campos individuais
+      var MESES_NOMES_FC = ['janeiro','fevereiro','marco','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      var primeiraCell0 = String((rows[0]&&rows[0][0])||'').toLowerCase().trim();
+      var isFormatoResumo = MESES_NOMES_FC.some(function(m){ return primeiraCell0.startsWith(m); });
+      console.log('[FC] Aba "'+aba+'" formato:', isFormatoResumo ? 'RESUMO MENSAL' : 'LANÇAMENTOS');
+
+      if(isFormatoResumo) {
+        // row[0] é linha de totais/cabeçalho do mês
+        // Extrair caixa inicial da col4 (saldo acumulado anterior)
+        // Saldo acumulado = saldo após este mês, então caixaInicial = saldoAcum - resultado
+        var r0 = rows[0];
+        var ent0 = parseFloat(r0[1])||0;
+        var sai0 = parseFloat(r0[2])||0;
+        var saldoFinal = parseFloat(r0[4])||0;
+        // caixaInicial = saldo antes do mês = saldo_final - (entradas - saídas)
+        caixaInicial = saldoFinal - (ent0 - sai0);
+        console.log('[FC] Linha de totais detectada: ent='+ent0+' sai='+sai0+' saldo='+saldoFinal+' → caixaInicial='+caixaInicial.toFixed(2));
+        // Processar lançamentos a partir de row[1]
+        caixaInicialRowIdx = 0; // row[0] é o cabeçalho, lançamentos começam em row[1]
+      }
+
       var colData=-1, colFixo=-1, colMov=-1, colClassif=-1, colDesc=-1, colStatus=-1, colSaldo=-1;
       var startRow = 3; // padrão: pular linhas 1(título), 2(cabeçalho), 3(caixa inicial)
 
@@ -4992,7 +5029,7 @@ function renderFluxoCaixa() {
   var hoje = new Date().toISOString().slice(0,10);
 
   dados.forEach(function(d) {
-    var mov = d.movimento !== 0 ? d.movimento : d.custoFixo;  // col C prioridade sobre col B
+    var mov = d.movimento + d.custoFixo;  // somar B + C (custo fixo + movimento variável)
 
     // Totais brutos para os KPIs de entradas/saídas
     if(mov > 0) entradas += mov;
@@ -5039,7 +5076,7 @@ function renderFluxoCaixa() {
   var sorted = dados.slice().sort(function(a,b){ return a.data.localeCompare(b.data); });
   sorted.forEach(function(d) {
     if(!d.data) return;
-    var mov = d.movimento !== 0 ? d.movimento : d.custoFixo;  // col C prioridade sobre col B
+    var mov = d.movimento + d.custoFixo;  // somar B + C (custo fixo + movimento variável)
     if(!porDia[d.data]) porDia[d.data] = {real:0, proj:0, status: d.status};
     porDia[d.data].proj += mov;
     if(d.status === 'R' || d.status === 'P') porDia[d.data].real += mov;
@@ -5086,7 +5123,7 @@ function renderFluxoCaixa() {
   // ── Gráfico categorias (pizza) ────────────────────────────
   var porCateg = {};
   dados.forEach(function(d) {
-    var mov = d.movimento !== 0 ? d.movimento : d.custoFixo;  // col C prioridade sobre col B
+    var mov = d.movimento + d.custoFixo;  // somar B + C (custo fixo + movimento variável)
     if(mov >= 0) return;  // só saídas
     var c = d.classif || 'Outros';
     porCateg[c] = (porCateg[c]||0) + Math.abs(mov);
@@ -6882,7 +6919,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v73');
+    localStorage.removeItem('fc_rows_cache_v75');
     setTimeout(refresh, 200);
   }
 }
@@ -6926,7 +6963,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v73');
+  localStorage.removeItem('fc_rows_cache_v75');
   veltroAplicarLinks(id, links);
 }
 
