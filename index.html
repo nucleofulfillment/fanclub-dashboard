@@ -2509,13 +2509,49 @@ function normStatus(raw) {
 }
 
 function normPag(raw) {
-  var s = String(raw||'').toLowerCase();
-  if(s.includes('pix'))   return 'Pix';
-  if(s.includes('boleto') || s.includes('bank'))    return 'Boleto';
-  if(s.includes('cart')   || s.includes('cred')   || s.includes('debit') || s.includes('visa') || s.includes('master')) return 'Cartão';
-  if(s.includes('wallet') || s.includes('carteira')|| s.includes('digital')|| s.includes('paypal')|| s.includes('ame') || s.includes('picpay')) return 'Carteira Digital';
-  if(s.includes('brinde') || s.includes('gratis')  || s.includes('free'))  return 'Brinde';
-  return 'Outros';
+  var s = String(raw||'').toLowerCase().trim();
+  if(!s || s==='-' || s==='null' || s==='undefined') return 'Outros';
+
+  // PIX — variações Magazord e outras plataformas
+  if(s.includes('pix')) return 'Pix';
+
+  // Boleto
+  if(s.includes('boleto') || s.includes('bank_slip') || s.includes('bankslip') ||
+     s.includes('bank slip') || s.includes('billet')) return 'Boleto';
+
+  // Cartão de Crédito
+  if(s.includes('credito') || s.includes('crédito') || s.includes('credit') ||
+     s.includes('cartao_cred') || s.includes('cartão_cred') ||
+     s.includes('visa') || s.includes('master') || s.includes('amex') ||
+     s.includes('elo') || s.includes('hipercard') ||
+     (s.includes('cart') && !s.includes('debito') && !s.includes('débito')))
+    return 'Cartão Crédito';
+
+  // Cartão de Débito
+  if(s.includes('debito') || s.includes('débito') || s.includes('debit') ||
+     s.includes('cartao_deb') || s.includes('cartão_deb'))
+    return 'Cartão Débito';
+
+  // Carteiras Digitais
+  if(s.includes('wallet') || s.includes('carteira') || s.includes('digital') ||
+     s.includes('paypal') || s.includes('ame') || s.includes('picpay') ||
+     s.includes('mercado pago') || s.includes('mercadopago') ||
+     s.includes('shopee pay') || s.includes('shopeepay') ||
+     s.includes('nubank') || s.includes('pagbank') || s.includes('pagseguro'))
+    return 'Carteira Digital';
+
+  // Parcelado / Financiamento
+  if(s.includes('parcel') || s.includes('financi') || s.includes('installment'))
+    return 'Parcelado';
+
+  // Brinde / Gratuito
+  if(s.includes('brinde') || s.includes('gratis') || s.includes('gratuito') ||
+     s.includes('free') || s.includes('cortesia'))
+    return 'Brinde';
+
+  // Log para diagnóstico — ajuda a identificar novos valores
+  console.log('[Roizen] normPag: valor não mapeado →', JSON.stringify(raw));
+  return raw ? String(raw).substring(0,20) : 'Outros';
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -3161,6 +3197,8 @@ function makeCharts(d){
 
   // ── Donut pagamento ──────────────────────────────────────────
   const pL=d.pagamentos.map(function(p){return p[0];}),pV=d.pagamentos.map(function(p){return p[1];}),pT=pV.reduce(function(s,v){return s+v;},0);
+  console.log('[Roizen] Pagamentos:', pL.map(function(l,i){return l+'='+pV[i];}));
+  if(CH.pag) { CH.pag.destroy(); CH.pag=null; }
   CH.pag=new Chart(document.getElementById('ch-pag'),{type:'doughnut',data:{labels:pL,datasets:[{data:pV,backgroundColor:PCORES.slice(0,pL.length),borderWidth:3,borderColor:'#111318',hoverOffset:4}]},options:{cutout:'70%',responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' ('+(c.raw/pT*100).toFixed(1)+'%)';}}}}}});
 
   // ── Donut fila por canal ─────────────────────────────────────
