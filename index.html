@@ -807,7 +807,8 @@ body.light body::before { opacity: 0; }
   <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:380px">
     <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">Identificador da empresa</div>
     <input type="text" id="veltro-login-id" placeholder="ex: fanclub2019"
-      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"
+      onfocus="this.value=this.value"
       onkeydown="if(event.key==='Enter') veltroLogin()"
       style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:10px;
              padding:12px 16px;font-family:'Syne',sans-serif;font-size:18px;font-weight:600;
@@ -7061,12 +7062,13 @@ function veltroMostrarOnboarding(empresa) {
   var onb = document.getElementById('veltro-onboarding');
   if(onb) onb.style.display = 'block';
   try{ document.getElementById('onb-nome-empresa').textContent = empresa.nome || empresa.id; }catch(e){}
-  // Pré-preencher se já tem algum link
+  // Pré-preencher TODOS os links salvos (incluindo fluxo)
   var links = veltroGetLinks(empresa.id);
   try{ document.getElementById('onb-url-principal').value = links.principal||''; }catch(e){}
   try{ document.getElementById('onb-url-estoque').value   = links.estoque||'';   }catch(e){}
   try{ document.getElementById('onb-url-estados').value   = links.estados||'';   }catch(e){}
   try{ document.getElementById('onb-url-produtos').value  = links.produtos||'';  }catch(e){}
+  try{ document.getElementById('onb-url-fluxo').value     = links.fluxo||'';     }catch(e){}
 }
 
 
@@ -7246,12 +7248,19 @@ function veltroSalvarConfig(pular) {
   }
   if(erroEl) erroEl.textContent = '';
 
+  // Preservar links já salvos — nunca sobrescrever com string vazia
+  var linksAtuais = veltroGetLinks(id);
+  var novoEstoque  = ((document.getElementById('onb-url-estoque')||{}).value||'').trim();
+  var novoEstados  = ((document.getElementById('onb-url-estados')||{}).value||'').trim();
+  var novoProdutos = ((document.getElementById('onb-url-produtos')||{}).value||'').trim();
+  var novoFluxo    = ((document.getElementById('onb-url-fluxo')||{}).value||'').trim();
+
   var links = {
-    principal: principal,
-    estoque:   ((document.getElementById('onb-url-estoque')||{}).value||'').trim(),
-    estados:   ((document.getElementById('onb-url-estados')||{}).value||'').trim(),
-    produtos:  ((document.getElementById('onb-url-produtos')||{}).value||'').trim(),
-    fluxo:     ((document.getElementById('onb-url-fluxo')||{}).value||'').trim()
+    principal: principal    || linksAtuais.principal || '',
+    estoque:   novoEstoque  || linksAtuais.estoque   || '',
+    estados:   novoEstados  || linksAtuais.estados   || '',
+    produtos:  novoProdutos || linksAtuais.produtos  || '',
+    fluxo:     novoFluxo    || linksAtuais.fluxo     || ''
   };
   veltroSaveLinks(id, links);
 
