@@ -1433,7 +1433,7 @@ body.light body::before { opacity: 0; }
               <div class="ico" style="display:inline">💎</div>
               <span class="lbl" style="display:inline;margin-left:6px">Resultado Líquido</span>
             </div>
-            <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-align:right" id="fin-resultado-formula">GMV − Mkt − Impostos − Comissão − Fixo</div>
+            <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-align:right" id="fin-resultado-formula">GMV − Mkt − Impostos − Fixo</div>
           </div>
           <div class="val" id="fin-resultado" style="font-size:32px;letter-spacing:-1.5px;margin-top:6px">—</div>
           <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:4px" id="fin-resultado-detalhe">—</div>
@@ -1784,25 +1784,13 @@ body.light body::before { opacity: 0; }
         </div>
       </div>
 
-      <!-- Gráficos ABAIXO da tabela -->
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px" class="g3-charts">
-        <div class="card">
-          <div class="ch"><div><div class="ct">GMV por Canal</div><div class="cs">Receita por marketplace — comparação de participação</div></div></div>
-          <!-- Grid de colunas por canal -->
-          <div id="gmv-canal-grid" style="
-            display:grid;
-            grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
-            gap:10px;
-            margin-top:4px
-          "></div>
-          <!-- Canvas oculto para compatibilidade (não destruir lógica) -->
-          <canvas id="ch-mkt-inv" height="0" style="display:none"></canvas>
-          <div id="gmv-canal-lista" style="display:none"></div>
-        </div>
-        <div class="card">
-          <div class="ch"><div><div class="ct">ROAS por Canal</div><div class="cs">Calculado individualmente por canal</div></div></div>
-          <canvas id="ch-mkt-roas" height="200"></canvas>
-        </div>
+      <!-- Gráficos GMV por Canal e ROAS por Canal removidos a pedido -->
+      <!-- Canvas/divs internos mantidos ocultos para preservar a lógica JS existente -->
+      <div style="display:none">
+        <div id="gmv-canal-grid"></div>
+        <canvas id="ch-mkt-inv" height="0"></canvas>
+        <div id="gmv-canal-lista"></div>
+        <canvas id="ch-mkt-roas" height="0"></canvas>
       </div>
 
     </main>
@@ -2223,7 +2211,9 @@ body.light body::before { opacity: 0; }
             <span style="color:var(--green)">▬ Realizado</span>
             <span style="color:var(--amber)">▬ Projetado</span>
           </div></div>
-          <canvas id="ch-fc-diario" style="max-width:100%;height:180px;display:block;"></canvas>
+          <div style="position:relative;height:200px;width:100%;margin-top:8px">
+            <canvas id="ch-fc-diario"></canvas>
+          </div>
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">Saídas por Categoria</div><div class="cs">Distribuição das despesas</div></div></div>
@@ -2281,7 +2271,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v84';
+const CACHE_LS_KEY = 'fc_rows_cache_v85';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -6464,6 +6454,8 @@ function applyFilterFin() {
 
   // Reprocessar e atualizar KPIs + gráfico cashflow
   var d = processarDados(filtered);
+  // FIX: cache do d filtrado para que atualizarResultado() (custo fixo / mídia %) use os dados certos
+  window._lastProcessedData = d;
   syncFinanceiroKPIs(d);
 
   // Atualizar ch-cf e cf-body com os dados filtrados
@@ -6861,14 +6853,50 @@ function syncFinanceiroKPIs(d) {
   if(!d) return;
   var cnt  = d.aprov.length + d.trans.length + d.entr.length;
   var rate = parseFloat((document.getElementById("tax-rate")||{}).value)||6;
-  var custoFixo = parseFloat((document.getElementById("fin-custo-fixo")||{}).value)||0;
+  var custoFixoMensal = parseFloat((document.getElementById("fin-custo-fixo")||{}).value)||0;
+
+  // ─── FIX: Custo Fixo proporcional aos dias do filtro de período ───────
+  // Regra: valor é mensal. 30 dias = valor cheio. 7 dias = 7/30 do valor.
+  // Período "Tudo" (sem filtro) = usa span entre primeiro e último pedido.
+  var diasPeriodo = 30;  // default: mês cheio
+  try {
+    var fFrom = (document.getElementById('fin-from')||{}).value || '';
+    var fTo   = (document.getElementById('fin-to')||{}).value   || '';
+    if(fFrom && fTo) {
+      var dF = new Date(fFrom + 'T00:00:00');
+      var dT = new Date(fTo   + 'T00:00:00');
+      var diff = Math.round((dT - dF) / 86400000) + 1;  // inclusivo
+      if(diff > 0) diasPeriodo = diff;
+    } else {
+      // Sem filtro: pegar span entre primeiro e último pedido do dataset
+      var todosPed = (d.aprov||[]).concat(d.trans||[]).concat(d.entr||[]);
+      var datas = todosPed.map(function(p){ return p.data && p.data.length>=10 ? p.data.slice(0,10) : null; })
+                          .filter(function(x){ return x; }).sort();
+      if(datas.length >= 2) {
+        var dMin = new Date(datas[0] + 'T00:00:00');
+        var dMax = new Date(datas[datas.length-1] + 'T00:00:00');
+        var diff2 = Math.round((dMax - dMin) / 86400000) + 1;
+        if(diff2 > 0) diasPeriodo = diff2;
+      }
+    }
+  } catch(e){}
+  var custoFixo = custoFixoMensal * (diasPeriodo / 30);
 
   var impostos  = d.total * (rate/100);
-  // Mídia: usar % manual (fin-mkt-pct) ou fallback para Marketing
+  // Mídia: usar % manual (fin-mkt-pct) sobre GMV do período filtrado.
+  // Fallback (sem %): usa investimento de Marketing — se houver período filtrado,
+  // aplica proporção de dias para não duplicar/aplicar valor total fora do filtro.
   var mktPct = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
-  var custoMkt = mktPct > 0 ? d.total * (mktPct/100)
-    : ((window._mktDataIA && window._mktDataIA.investimento)
-       ? window._mktDataIA.investimento.total || 0 : 0);
+  var custoMkt;
+  if(mktPct > 0) {
+    custoMkt = d.total * (mktPct/100);  // sempre sobre GMV filtrado (d.total já é filtrado)
+  } else if(window._mktDataIA && window._mktDataIA.investimento) {
+    var invTotal = window._mktDataIA.investimento.total || 0;
+    // Se Marketing tem dado total mensal, proporcionar pelos dias do filtro
+    custoMkt = invTotal * (diasPeriodo / 30);
+  } else {
+    custoMkt = 0;
+  }
   // Comissões totais do calendário de liberações
   var COMISSOES = {'Shopee':0.20,'Mercado Livre':0.16,'Shein':0.18,'TikTok Shop':0.12,'Dafiti':0.20,'Netshoes':0.20,'Loja Própria':0.03};
   var comissaoTotal = 0;
@@ -6876,8 +6904,20 @@ function syncFinanceiroKPIs(d) {
     d.canais.forEach(function(c){ comissaoTotal += c[1] * (COMISSOES[c[0]]||0.15); });
   }
 
-  var resultado = d.total - custoMkt - impostos - comissaoTotal - custoFixo;
+  // ─── FIX: Resultado Líquido NÃO desconta comissão neste card ──────────
+  // (comissão segue normal nos outros cards/áreas — Calendário de Liberações etc.)
+  var resultado = d.total - custoMkt - impostos - custoFixo;
   var resultColor = resultado >= 0 ? 'var(--green)' : 'var(--red)';
+  console.log('[Roizen] Financeiro KPI:',
+    'GMV='+d.total.toFixed(2),
+    'dias='+diasPeriodo,
+    'fixoMensal='+custoFixoMensal.toFixed(2),
+    'fixoAplicado='+custoFixo.toFixed(2),
+    'mktPct='+mktPct,
+    'mkt='+custoMkt.toFixed(2),
+    'imp='+impostos.toFixed(2),
+    'resultado='+resultado.toFixed(2),
+    '(comissão R$'+comissaoTotal.toFixed(2)+' NÃO incluída neste card)');
 
   try{document.getElementById("fin-gmv").textContent = fMKPI(d.total);}catch(e){}
   try{document.getElementById("fin-gmv-sub").textContent = fMKPI(d.entr.reduce(function(s,p){return s+p.valor;},0))+" entregues";}catch(e){}
@@ -6900,12 +6940,14 @@ function syncFinanceiroKPIs(d) {
     if(kpi) kpi.style.setProperty('--cc', resultado>=0?'#6EE7B7':'#F43F5E');
   }catch(e){}
   try{
-    document.getElementById("fin-resultado-detalhe").textContent =
-      'GMV '+fM(d.total)+
+    var detTxt = 'GMV '+fM(d.total)+
       ' − Mkt '+fM(custoMkt)+
       ' − Imp. '+fM(impostos)+
-      ' − Com. '+fM(comissaoTotal)+
       ' − Fixo '+fM(custoFixo);
+    if(custoFixoMensal > 0 && diasPeriodo !== 30) {
+      detTxt += ' ('+diasPeriodo+'d/30d)';
+    }
+    document.getElementById("fin-resultado-detalhe").textContent = detTxt;
   }catch(e){}
 }
 
@@ -7290,7 +7332,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v84');
+    localStorage.removeItem('fc_rows_cache_v85');
     setTimeout(refresh, 200);
   }
 }
@@ -7334,7 +7376,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v84');
+  localStorage.removeItem('fc_rows_cache_v85');
   veltroAplicarLinks(id, links);
 }
 
