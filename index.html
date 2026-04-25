@@ -2234,7 +2234,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v66';
+const CACHE_LS_KEY = 'fc_rows_cache_v67';
 // Limpar caches de versões anteriores automaticamente
 (function(){
   var keysToRemove = [];
@@ -5766,6 +5766,39 @@ function _popularSeletorMesProd() {
   var sel = document.getElementById('prod-mes-sel');
   if(!sel) return;
 
+  // MESES_NORM e normalizarAba definidos ANTES de qualquer estratégia
+  var MESES_NORM = {
+    'jan':'Janeiro','fev':'Fevereiro','mar':'Março','abr':'Abril',
+    'mai':'Maio','jun':'Junho','jul':'Julho','ago':'Agosto',
+    'set':'Setembro','out':'Outubro','nov':'Novembro','dez':'Dezembro',
+    'janeiro':'Janeiro','fevereiro':'Fevereiro',
+    'marco':'Março','março':'Março',
+    'abril':'Abril','maio':'Maio','junho':'Junho','julho':'Julho',
+    'agosto':'Agosto','setembro':'Setembro','outubro':'Outubro',
+    'novembro':'Novembro','dezembro':'Dezembro'
+  };
+
+  function normalizarAba(aba) {
+    if(aba === null || aba === undefined) return '';
+    var s = String(aba).trim();
+    if(!s) return s;
+    var anoAtual = new Date().getFullYear().toString().slice(-2);
+    var anoM4 = s.match(/20(\d{2})/);
+    var anoM2 = s.match(/[-\/\s_](\d{2})$/);
+    var anoM2b = s.match(/(\d{2})$/);
+    var aa = (anoM4&&anoM4[1]) ? anoM4[1] : ((anoM2&&anoM2[1]) ? anoM2[1] : ((anoM2b&&anoM2b[1]) ? anoM2b[1] : anoAtual));
+    var semAno = s.replace(/20\d{2}/g,'').replace(/[-\/\s_]\d{2}$/,'').replace(/\d{2}$/,'').trim();
+    var chave = semAno.toLowerCase().replace(/[-_\/\s]+/g,'').replace(/[^a-záéíóúâêîôûãõç]/g,'');
+    var mesNome = MESES_NORM[chave] || null;
+    if(!mesNome && chave.length >= 3) mesNome = MESES_NORM[chave.substring(0,3)] || null;
+    if(!mesNome) {
+      var numM = semAno.match(/^(\d{1,2})$/);
+      if(numM) { var n=parseInt(numM[1]); if(n>=1&&n<=12) mesNome=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][n-1]; }
+    }
+    if(!mesNome) return aba;
+    return mesNome+'-'+aa;
+  }
+
   // ESTRATÉGIA 1: usar abas reais encontradas (mais confiável)
   var abasReais = window._prodAbasEncontradas;
   if(abasReais && abasReais.length > 0) {
@@ -5793,60 +5826,7 @@ function _popularSeletorMesProd() {
   }
 
   // ESTRATÉGIA 2: coletar de por_mes dos produtos (fallback)
-  // Meses em pt-BR para normalização — inclui variações com acento e sem
-  var MESES_NORM = {
-    'jan':'Janeiro','fev':'Fevereiro','mar':'Março','abr':'Abril',
-    'mai':'Maio','jun':'Junho','jul':'Julho','ago':'Agosto',
-    'set':'Setembro','out':'Outubro','nov':'Novembro','dez':'Dezembro',
-    'janeiro':'Janeiro','fevereiro':'Fevereiro',
-    'marco':'Março','março':'Março','mar':'Março',
-    'abril':'Abril','maio':'Maio','junho':'Junho','julho':'Julho',
-    'agosto':'Agosto','setembro':'Setembro','outubro':'Outubro',
-    'novembro':'Novembro','dezembro':'Dezembro'
-  };
-
-  // Normalizar nome de aba para "MesNome-AA"
-  // Suporta: "Janeiro-26", "janeiro-26", "jan-26", "jan/26", "jan26",
-  //          "janeiro 2026", "Janeiro 26", "01-26", "01/2026"
-  function normalizarAba(aba) {
-    if(!aba) return String(aba||'');
-    var s = String(aba).trim();
-    if(!s) return s;
-    var anoAtual = new Date().getFullYear().toString().slice(-2);
-
-    // Tentar extrair ano (2 ou 4 dígitos) — com verificação de null
-    var anoM4 = s.match(/20(\d{2})/);
-    var anoM2 = s.match(/[-\/\s_](\d{2})$/);
-    var anoM2b = s.match(/(\d{2})$/);
-    var aa = (anoM4 && anoM4[1]) ? anoM4[1] : ((anoM2 && anoM2[1]) ? anoM2[1] : ((anoM2b && anoM2b[1]) ? anoM2b[1] : anoAtual));
-
-    // Remover o ano para isolar o mês
-    var semAno = s.replace(/20\d{2}/,'').replace(/[-\/\s_]\d{2}$/,'').replace(/\d{2}$/,'').trim();
-    var mesNome = null;
-
-    // Tentativa 1: nome por extenso
-    var chave = semAno.toLowerCase().replace(/[-_\/\s]+/g,'').replace(/[^a-z]/g,'');
-    if(MESES_NORM[chave]) { mesNome = MESES_NORM[chave]; }
-
-    // Tentativa 2: primeiras 3 letras
-    if(!mesNome && chave.length >= 3) {
-      var prefix = chave.substring(0,3);
-      if(MESES_NORM[prefix]) mesNome = MESES_NORM[prefix];
-    }
-
-    // Tentativa 3: número do mês (01-12)
-    if(!mesNome) {
-      var numM = semAno.match(/^(\d{1,2})$/);
-      if(numM) {
-        var n = parseInt(numM[1]);
-        var mNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-        if(n>=1 && n<=12) mesNome = mNomes[n-1];
-      }
-    }
-
-    if(!mesNome) { console.warn('[Veltro] Não normalizou aba:', aba); return aba; }
-    return mesNome+'-'+aa;
-  }
+  // normalizarAba e MESES_NORM já definidos no início da função
 
   // Coletar abas únicas normalizadas → manter mapa original→normalizado
   var abaParaNorm = {};  // aba original → aba normalizada
@@ -6767,7 +6747,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v66');
+    localStorage.removeItem('fc_rows_cache_v67');
     setTimeout(refresh, 200);
   }
 }
@@ -6811,7 +6791,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v66');
+  localStorage.removeItem('fc_rows_cache_v67');
   veltroAplicarLinks(id, links);
 }
 
