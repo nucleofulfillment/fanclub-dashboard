@@ -807,6 +807,7 @@ body.light body::before { opacity: 0; }
   <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:380px">
     <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">Identificador da empresa</div>
     <input type="text" id="veltro-login-id" placeholder="ex: fanclub2019"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
       onkeydown="if(event.key==='Enter') veltroLogin()"
       style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:10px;
              padding:12px 16px;font-family:'Syne',sans-serif;font-size:18px;font-weight:600;
@@ -2223,7 +2224,7 @@ body.light body::before { opacity: 0; }
             <span style="color:var(--green)">▬ Realizado</span>
             <span style="color:var(--amber)">▬ Projetado</span>
           </div></div>
-          <div style="position:relative;height:180px;width:100%">
+          <div style="position:relative;height:360px;width:100%">
             <canvas id="ch-fc-diario"></canvas>
           </div>
         </div>
@@ -3957,10 +3958,10 @@ function calcMarketing() {
       options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' GMV: '+fMF(c.raw);}}}},scales:{x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10},callback:function(v){return fM(v);}}}}}
     });
   }
-  // Lista vertical GMV por canal com total — passar GMV e pedidos
+  // Lista vertical GMV por canal com total — usar dados locais (porCanal)
   var _qtdMap = window._byQtdCanal || {};
-  var canaisComQtd = d.canais.map(function(c){
-    return [c[0], {gmv: c[1], qtd: (_qtdMap[c[0]] || 0)}];
+  var canaisComQtd = canalEntries.map(function(e){
+    return [e[0], {gmv: e[1].gmv, qtd: e[1].qtd || (_qtdMap[e[0]] || 0)}];
   });
   renderGMVCanalLista(canaisComQtd);
 
@@ -7038,15 +7039,16 @@ function veltroEntrarDashboard(empresa) {
   // Carregar links da empresa
   var links = veltroGetLinks(empresa.id);
 
-  // Verificar se tem links configurados
+  // Sempre aplicar links secundários (fluxo, estoque, produtos) mesmo sem planilha principal
+  // Isso garante que URLs configuradas persistam entre sessões
+  veltroAplicarLinks(empresa.id, links);
+
+  // Verificar se tem planilha principal configurada
   if(!links.principal) {
-    // Sem planilha principal — mostrar onboarding
+    // Sem planilha principal — mostrar onboarding para configurar
     veltroMostrarOnboarding(empresa);
     return;
   }
-
-  // Aplicar links nos campos do sistema existente
-  veltroAplicarLinks(empresa.id, links);
   // Garantir que sheetURL está definida antes do refresh automático
   if(links.principal && !sheetURL) {
     try{ sheetURL = _toGvizUrl(links.principal, '1435598200'); }catch(e){}
