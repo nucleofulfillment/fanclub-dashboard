@@ -4113,7 +4113,7 @@ function _agregadosPorCanal(arr) {
   return m;
 }
 
-function salvarResumo() {
+async function salvarResumo() {
   var d = window._lastProcessedData;
   if(!d) { alert('Carregue os dados do dashboard primeiro (botão ↻ ou aguarde o refresh)'); return; }
   // Não permitir salvar enquanto está vendo um snapshot (evita "snapshot de snapshot")
@@ -4141,19 +4141,36 @@ function salvarResumo() {
   var nome = window.prompt('Nome do resumo:', defaultName);
   if(!nome) return;
 
+  // Garantir que produtosVendidosMap reflete o filtro de data atual antes de capturar.
+  // Sem isso, o snapshot pega dados de outras abas/períodos carregados anteriormente.
+  if(typeof loadProdutosVendidos === 'function' && localStorage.getItem('fc_produtos_vendidos_url')) {
+    try {
+      console.log('[Roizen] Sincronizando produtosVendidosMap com período '+from+' → '+to+' antes de salvar...');
+      await loadProdutosVendidos(from, to);
+    } catch(e) { console.warn('[Roizen] Falha ao recarregar produtos vendidos:', e); }
+  }
+  // Garantir que _mktDataIA está atualizado (calcMarketing usa os campos do menu Marketing)
+  if(typeof calcMarketing === 'function') {
+    try { calcMarketing(); } catch(e) { console.warn('[Roizen] calcMarketing falhou:', e); }
+  }
+
   var cnt  = d.aprov.length + d.trans.length + d.entr.length;
   var rate = parseFloat((document.getElementById('tax-rate')||{}).value)||6;
-  // % de Mídia: prioriza o valor digitado pelo usuário em Financeiro (campo fin-mkt-pct);
-  // se vazio, cai pro investimento da planilha de Marketing (_mktDataIA).
-  var mktPctManual = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
-  var mkt;
-  if(mktPctManual > 0) {
-    mkt = d.total * (mktPctManual/100);  // valor calculado a partir do % manual
-  } else if(window._mktDataIA && window._mktDataIA.investimento) {
-    mkt = window._mktDataIA.investimento.total || 0;
+  // Custo de Mídia: SEMPRE da soma dos indicadores do menu Marketing (_mktDataIA.investimento.total).
+  // Se Marketing não foi configurado, cai pro % manual digitado em Financeiro (fin-mkt-pct).
+  var mkt = 0;
+  var mktFonte = 'nenhuma';
+  if(window._mktDataIA && window._mktDataIA.investimento && window._mktDataIA.investimento.total > 0) {
+    mkt = window._mktDataIA.investimento.total;
+    mktFonte = 'menu-marketing';
   } else {
-    mkt = 0;
+    var mktPctManual = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
+    if(mktPctManual > 0) {
+      mkt = d.total * (mktPctManual/100);
+      mktFonte = 'fin-mkt-pct (fallback)';
+    }
   }
+  console.log('[Roizen] Salvando resumo — Mídia: R$'+mkt.toFixed(2)+' (fonte: '+mktFonte+')');
 
   // Snapshot AGREGADO — preserva tudo necessário para reconstruir gráficos e KPIs
   // Não salva os arrays brutos aprov/trans/entr (substituídos por contagens + agregados)
@@ -4278,12 +4295,13 @@ function renderResumos() {
 
   el.innerHTML = lista.map(function(r, i) {
     var k = r.kpis;
-    // Fallback: resumos antigos não têm produtosVendidos no kpis. Reconstrói da topProdutos salva.
+    // Produtos Vendidos:
+    // - Resumos novos: usa k.produtosVendidos (soma exata do produtosVendidosMap)
+    // - Resumos antigos sem o campo: NÃO somar topProdutos (são só top 50, daria número errado)
+    //   → mostrar — para forçar o usuário a salvar de novo com a versão atualizada
     var prodVend = (k.produtosVendidos && k.produtosVendidos > 0) ? k.produtosVendidos : 0;
-    if(prodVend === 0 && Array.isArray(r.topProdutos) && r.topProdutos.length) {
-      prodVend = r.topProdutos.reduce(function(s,p){ return s+(p.qtd||0); }, 0);
-    }
-    // Fallback: pctMidia em zero pode ser por mkt salvo sem o pct calculado. Recalcula de mkt/gmv.
+    var prodVendDisplay = prodVend > 0 ? prodVend.toLocaleString('pt-BR') : '—';
+    // % Mídia: prioriza k.pctMidia. Fallback: recalcula de mkt/gmv se mkt > 0.
     var pctMidia = (k.pctMidia && k.pctMidia > 0) ? k.pctMidia
                  : (k.mkt > 0 && k.gmv > 0 ? (k.mkt / k.gmv * 100) : 0);
     var periodoStr = r.periodo && r.periodo.from ? r.periodo.from + ' → ' + (r.periodo.to||'hoje') : 'Período completo';
@@ -4308,7 +4326,7 @@ function renderResumos() {
         _resumoKPI('💰','GMV',fM(k.gmv),'')+
         _resumoKPI('📦','Pedidos',k.pedidos.toLocaleString('pt-BR'),'')+
         _resumoKPI('🎯','Ticket Médio',fM(k.ticket),'')+
-        _resumoKPI('🛍️','Produtos Vendidos',(prodVend>0?prodVend.toLocaleString('pt-BR'):'—'),'')+
+        _resumoKPI('🛍️','Produtos Vendidos',prodVendDisplay,'')+
         _resumoKPI('📊','% Mídia',(pctMidia>0?pctMidia.toFixed(1)+'%':'—'),'')+
         _resumoKPI('🧾','Impostos',fM(k.impostos),'')+
       '</div>'+
