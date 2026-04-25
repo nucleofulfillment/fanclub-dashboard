@@ -2232,7 +2232,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v56'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v57'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -4042,7 +4042,21 @@ var PREC_ESTADO = {
 };
 
 function selecionarKit(qtd) {
+  var kitAnterior = PREC_ESTADO.kit || 1;
   PREC_ESTADO.kit = qtd;
+
+  // Atualizar o preço de venda automaticamente
+  var precoEl = document.getElementById('prec-preco-top');
+  if(precoEl && parseFloat(precoEl.value) > 0) {
+    // Calcular preço unitário (dividir pelo kit anterior) e multiplicar pelo novo
+    var precoAtual = parseFloat(precoEl.value) || 0;
+    var precoUnit  = precoAtual / kitAnterior;
+    var precoNovo  = precoUnit * qtd;
+    precoEl.value  = precoNovo.toFixed(2);
+    // Sincronizar com campo interno se existir
+    try{ var pi = document.getElementById('prec-preco'); if(pi) pi.value = precoNovo.toFixed(2); }catch(e){}
+  }
+
   document.querySelectorAll('.prec-kit-btn').forEach(function(b){
     var ativo = parseInt(b.dataset.kit) === qtd;
     b.style.background = ativo ? 'rgba(110,231,183,.15)' : 'transparent';
@@ -5922,24 +5936,9 @@ function applyFilterFin() {
 
   // Atualizar cf-body
   var COMISSOES={'Shopee':0.20,'Mercado Livre':0.16,'Shein':0.18,'TikTok Shop':0.12,'Dafiti':0.20,'Netshoes':0.20,'Loja Própria':0.03};
-  var today3 = td();
-  try{document.getElementById('cf-body').innerHTML = Object.entries(d.cfc).sort(function(a,b){return (a[1].data||'').localeCompare(b[1].data||'');}).map(function(e){
-    var canal=e[0],info=e[1];
-    var diff=info.data?Math.round((new Date(info.data)-new Date(today3))/86400000):999;
-    var cls=diff<=0?'ok':diff<=7?'em':'fut';
-    var lbl=diff<=0?'✓ Disponível':'Em '+diff+'d';
-    var comRate=COMISSOES[canal]||0.15;
-    var comVal=info.gmv*comRate, liq=info.gmv-comVal;
-    return '<tr>'+
-      '<td><span class="cchip" style="background:'+(CCORES[canal]||'#888')+'18;color:'+(CCORES[canal]||'#888')+'">'+canal+'<\/span><\/td>'+
-      '<td><span class="cfval" style="color:var(--text)">'+fMF(info.gmv)+'<\/span><\/td>'+
-      '<td style="font-family:var(--fmono);font-size:11px"><span style="color:var(--red)">-'+fMF(comVal)+'<\/span><br><span style="color:var(--muted);font-size:10px">'+(comRate*100).toFixed(0)+'%<\/span><\/td>'+
-      '<td><span class="cfval" style="color:var(--green)">'+fMF(liq)+'<\/span><\/td>'+
-      '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted)">+'+info.prazo+'d<\/td>'+
-      '<td><span class="cfdate">'+(info.data?fD(info.data):'—')+'<\/span><\/td>'+
-      '<td><span class="cfst '+cls+'">'+lbl+'<\/span><\/td>'+
-    '<\/tr>';
-  }).join('');}catch(e){}
+  // Reusar a função de render principal via syncFinanceiroKPIs
+  // que já usa o novo layout de cards
+  // (o render correto está em syncFinanceiroKPIs → cf-body)
 }
 var estadosData = [];
 // ESTADOS_URL_KEY declarado nas constantes globais acima
@@ -6558,7 +6557,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v56');
+    localStorage.removeItem('fc_rows_cache_v57');
     setTimeout(refresh, 200);
   }
 }
@@ -6602,7 +6601,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v56');
+  localStorage.removeItem('fc_rows_cache_v57');
   veltroAplicarLinks(id, links);
 }
 
