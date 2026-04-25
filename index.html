@@ -2214,7 +2214,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v49'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v50'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -4860,13 +4860,19 @@ function renderGMVCanalLista(canais) {
 
 function toggleSidebar() {
   var sb = document.getElementById('sidebar');
+  var ov = document.getElementById('sidebar-overlay');
   sb.classList.toggle('open');
-  ov.classList.toggle('open');
+  if(ov) ov.classList.toggle('open');
+  // Prevenir scroll do body quando sidebar aberto no mobile
+  document.body.style.overflow = sb.classList.contains('open') ? 'hidden' : '';
 }
 
 function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('open');
+  var sb = document.getElementById('sidebar');
+  var ov = document.getElementById('sidebar-overlay');
+  if(sb) sb.classList.remove('open');
+  if(ov) ov.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -5382,14 +5388,65 @@ function recarregarProdutosVendidos() {
 function _popularSeletorMesProd() {
   var sel = document.getElementById('prod-mes-sel');
   if(!sel) return;
-  // Coletar todos os meses disponíveis no produtosVendidosMap
-  var mesesSet = new Set();
+
+  // Meses em pt-BR para normalização
+  var MESES_NORM = {
+    'jan':'Janeiro','fev':'Fevereiro','mar':'Março','abr':'Abril',
+    'mai':'Maio','jun':'Junho','jul':'Julho','ago':'Agosto',
+    'set':'Setembro','out':'Outubro','nov':'Novembro','dez':'Dezembro',
+    'janeiro':'Janeiro','fevereiro':'Fevereiro','março':'Março','abril':'Abril',
+    'maio':'Maio','junho':'Junho','julho':'Julho','agosto':'Agosto',
+    'setembro':'Setembro','outubro':'Outubro','novembro':'Novembro','dezembro':'Dezembro'
+  };
+
+  // Normalizar nome de aba para "MesNome-AA"
+  function normalizarAba(aba) {
+    if(!aba) return aba;
+    var s = aba.trim();
+    // Extrair ano: 2 ou 4 dígitos
+    var anoM = s.match(/(\d{4})/); 
+    var aa = anoM ? anoM[1].slice(-2) : (new Date().getFullYear().toString().slice(-2));
+    // Extrair nome do mês
+    var mesNome = null;
+    var partes = s.toLowerCase().replace(/[-_\/\s]+/g,' ').split(' ');
+    for(var i=0; i<partes.length; i++) {
+      var p = partes[i].replace(/[^a-záéíóúâêîôûãõç]/g,'');
+      if(MESES_NORM[p]) { mesNome = MESES_NORM[p]; break; }
+    }
+    if(!mesNome) return aba; // não conseguiu normalizar
+    return mesNome+'-'+aa;
+  }
+
+  // Coletar abas únicas normalizadas → manter mapa original→normalizado
+  var abaParaNorm = {};  // aba original → aba normalizada
+  var normParaAbas = {}; // normalizado → lista de originais (para filtrar)
+
   Object.values(produtosVendidosMap).forEach(function(p) {
-    if(p.por_mes) Object.keys(p.por_mes).forEach(function(m){ mesesSet.add(m); });
+    if(!p.por_mes) return;
+    Object.keys(p.por_mes).forEach(function(abaOrig) {
+      if(abaParaNorm[abaOrig]) return;
+      var norm = normalizarAba(abaOrig);
+      abaParaNorm[abaOrig] = norm;
+      if(!normParaAbas[norm]) normParaAbas[norm] = [];
+      if(!normParaAbas[norm].includes(abaOrig)) normParaAbas[norm].push(abaOrig);
+    });
   });
-  var meses = Array.from(mesesSet).sort();
+
+  // Salvar mapa para uso no filtro
+  window._abaNormMap = normParaAbas;
+  window._abaOrigNorm = abaParaNorm;
+
+  // Ordenar por mês do ano
+  var ORDEM_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var normsOrdenados = Object.keys(normParaAbas).sort(function(a,b){
+    var mA = a.split('-')[0], mB = b.split('-')[0];
+    var aaA = parseInt(a.split('-')[1]||'0'), aaB = parseInt(b.split('-')[1]||'0');
+    if(aaA !== aaB) return aaA - aaB;
+    return ORDEM_MESES.indexOf(mA) - ORDEM_MESES.indexOf(mB);
+  });
+
   sel.innerHTML = '<option value="todos">Todos os meses</option>' +
-    meses.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
+    normsOrdenados.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('');
 }
 
 /* ─ Aplicar filtro de categoria — atualiza tudo ─ */
@@ -5417,10 +5474,16 @@ function renderEstoqueIndicadores() {
   if(usandoNovaPlanilha) {
     // Filtrar por mês selecionado se necessário
     if(mesSel !== 'todos') {
+      // Usar mapa de normalização para encontrar todas as abas originais do mês
+      var abasDoMes = (window._abaNormMap && window._abaNormMap[mesSel]) || [mesSel];
       var mapFiltrado = {};
       Object.keys(produtosVendidosMap).forEach(function(sku) {
         var p = produtosVendidosMap[sku];
-        var qtdMes = (p.por_mes && p.por_mes[mesSel]) || 0;
+        if(!p.por_mes) return;
+        var qtdMes = 0;
+        abasDoMes.forEach(function(abaOrig){
+          qtdMes += (p.por_mes[abaOrig] || 0);
+        });
         if(qtdMes > 0) {
           mapFiltrado[sku] = Object.assign({}, p, {qtd: qtdMes});
         }
@@ -5567,8 +5630,8 @@ function renderEstoqueIndicadores() {
     return '<div class="ritem">'+
       '<div class="rpos '+(MEDALS[i]||'')+'">'+(i+1)+'<\/div>'+
       '<div class="rlbl">'+t[0]+'<\/div>'+
-      '<div style="flex:1;min-width:0;max-width:42%"><div class="rbbg"><div class="rbfill" style="width:'+(t[1]/maxT*100).toFixed(1)+'%"><\/div><\/div><\/div>'+
-      '<div style="min-width:58px;text-align:right;flex-shrink:0;font-family:var(--fmono);font-size:12px;font-weight:600;padding-left:8px;white-space:nowrap">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
+      '<div style="width:'+(t[1]/maxT*38).toFixed(1)+'%;min-width:30px;max-width:38%;overflow:hidden"><div class="rbbg" style="width:100%"><div class="rbfill" style="width:100%"><\/div><\/div><\/div>'+
+      '<div style="flex:1;text-align:right;font-family:var(--fmono);font-size:12px;font-weight:600;padding-left:8px;white-space:nowrap;min-width:50px">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
     '<\/div>';
   }).join('');
 }
@@ -6270,7 +6333,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v49');
+    localStorage.removeItem('fc_rows_cache_v50');
     setTimeout(refresh, 200);
   }
 }
@@ -6314,7 +6377,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v49');
+  localStorage.removeItem('fc_rows_cache_v50');
   veltroAplicarLinks(id, links);
 }
 
