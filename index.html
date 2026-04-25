@@ -2240,7 +2240,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v79';
+const CACHE_LS_KEY = 'fc_rows_cache_v80';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -5904,6 +5904,18 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   abasReais.forEach(function(a){ if(!abasUnidas.includes(a)) abasUnidas.push(a); });
   window._prodAbasEncontradas = abasUnidas;
   console.log('[FanClub Produtos] Abas encontradas:', window._prodAbasEncontradas);
+
+  // Popular seletor de meses com as abas encontradas
+  // (cada aba bem-sucedida foi registrada com o mesKey normalizado)
+  // Reconstruir lista de meses a partir dos por_mes dos produtos
+  var mesesEncontrados = new Set();
+  Object.values(novoMap).forEach(function(p) {
+    if(p.por_mes) Object.keys(p.por_mes).forEach(function(m){ mesesEncontrados.add(m); });
+  });
+  // Adicionar também as abas reais encontradas (nome original da aba)
+  abasReais.forEach(function(a){ mesesEncontrados.add(a); });
+  window._prodMesesEncontrados = Array.from(mesesEncontrados);
+  console.log('[FanClub Produtos] Meses com dados:', window._prodMesesEncontrados);
   var total = Object.keys(novoMap).length;
   if(statusEl) { statusEl.textContent = '✅ ' + total + ' SKUs · ' + abasOk + ' aba(s)' + (abasFail > 0 ? ' · '+abasFail+' erro(s)':''); statusEl.style.color = 'var(--green)'; }
   if(urlEl) urlEl.style.borderColor = 'var(--green)';
@@ -6051,8 +6063,8 @@ function _popularSeletorMesProd() {
     return mesNome+'-'+aa;
   }
 
-  // ESTRATÉGIA 1: usar abas reais encontradas (mais confiável)
-  var abasReais = window._prodAbasEncontradas;
+  // ESTRATÉGIA 1: usar meses com dados reais (por_mes dos produtos)
+  var abasReais = window._prodMesesEncontrados || window._prodAbasEncontradas;
   if(abasReais && abasReais.length > 0) {
     // Normalizar e deduplicar usando as abas reais
     var normSet = {};
@@ -6288,7 +6300,9 @@ function renderEstoqueIndicadores() {
     return;
   }
 
-  var maxT = tams[0][1];
+  // maxT = MAIOR quantidade (não o primeiro da lista que é o menor tamanho)
+  var maxT = Math.max.apply(null, tams.map(function(t){ return t[1]; }));
+  if(maxT <= 0) maxT = 1;
   tamEl.innerHTML = tams.map(function(t,i){
     return '<div class="ritem">'+
       '<div class="rpos '+(MEDALS[i]||'')+'">'+(i+1)+'<\/div>'+
@@ -6997,7 +7011,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v79');
+    localStorage.removeItem('fc_rows_cache_v80');
     setTimeout(refresh, 200);
   }
 }
@@ -7041,7 +7055,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v79');
+  localStorage.removeItem('fc_rows_cache_v80');
   veltroAplicarLinks(id, links);
 }
 
