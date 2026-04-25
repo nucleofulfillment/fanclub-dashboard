@@ -2221,7 +2221,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v51'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v53'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2460,7 +2460,7 @@ function processarDados(pedidos) {
   // Acumuladores
   var total=0, frete=0;
   var aprov=[], trans=[], entr=[];
-  var byData={}, byCanal={}, byCanalMes={}, byPag={}, byTam={}, byProd={};
+  var byData={}, byCanal={}, byCanalMes={}, byPag={}, byTam={}, byProd={}, byQtdCanal={};
   var cfd={}, cfc={};
   var todayStr = td();
   var fut60 = addD(todayStr, 60);
@@ -2478,11 +2478,10 @@ function processarDados(pedidos) {
     // GMV por dia
     byData[p.data] = (byData[p.data]||0) + p.valor;
 
-    // GMV por canal (com contagem de pedidos)
-    if(!byCanal[p.canal]) byCanal[p.canal] = 0;
+    // GMV por canal (com contagem de pedidos em variável separada)
     byCanal[p.canal] = (byCanal[p.canal]||0) + p.valor;
-    if(!byCanal._qtd) byCanal._qtd = {};
-    byCanal._qtd[p.canal] = (byCanal._qtd[p.canal]||0) + 1;
+    if(!byQtdCanal) byQtdCanal = {};
+    byQtdCanal[p.canal] = (byQtdCanal[p.canal]||0) + 1;
 
     // GMV por canal/mês
     var mes = p.data.slice(0,7);
@@ -2644,6 +2643,8 @@ function applyFilter(){
   var from = document.getElementById('f-from').value; // "YYYY-MM-DD" ou ""
   var to   = document.getElementById('f-to').value;   // "YYYY-MM-DD" ou ""
   var canalFilter = (document.getElementById('f-canal')||{}).value || '';
+  // Salvar filtro atual globalmente para uso em makeCharts (período anterior)
+  window._filtroAtual = {from: from, to: to};
 
   var pedidos = getPedidos();
 
@@ -2876,22 +2877,27 @@ function makeCharts(d){
   dch();
 
   // ── Linha evolução ──────────────────────────────────────────
-  const gL=document.getElementById('ch-linha').getContext('2d');
+  var chLinhaEl = document.getElementById('ch-linha');
+  if(!chLinhaEl) return;
+  const gL=chLinhaEl.getContext('2d');
+  if(!gL) return;
   const gr=gL.createLinearGradient(0,0,0,280);
   gr.addColorStop(0,'rgba(110,231,183,0.22)');gr.addColorStop(1,'rgba(110,231,183,0)');
   // Calcular dados do período anterior para comparação
-  var datasAnt = [], valsAnt = [];
-  var from = document.getElementById('f-from').value;
-  var to   = document.getElementById('f-to').value;
-  if(from && to) {
+  var datasAnt = [];
+  var filtro = window._filtroAtual || {};
+  var from = filtro.from || document.getElementById('f-from').value;
+  var to   = filtro.to   || document.getElementById('f-to').value;
+  if(from && to && d.datas && d.datas.length > 0) {
     var dtFrom = new Date(from+'T00:00'), dtTo = new Date(to+'T00:00');
     var dias = Math.round((dtTo - dtFrom) / 86400000) + 1;
     var antFrom = new Date(dtFrom); antFrom.setDate(antFrom.getDate() - dias);
     var antTo   = new Date(dtFrom); antTo.setDate(antTo.getDate() - 1);
     var antFromStr = antFrom.toISOString().slice(0,10);
     var antToStr   = antTo.toISOString().slice(0,10);
-    // Filtrar rows do período anterior
-    var rowsAnt = _ROWS.filter(function(r){ return r[_colIdx.data]>=antFromStr && r[_colIdx.data]<=antToStr; });
+    // Filtrar rows do período anterior (allRows = variável global com todos os pedidos)
+    var rowsSource = (typeof allRows !== 'undefined' && allRows) ? allRows : [];
+    var rowsAnt = rowsSource.filter(function(r){ return r[_colIdx.data]>=antFromStr && r[_colIdx.data]<=antToStr; });
     var byDataAnt = {};
     rowsAnt.forEach(function(r){
       var dt = r[_colIdx.data]; var v = parseFloat(r[_colIdx.valor])||0;
@@ -2906,6 +2912,11 @@ function makeCharts(d){
   const grAnt=gL.createLinearGradient(0,0,0,280);
   grAnt.addColorStop(0,'rgba(244,63,94,0.1)');grAnt.addColorStop(1,'rgba(244,63,94,0)');
 
+  if(!d.datas || d.datas.length === 0) {
+    // Sem dados para o período — limpar gráfico
+    if(CH.linha) { CH.linha.destroy(); CH.linha = null; }
+    return;
+  }
   CH.linha=new Chart(gL,{type:'line',data:{labels:d.datas.map(fD),datasets:[
     {label:'Período Atual',data:d.vals,borderColor:'#6EE7B7',backgroundColor:gr,borderWidth:2.5,tension:0.4,fill:true,pointBackgroundColor:'#6EE7B7',pointRadius:window.innerWidth<768?3:5,pointHoverRadius:7},
     datasAnt.length>0 ? {label:'Período Anterior',data:datasAnt,borderColor:'#F43F5E',backgroundColor:grAnt,borderWidth:1.5,tension:0.4,fill:false,borderDash:[5,3],pointBackgroundColor:'#F43F5E',pointRadius:window.innerWidth<768?2:3,pointHoverRadius:5} : null
@@ -3543,7 +3554,7 @@ function calcMarketing() {
   }
   // Lista vertical GMV por canal com total — passar GMV e pedidos
   var canaisComQtd = d.canais.map(function(c){
-    return [c[0], {gmv: c[1], qtd: (byCanal._qtd && byCanal._qtd[c[0]]) || 0}];
+    return [c[0], {gmv: c[1], qtd: (byQtdCanal && byQtdCanal[c[0]]) || 0}];
   });
   renderGMVCanalLista(canaisComQtd);
 
@@ -6393,7 +6404,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v51');
+    localStorage.removeItem('fc_rows_cache_v53');
     setTimeout(refresh, 200);
   }
 }
@@ -6437,7 +6448,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v51');
+  localStorage.removeItem('fc_rows_cache_v53');
   veltroAplicarLinks(id, links);
 }
 
