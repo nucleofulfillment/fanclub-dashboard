@@ -4169,6 +4169,15 @@ function salvarResumo() {
       mkt:     mkt,
       pctMidia:d.total>0?mkt/d.total*100:0,
       roas:    mkt>0?d.total/mkt:0,
+      // Total de produtos vendidos (soma de quantidades da planilha de produtos vendidos)
+      produtosVendidos: (function() {
+        try {
+          if(typeof produtosVendidosMap === 'object' && produtosVendidosMap) {
+            return Object.values(produtosVendidosMap).reduce(function(s,p){ return s+(p.qtd||0); }, 0);
+          }
+        } catch(e) {}
+        return 0;
+      })(),
       taxRate: rate
     },
 
@@ -4281,7 +4290,7 @@ function renderResumos() {
         _resumoKPI('💰','GMV',fM(k.gmv),'')+
         _resumoKPI('📦','Pedidos',k.pedidos.toLocaleString('pt-BR'),'')+
         _resumoKPI('🎯','Ticket Médio',fM(k.ticket),'')+
-        _resumoKPI('📈','ROAS',(k.roas>0?k.roas.toFixed(2)+'x':'—'),'')+
+        _resumoKPI('🛍️','Produtos Vendidos',(k.produtosVendidos>0?k.produtosVendidos.toLocaleString('pt-BR'):'—'),'')+
         _resumoKPI('📊','% Mídia',(k.pctMidia>0?k.pctMidia.toFixed(1)+'%':'—'),'')+
         _resumoKPI('🧾','Impostos',fM(k.impostos),'')+
       '</div>'+
@@ -4316,7 +4325,7 @@ function compararResumos(i1, i2) {
     {key:'gmv',    lbl:'GMV',         fmt:fM},
     {key:'pedidos',lbl:'Pedidos',      fmt:function(v){return v.toLocaleString('pt-BR');}},
     {key:'ticket', lbl:'Ticket Médio', fmt:fM},
-    {key:'roas',   lbl:'ROAS',         fmt:function(v){return v>0?v.toFixed(2)+'x':'—';}},
+    {key:'produtosVendidos', lbl:'Produtos Vendidos', fmt:function(v){return v>0?v.toLocaleString('pt-BR'):'—';}},
     {key:'pctMidia',lbl:'% Mídia',     fmt:function(v){return v>0?v.toFixed(1)+'%':'—';}},
     {key:'impostos',lbl:'Impostos',    fmt:fM}
   ];
