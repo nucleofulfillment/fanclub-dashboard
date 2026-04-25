@@ -441,9 +441,9 @@ body.light body::before { opacity: 0; }
 
 /* ── Rank bars ──────────────────────────────────────── */
 .rlist { display:flex; flex-direction:column; gap:10px; }
-.ritem { display:flex; align-items:center; gap:8px; overflow:hidden; }
-.ritem .rbw { min-width:0; flex:1; }
-.rbfill { max-width:100%; }
+.ritem { display:flex; align-items:center; gap:6px; overflow:hidden; }
+.rbfill { height:5px; border-radius:3px; background:var(--accent); transition:width .4s; }
+.rbbg   { height:5px; border-radius:3px; background:var(--s3); overflow:hidden; }
 .rpos { font-family:var(--fmono); font-size:11px; font-weight:600; color:var(--muted); width:16px; text-align:right; flex-shrink:0; }
 .rpos.g { color:#F59E0B; } .rpos.s { color:#94A3B8; } .rpos.b { color:#B45309; }
 .rlbl { font-family:var(--fdisplay); font-size:14px; font-weight:600; width:40px; text-align:center; flex-shrink:0; }
@@ -1365,11 +1365,19 @@ body.light body::before { opacity: 0; }
           </div>
           <div class="sub">mensal / período</div>
         </div>
-        <!-- Investimento Mídia -->
+        <!-- Mídia / ADS — campo % editável -->
         <div class="kpi" style="--cc:#F472B6">
           <div class="ico">📢</div><div class="lbl">Mídia / ADS</div>
-          <div class="val" id="fin-mkt" style="font-size:18px">R$0</div>
-          <div class="sub" id="fin-mkt-sub">configure em Marketing</div>
+          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
+            <input type="number" id="fin-mkt-pct" value="0" min="0" max="100" step="0.1"
+              oninput="atualizarResultado()"
+              style="width:60px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;
+                     padding:4px 6px;font-family:var(--fdisplay);font-size:16px;font-weight:600;
+                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
+            <span style="font-family:var(--fmono);font-size:13px;color:var(--muted)">%</span>
+          </div>
+          <div class="val" id="fin-mkt" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="sub">% do GMV</div>
         </div>
         <!-- Resultado Líquido — destaque -->
         <div class="kpi" id="fin-resultado-kpi" style="--cc:#6EE7B7;grid-column:span 2">
@@ -2228,7 +2236,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v54'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v55'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2914,8 +2922,8 @@ function makeCharts(d){
   // Calcular dados do período anterior para comparação
   var datasAnt = [];
   var filtro = window._filtroAtual || {};
-  var from = filtro.from || document.getElementById('f-from').value;
-  var to   = filtro.to   || document.getElementById('f-to').value;
+  var from = filtro.from || (document.getElementById('f-from')||{}).value || '';
+  var to   = filtro.to   || (document.getElementById('f-to')||{}).value   || '';
   if(from && to && d.datas && d.datas.length > 0) {
     var dtFrom = new Date(from+'T00:00'), dtTo = new Date(to+'T00:00');
     var dias = Math.round((dtTo - dtFrom) / 86400000) + 1;
@@ -2923,19 +2931,24 @@ function makeCharts(d){
     var antTo   = new Date(dtFrom); antTo.setDate(antTo.getDate() - 1);
     var antFromStr = antFrom.toISOString().slice(0,10);
     var antToStr   = antTo.toISOString().slice(0,10);
-    // Filtrar rows do período anterior (allRows = variável global com todos os pedidos)
-    var rowsSource = (typeof allRows !== 'undefined' && allRows) ? allRows : [];
-    var rowsAnt = rowsSource.filter(function(r){ return r[_colIdx.data]>=antFromStr && r[_colIdx.data]<=antToStr; });
-    var byDataAnt = {};
-    rowsAnt.forEach(function(r){
-      var dt = r[_colIdx.data]; var v = parseFloat(r[_colIdx.valor])||0;
-      byDataAnt[dt] = (byDataAnt[dt]||0) + v;
-    });
-    // Alinhar às mesmas posições de datas do período atual (offset)
-    datasAnt = d.datas.map(function(dt, i) {
-      var dtOffset = new Date(dt+'T00:00'); dtOffset.setDate(dtOffset.getDate() - dias);
-      return byDataAnt[dtOffset.toISOString().slice(0,10)] || 0;
-    });
+    // Buscar pedidos do período anterior usando getPedidos() — retorna objetos {data, valor}
+    try {
+      var todosped = getPedidos();
+      var byDataAnt = {};
+      todosped.forEach(function(p){
+        if(!p.data) return;
+        var dt = p.data.slice(0,10);
+        if(dt >= antFromStr && dt <= antToStr) {
+          byDataAnt[dt] = (byDataAnt[dt]||0) + (p.valor||0);
+        }
+      });
+      // Alinhar às datas do período atual (deslocando para o período anterior)
+      datasAnt = d.datas.map(function(dt) {
+        var dtOffset = new Date(dt+'T00:00');
+        dtOffset.setDate(dtOffset.getDate() - dias);
+        return byDataAnt[dtOffset.toISOString().slice(0,10)] || 0;
+      });
+    } catch(e) { console.warn('Período anterior:', e.message); }
   }
   const grAnt=gL.createLinearGradient(0,0,0,280);
   grAnt.addColorStop(0,'rgba(244,63,94,0.1)');grAnt.addColorStop(1,'rgba(244,63,94,0)');
@@ -5397,6 +5410,8 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   }
 
   produtosVendidosMap = novoMap;
+  // Salvar abas encontradas globalmente para o seletor de meses
+  window._prodAbasEncontradas = abasEncontradas.filter(function(a){ return !a.startsWith('GID:'); });
   var total = Object.keys(novoMap).length;
   if(statusEl) { statusEl.textContent = '✅ ' + total + ' SKUs · ' + abasOk + ' aba(s)' + (abasFail > 0 ? ' · '+abasFail+' erro(s)':''); statusEl.style.color = 'var(--green)'; }
   if(urlEl) urlEl.style.borderColor = 'var(--green)';
@@ -5488,6 +5503,33 @@ function _popularSeletorMesProd() {
   var sel = document.getElementById('prod-mes-sel');
   if(!sel) return;
 
+  // ESTRATÉGIA 1: usar abas reais encontradas (mais confiável)
+  var abasReais = window._prodAbasEncontradas;
+  if(abasReais && abasReais.length > 0) {
+    // Normalizar e deduplicar usando as abas reais
+    var normSet = {};
+    abasReais.forEach(function(aba) {
+      var norm = normalizarAba(aba);
+      if(norm && !normSet[norm]) normSet[norm] = [aba];
+      else if(norm) normSet[norm].push(aba);
+    });
+    window._abaNormMap = normSet;
+    window._abaOrigNorm = {};
+    abasReais.forEach(function(aba){ window._abaOrigNorm[aba] = normalizarAba(aba); });
+
+    var ORDEM_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    var normsOrdenados = Object.keys(normSet).sort(function(a,b){
+      var mA=a.split('-')[0], mB=b.split('-')[0];
+      var aaA=parseInt(a.split('-')[1]||'0'), aaB=parseInt(b.split('-')[1]||'0');
+      if(aaA!==aaB) return aaA-aaB;
+      return ORDEM_MESES.indexOf(mA)-ORDEM_MESES.indexOf(mB);
+    });
+    sel.innerHTML = '<option value="todos">Todos os meses</option>' +
+      normsOrdenados.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('');
+    return;
+  }
+
+  // ESTRATÉGIA 2: coletar de por_mes dos produtos (fallback)
   // Meses em pt-BR para normalização — inclui variações com acento e sem
   var MESES_NORM = {
     'jan':'Janeiro','fev':'Fevereiro','mar':'Março','abr':'Abril',
@@ -5755,8 +5797,12 @@ function renderEstoqueIndicadores() {
     return '<div class="ritem">'+
       '<div class="rpos '+(MEDALS[i]||'')+'">'+(i+1)+'<\/div>'+
       '<div class="rlbl">'+t[0]+'<\/div>'+
-      '<div style="flex:1;min-width:0;padding-right:8px"><div class="rbbg"><div class="rbfill" style="width:'+(t[1]/maxT*100).toFixed(1)+'%;max-width:100%"><\/div><\/div><\/div>'+
-      '<div style="width:58px;text-align:right;font-family:var(--fmono);font-size:12px;font-weight:600;flex-shrink:0;white-space:nowrap">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="background:var(--s3);height:5px;border-radius:3px;overflow:hidden">'+
+          '<div style="height:5px;border-radius:3px;background:var(--accent);width:'+(t[1]/maxT*100).toFixed(1)+'%;transition:width .4s"></div>'+
+        '<\/div>'+
+      '<\/div>'+
+      '<div style="width:56px;text-align:right;font-family:var(--fmono);font-size:11px;font-weight:600;flex-shrink:0">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
     '<\/div>';
   }).join('');
 }
@@ -6230,9 +6276,11 @@ function syncFinanceiroKPIs(d) {
   var custoFixo = parseFloat((document.getElementById("fin-custo-fixo")||{}).value)||0;
 
   var impostos  = d.total * (rate/100);
-  // Custo de marketing vem do menu Marketing (window._mktDataIA)
-  var custoMkt  = (window._mktDataIA && window._mktDataIA.investimento)
-    ? window._mktDataIA.investimento.total || 0 : 0;
+  // Mídia: usar % manual (fin-mkt-pct) ou fallback para Marketing
+  var mktPct = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
+  var custoMkt = mktPct > 0 ? d.total * (mktPct/100)
+    : ((window._mktDataIA && window._mktDataIA.investimento)
+       ? window._mktDataIA.investimento.total || 0 : 0);
   // Comissões totais do calendário de liberações
   var COMISSOES = {'Shopee':0.20,'Mercado Livre':0.16,'Shein':0.18,'TikTok Shop':0.12,'Dafiti':0.20,'Netshoes':0.20,'Loja Própria':0.03};
   var comissaoTotal = 0;
@@ -6250,10 +6298,9 @@ function syncFinanceiroKPIs(d) {
   try{document.getElementById("fin-frt").textContent = fMKPI(d.frete);}catch(e){}
   try{document.getElementById("fin-tax").textContent = fMKPI(impostos);}catch(e){}
   try{document.getElementById("fin-tax-rate").textContent = "aliquota "+rate+"%";}catch(e){}
-  // Mídia
+  // Mídia — atualizar valor calculado
   try{
     document.getElementById("fin-mkt").textContent = fMKPI(custoMkt);
-    document.getElementById("fin-mkt-sub").textContent = custoMkt > 0 ? 'investimento em ADS' : 'configure em Marketing';
   }catch(e){}
 
   // Resultado Líquido
@@ -6463,7 +6510,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v54');
+    localStorage.removeItem('fc_rows_cache_v55');
     setTimeout(refresh, 200);
   }
 }
@@ -6507,7 +6554,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v54');
+  localStorage.removeItem('fc_rows_cache_v55');
   veltroAplicarLinks(id, links);
 }
 
