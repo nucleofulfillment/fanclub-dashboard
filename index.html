@@ -1400,6 +1400,7 @@ body.light body::before { opacity: 0; }
         <div class="card">
           <div class="ch"><div><div class="ct">Previsão de Recebimentos por Canal</div><div class="cs">Data venda + prazo por marketplace — empilhado por canal</div></div></div>
           <canvas id="ch-cf" height="200"></canvas>
+          <div id="cf-chart-footer" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px 0;border-top:1px solid var(--border);margin-top:8px;flex-wrap:wrap"></div>
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
@@ -2234,7 +2235,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v70';
+const CACHE_LS_KEY = 'fc_rows_cache_v72';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -2582,6 +2583,10 @@ function processarDados(pedidos) {
   var tamanhos   = Object.entries(byTam).sort(function(a,b){return b[1]-a[1];});
   var top20 = Object.entries(byProd).map(function(e){return {nome:e[0],gmv:e[1].gmv,qtd:e[1].qtd};}).sort(function(a,b){return b.gmv-a.gmv;}).slice(0,20);
   var cfdatas = Object.keys(cfd).filter(function(d){return d>=todayStr&&d<=fut60;}).sort().slice(0,20);
+
+  // Salvar globalmente para uso em calcMarketing e outros módulos
+  window._byQtdCanal = byQtdCanal;
+  window._byCanal    = byCanal;
 
   return {
     total, qtd: pedidos.length, frete,
@@ -3084,7 +3089,10 @@ function makeCharts(d){
 
   // ── Cashflow EMPILHADO por canal ─────────────────────────────
   // Processar: data de recebimento = data_venda + prazo_canal, agrupado por dia+canal
-  var cfByDayCanal = {}; // data → {canal: valor}
+  var COMISSOES_CF = {'Shopee':0.20,'Mercado Livre':0.16,'Shein':0.18,'TikTok Shop':0.12,'Dafiti':0.20,'Netshoes':0.20,'Loja Própria':0.03};
+  var cfByDayCanal = {}; // data → {canal: gmv_bruto}
+  var cfByDayLiq   = {}; // data → {canal: liquido}
+  var cfByDayTot   = {}; // data → {gmv: total, liq: total}
   var cfCanais = new Set();
   var cfTodayD = td();
   var cfFut = addD(cfTodayD, 60);
@@ -3092,12 +3100,31 @@ function makeCharts(d){
     var prazo = PRAZOS[p.canal]||7;
     var dt = addD(p.data, prazo);
     if(dt < cfTodayD || dt > cfFut) return;
+    var com = COMISSOES_CF[p.canal]||0.15;
+    var liq = p.valor * (1 - com);
     if(!cfByDayCanal[dt]) cfByDayCanal[dt]={};
+    if(!cfByDayLiq[dt])   cfByDayLiq[dt]={};
+    if(!cfByDayTot[dt])   cfByDayTot[dt]={gmv:0, liq:0};
     cfByDayCanal[dt][p.canal]=(cfByDayCanal[dt][p.canal]||0)+p.valor;
+    cfByDayLiq[dt][p.canal]  =(cfByDayLiq[dt][p.canal]  ||0)+liq;
+    cfByDayTot[dt].gmv += p.valor;
+    cfByDayTot[dt].liq += liq;
     cfCanais.add(p.canal);
   });
   var cfDatas = Object.keys(cfByDayCanal).sort().slice(0,25);
   var cfCanaisList = [...cfCanais];
+  // Calcular totais gerais para o rodapé
+  var cfTotalGMV = cfDatas.reduce(function(s,dt){ return s+(cfByDayTot[dt]?cfByDayTot[dt].gmv:0); }, 0);
+  var cfTotalLiq = cfDatas.reduce(function(s,dt){ return s+(cfByDayTot[dt]?cfByDayTot[dt].liq:0); }, 0);
+  // Atualizar rodapé se existir
+  try {
+    var footEl = document.getElementById('cf-chart-footer');
+    if(footEl) footEl.innerHTML =
+      '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">Total GMV: </span>'+
+      '<span style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:var(--text)">'+fMF(cfTotalGMV)+'</span>'+
+      '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-left:16px">Líquido estimado: </span>'+
+      '<span style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:var(--green)">'+fMF(cfTotalLiq)+'</span>';
+  } catch(e) {}
   var cfCfEl = document.getElementById('ch-cf');
   if(cfCfEl) {
     if(CH.cf) CH.cf.destroy();
@@ -3119,7 +3146,37 @@ function makeCharts(d){
         responsive:true,maintainAspectRatio:true,
         plugins:{
           legend:{labels:{color:'#94A3B8',font:{family:'JetBrains Mono',size:10},boxWidth:10,padding:10}},
-          tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' '+c.dataset.label+': '+fMF(c.raw);}}}
+          tooltip:{
+            backgroundColor:'#181B22',
+            borderColor:'rgba(255,255,255,0.08)',borderWidth:1,
+            padding:12,
+            callbacks:{
+              title:function(items){
+                if(!items.length) return '';
+                var dt = cfDatas[items[0].dataIndex];
+                var tot = cfByDayTot[dt]||{gmv:0,liq:0};
+                return [
+                  fD(dt),
+                  'Bruto total: '+fMF(tot.gmv),
+                  'Líquido total: '+fMF(tot.liq)
+                ];
+              },
+              label:function(c){
+                if(c.raw <= 0) return null;
+                var dt = cfDatas[c.dataIndex];
+                var canal = c.dataset.label;
+                var com = COMISSOES_CF[canal]||0.15;
+                var liq = (cfByDayLiq[dt]&&cfByDayLiq[dt][canal])||c.raw*(1-com);
+                return [
+                  ' '+canal+': '+fMF(c.raw)+' (bruto)',
+                  '   Líquido: '+fMF(liq)+' (-'+(com*100).toFixed(0)+'%)'
+                ];
+              },
+              labelColor:function(c){
+                return {borderColor:CCORES[c.dataset.label]||'#6EE7B7', backgroundColor:CCORES[c.dataset.label]||'#6EE7B7'};
+              }
+            }
+          }
         },
         scales:{
           x:{stacked:true,grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10}}},
@@ -3801,8 +3858,9 @@ function calcMarketing() {
     });
   }
   // Lista vertical GMV por canal com total — passar GMV e pedidos
+  var _qtdMap = window._byQtdCanal || {};
   var canaisComQtd = d.canais.map(function(c){
-    return [c[0], {gmv: c[1], qtd: (byQtdCanal && byQtdCanal[c[0]]) || 0}];
+    return [c[0], {gmv: c[1], qtd: (_qtdMap[c[0]] || 0)}];
   });
   renderGMVCanalLista(canaisComQtd);
 
@@ -3859,9 +3917,10 @@ function calcMarketing() {
 
   // Atualizar grid GMV por canal no Marketing
   if(window._lastProcessedData && window._lastProcessedData.canais) {
-    var d = window._lastProcessedData;
-    var canaisComQtd = d.canais.map(function(c){
-      return [c[0], {gmv: c[1], qtd: (byQtdCanal && byQtdCanal[c[0]]) || 0}];
+    var _d = window._lastProcessedData;
+    var _qtd = window._byQtdCanal || {};
+    var canaisComQtd = _d.canais.map(function(c){
+      return [c[0], {gmv: c[1], qtd: (_qtd[c[0]] || 0)}];
     });
     renderGMVCanalLista(canaisComQtd);
   }
@@ -4915,10 +4974,12 @@ function renderFluxoCaixa() {
   var entradas = 0, saidas = 0, custoFixoProj = 0;
   var movReal = 0, movProj = 0;
 
-  // Diagnóstico: mostrar linhas com custoFixo preenchido
+  // Diagnóstico detalhado
   var linhasComFixo = dados.filter(function(d){ return d.custoFixo !== 0; });
-  console.log('[FC] Linhas com custoFixo:', linhasComFixo.length, 
-    linhasComFixo.slice(0,3).map(function(d){ return d.data+' status:'+d.status+' fixo:'+d.custoFixo; }));
+  var linhasComMov  = dados.filter(function(d){ return d.movimento !== 0; });
+  var linhasAmbos   = dados.filter(function(d){ return d.custoFixo !== 0 && d.movimento !== 0; });
+  console.log('[FC] Lançamentos: total='+dados.length+' fixo='+linhasComFixo.length+' mov='+linhasComMov.length+' ambos='+linhasAmbos.length);
+  if(linhasAmbos.length > 0) console.warn('[FC] ⚠️ Linhas com B e C preenchidos (possível dupla contagem):', linhasAmbos.slice(0,3).map(function(d){ return d.data+' B='+d.custoFixo+' C='+d.movimento; }));
 
   // Caixa inicial = do primeiro lançamento do período filtrado
   var caixaInicial = dados[0] ? dados[0].caixaInicial : 0;
@@ -4926,7 +4987,7 @@ function renderFluxoCaixa() {
   var hoje = new Date().toISOString().slice(0,10);
 
   dados.forEach(function(d) {
-    var mov = d.movimento + d.custoFixo;  // custoFixo já é negativo na planilha
+    var mov = d.movimento !== 0 ? d.movimento : d.custoFixo;  // col C prioridade sobre col B
 
     // Totais brutos para os KPIs de entradas/saídas
     if(mov > 0) entradas += mov;
@@ -4973,7 +5034,7 @@ function renderFluxoCaixa() {
   var sorted = dados.slice().sort(function(a,b){ return a.data.localeCompare(b.data); });
   sorted.forEach(function(d) {
     if(!d.data) return;
-    var mov = d.movimento + d.custoFixo;
+    var mov = d.movimento !== 0 ? d.movimento : d.custoFixo;  // col C prioridade sobre col B
     if(!porDia[d.data]) porDia[d.data] = {real:0, proj:0, status: d.status};
     porDia[d.data].proj += mov;
     if(d.status === 'R' || d.status === 'P') porDia[d.data].real += mov;
@@ -5020,7 +5081,7 @@ function renderFluxoCaixa() {
   // ── Gráfico categorias (pizza) ────────────────────────────
   var porCateg = {};
   dados.forEach(function(d) {
-    var mov = d.movimento + d.custoFixo;
+    var mov = d.movimento !== 0 ? d.movimento : d.custoFixo;  // col C prioridade sobre col B
     if(mov >= 0) return;  // só saídas
     var c = d.classif || 'Outros';
     porCateg[c] = (porCateg[c]||0) + Math.abs(mov);
@@ -6763,7 +6824,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v70');
+    localStorage.removeItem('fc_rows_cache_v72');
     setTimeout(refresh, 200);
   }
 }
@@ -6807,7 +6868,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v70');
+  localStorage.removeItem('fc_rows_cache_v72');
   veltroAplicarLinks(id, links);
 }
 
