@@ -2240,7 +2240,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v77';
+const CACHE_LS_KEY = 'fc_rows_cache_v78';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -5811,7 +5811,10 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         if(linhasValidas > 0) {
           abasEncontradas.push(aba);
           abasOk++;
-          console.log('[FanClub Produtos] "'+aba+'": '+linhasValidas+' itens (cols sku='+colSku+' nome='+colNome+' qtd='+colQtd+')');
+          console.log('[FanClub Produtos] ✅ "'+aba+'": '+linhasValidas+' itens (cols sku='+colSku+' nome='+colNome+' qtd='+colQtd+')');
+          // Top 3 para verificar dados
+          var _top3 = Object.entries(novoMap).sort(function(a,b){return b[1].qtd-a[1].qtd;}).slice(0,3);
+          console.log('[FanClub Produtos] Top 3:', _top3.map(function(p){return p[1].nome+'('+p[1].qtd+')'}).join(', '));
           break;
         }
       } catch(e) { /* tenta próxima variação */ }
@@ -5898,21 +5901,44 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
 
 /* Descobrir nomes das abas automaticamente via feed da planilha */
 async function _descobrirAbas(spreadsheetId) {
-  // O feed de sheets do Google Sheets lista todas as abas sem autenticação
+  // Estratégia 1: feed Atom (funciona em planilhas publicadas)
   var feedUrl = 'https://spreadsheets.google.com/feeds/worksheets/' + spreadsheetId + '/public/basic?alt=json';
   try {
     var res = await fetch(feedUrl);
-    if(!res.ok) return null;
-    var json = await res.json();
-    var entries = json.feed && json.feed.entry;
-    if(!entries || !entries.length) return null;
-    var nomes = entries.map(function(e){ return e.title && e.title.$t ? e.title.$t : null; }).filter(Boolean);
-    console.log('[FanClub Produtos] Abas encontradas na planilha:', nomes);
-    return nomes;
-  } catch(e) {
-    console.warn('[FanClub Produtos] Não conseguiu listar abas:', e.message);
-    return null;
-  }
+    if(res.ok) {
+      var json = await res.json();
+      var entries = json.feed && json.feed.entry;
+      if(entries && entries.length) {
+        var nomes = entries.map(function(e){ return e.title && e.title.$t ? e.title.$t : null; }).filter(Boolean);
+        console.log('[FanClub Produtos] Abas via feed:', nomes);
+        return nomes;
+      }
+    }
+  } catch(e) {}
+
+  // Estratégia 2: HTML da planilha — buscar nomes das abas no DOM
+  var htmlUrl = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/htmlview';
+  try {
+    var res2 = await fetch(htmlUrl);
+    if(res2.ok) {
+      var html = await res2.text();
+      // Abas ficam em elementos com aria-label ou data-sheet-name
+      var matches = html.match(/aria-label="([^"]+)"/g) || [];
+      var sheetMatches = html.match(/"sheetId":\d+,"title":"([^"]+)"/g) || [];
+      var nomes2 = [];
+      sheetMatches.forEach(function(m) {
+        var t = m.match(/"title":"([^"]+)"/);
+        if(t && t[1]) nomes2.push(t[1]);
+      });
+      if(nomes2.length) {
+        console.log('[FanClub Produtos] Abas via HTML:', nomes2);
+        return nomes2;
+      }
+    }
+  } catch(e2) {}
+
+  console.warn('[FanClub Produtos] Não conseguiu listar abas — usando tentativas de nome');
+  return null;
 }
 function _variacoesMes(mes, yy) {
   var m = mes.toLowerCase();
@@ -6951,7 +6977,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v77');
+    localStorage.removeItem('fc_rows_cache_v78');
     setTimeout(refresh, 200);
   }
 }
@@ -6995,7 +7021,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v77');
+  localStorage.removeItem('fc_rows_cache_v78');
   veltroAplicarLinks(id, links);
 }
 
