@@ -922,6 +922,11 @@ body.light body::before { opacity: 0; }
     <div class="live-badge"><span class="live-dot"></span><span id="sync-lbl">AO VIVO</span></div>
     <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" title="Alternar tema">🌙</button>
     <button class="btn-cfg" onclick="openDrawer()">⚙ Planilha</button>
+    <button class="btn-cfg" id="btn-clear-cache" onclick="limparCacheTotal()" 
+      title="Limpar cache e recarregar dados das planilhas"
+      style="background:transparent;border:1px solid var(--border2);color:var(--muted);font-size:11px;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--fmono);transition:all .2s">
+      🔄 Limpar Cache
+    </button>
     <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
   </div>
 </header>
@@ -2235,7 +2240,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v72';
+const CACHE_LS_KEY = 'fc_rows_cache_v73';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -5312,6 +5317,59 @@ window._setCanal = function(col) {
   console.log('[Veltro] Coluna de canal definida para col'+col+'. Recarregando...');
 };
 
+/* ─ Limpar cache total e recarregar planilhas ─ */
+function limparCacheTotal() {
+  var btn = document.getElementById('btn-clear-cache');
+  if(btn) {
+    btn.textContent = '⏳ Limpando...';
+    btn.disabled = true;
+    btn.style.color = 'var(--amber)';
+    btn.style.borderColor = 'var(--amber)';
+  }
+
+  // Limpar TODOS os caches do localStorage
+  var removidos = 0;
+  var keysToRemove = [];
+  for(var i = 0; i < localStorage.length; i++) {
+    var k = localStorage.key(i);
+    if(k && (k.startsWith('fc_rows_cache_') || k.startsWith('fc_') || k === CACHE_LS_KEY)) {
+      keysToRemove.push(k);
+    }
+  }
+  keysToRemove.forEach(function(k) { localStorage.removeItem(k); removidos++; });
+
+  // Limpar cache em memória
+  _pedidosCache    = null;
+  _pedidosCacheKey = '';
+  allRows          = [];
+
+  console.log('[Veltro] 🧹 Cache limpo: ' + removidos + ' chaves removidas do localStorage');
+
+  // Recarregar dados das planilhas após 300ms
+  setTimeout(function() {
+    refresh().then(function() {
+      if(btn) {
+        btn.textContent = '✅ Atualizado!';
+        btn.style.color  = 'var(--green)';
+        btn.style.borderColor = 'var(--green)';
+        setTimeout(function() {
+          btn.textContent = '🔄 Limpar Cache';
+          btn.disabled    = false;
+          btn.style.color = 'var(--muted)';
+          btn.style.borderColor = 'var(--border2)';
+        }, 2000);
+      }
+    }).catch(function() {
+      if(btn) {
+        btn.textContent = '🔄 Limpar Cache';
+        btn.disabled    = false;
+        btn.style.color = 'var(--muted)';
+        btn.style.borderColor = 'var(--border2)';
+      }
+    });
+  }, 300);
+}
+
 function toggleSidebar() {
   var sb = document.getElementById('sidebar');
   var ov = document.getElementById('sidebar-overlay');
@@ -6824,7 +6882,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v72');
+    localStorage.removeItem('fc_rows_cache_v73');
     setTimeout(refresh, 200);
   }
 }
@@ -6868,7 +6926,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v72');
+  localStorage.removeItem('fc_rows_cache_v73');
   veltroAplicarLinks(id, links);
 }
 
