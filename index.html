@@ -1362,8 +1362,9 @@ body.light body::before { opacity: 0; }
           <div class="ico">🏭</div><div class="lbl">Custo Fixo</div>
           <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-            <input type="number" id="fin-custo-fixo" value="0" min="0" step="500" oninput="atualizarResultado()"
-              style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:4px 6px;font-family:var(--fdisplay);font-size:16px;font-weight:600;color:var(--text);outline:none;color-scheme:dark">
+            <input type="number" id="fin-custo-fixo" value="0" min="0" step="1" oninput="atualizarResultado()" onchange="atualizarResultado()"
+              style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:4px 6px;font-family:var(--fdisplay);font-size:16px;font-weight:600;color:var(--text);outline:none;color-scheme:dark;-moz-appearance:textfield" 
+              onwheel="this.blur()">
           </div>
           <div class="sub">mensal / período</div>
         </div>
@@ -2234,16 +2235,19 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v67';
-// Limpar caches de versões anteriores automaticamente
+const CACHE_LS_KEY = 'fc_rows_cache_v68';
+// Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
-  for(var i=0; i<localStorage.length; i++){
+  for(var i=localStorage.length-1; i>=0; i--){
     var k = localStorage.key(i);
     if(k && k.startsWith('fc_rows_cache_') && k !== CACHE_LS_KEY) keysToRemove.push(k);
   }
   keysToRemove.forEach(function(k){ localStorage.removeItem(k); });
+  // Forçar remapeamento completo limpando o cache de pedidos processados
+  localStorage.removeItem(CACHE_LS_KEY);
   if(keysToRemove.length > 0) console.log('[Veltro] Cache antigo removido:', keysToRemove.join(', '));
+  console.log('[Veltro] Cache de pedidos limpo — remapeamento forçado na próxima carga');
 })(); // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
@@ -2444,11 +2448,13 @@ function normCanal(raw) {
 }
 
 function normStatus(raw) {
-  var s = String(raw||'').toLowerCase();
-  // Padrão real: "4 - Aprovado", "7 - Em Transporte", "8 - Entregue"
-  if(s.includes('entreg')   || s.includes('8 -')) return 'Entregue';
-  if(s.includes('transport')|| s.includes('7 -')) return 'Em Transporte';
-  // Aprovado, Nota Fiscal, Faturado, etc.
+  var s = String(raw||'').toLowerCase().trim();
+  // Padrão numérico: "8 - Entregue", "7 - Em Transporte", etc.
+  if(s.includes('entreg')     || s.startsWith('8') || s.includes('8 -') || s.includes('- 8')) return 'Entregue';
+  if(s.includes('transport')  || s.startsWith('7') || s.includes('7 -') || s.includes('- 7')) return 'Em Transporte';
+  if(s.includes('cancel')     || s.startsWith('9') || s.includes('9 -')) return 'Cancelado';
+  if(s.includes('devolv')     || s.includes('devol'))  return 'Devolvido';
+  // Aprovado, Nota Fiscal, Faturado, Pago, Em separação, etc.
   return 'Aprovado';
 }
 
@@ -2638,6 +2644,9 @@ var _pedidosCacheKey = '';
     console.log('[Veltro] Restaurando coluna de canal salva: col'+savedCol);
     _colIdx.canal = savedCol;
   }
+  // Limpar cache de pedidos ao iniciar (garante remapeamento com _colIdx atualizado)
+  _pedidosCache = null;
+  _pedidosCacheKey = '';
 })();
 
 function getPedidos() {
@@ -2845,9 +2854,7 @@ function renderAll(d){
     if(!slaStats[p.canal]) slaStats[p.canal]={ok:0,total:0};
     slaStats[p.canal].total++;
     if(p.status==='Em Transporte'||p.status==='Entregue') {
-      // Consideramos "dentro do SLA" se o pedido foi movimentado
-      if(todaySLA <= limite) slaStats[p.canal].ok++;
-      else slaStats[p.canal].ok++; // simplificado: todo entregue/transporte conta como ok
+      slaStats[p.canal].ok++;  // enviado = dentro do SLA
     }
   });
   try{
@@ -2855,7 +2862,7 @@ function renderAll(d){
     document.getElementById('sla-list').innerHTML = slaEntries.length > 0
       ? slaEntries.map(function(e){
           var canal=e[0],st=e[1];
-          var pct = st.total>0 ? Math.round((st.total-d.aprov.filter(function(p){return p.canal===canal;}).length)/st.total*100) : 0;
+          var pct = st.total>0 ? Math.round(st.ok/st.total*100) : 0;
           var color = pct>=90?'var(--green)':pct>=70?'var(--amber)':'var(--red)';
           return '<div style="display:flex;align-items:center;gap:8px">'+
             '<div style="width:8px;height:8px;border-radius:50%;background:'+(CCORES[canal]||'#888')+';flex-shrink:0"><\/div>'+
@@ -3417,7 +3424,8 @@ async function loadGS(url){
       // Canal de venda
       if(s.includes('canal') || s.includes('marketplace') || s.includes('plataforma')) novoIdx.canal = ci;
       // Status do pedido
-      else if(s === 'status' || s === 'situação' || (s.includes('status') && !s.includes('pagto') && !s.includes('pag'))) novoIdx.status = ci;
+      else if(s === 'status' || s === 'situação' || s === 'situacao' ||
+               (s.includes('status') && !s.includes('pagto') && !s.includes('pag') && !s.includes('rastr'))) novoIdx.status = ci;
       // Data do pedido
       else if(s === 'data' || s === 'data pedido' || s === 'data da venda' || s === 'criado em') novoIdx.data = ci;
       // Valor total
@@ -3429,7 +3437,8 @@ async function loadGS(url){
       // Cliente
       else if(s === 'cliente' || s === 'nome' || s === 'comprador' || s.includes('cliente')) novoIdx.cliente = ci;
       // Pagamento
-      else if(s.includes('pagamento') || s.includes('forma de pag') || s === 'pagto') novoIdx.pag = ci;
+      else if(s.includes('pagamento') || s.includes('forma de pag') || s === 'pagto' ||
+         s.includes('forma pag') || s.includes('tipo pag') || s === 'pag' || s.includes('payment')) novoIdx.pag = ci;
     });
     // Atualizar _colIdx apenas para os campos encontrados
     var updated = [];
@@ -6041,12 +6050,12 @@ function renderEstoqueIndicadores() {
     return '<div class="ritem">'+
       '<div class="rpos '+(MEDALS[i]||'')+'">'+(i+1)+'<\/div>'+
       '<div class="rlbl">'+t[0]+'<\/div>'+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="background:var(--s3);height:5px;border-radius:3px;overflow:hidden">'+
-          '<div style="height:5px;border-radius:3px;background:var(--accent);width:'+(t[1]/maxT*100).toFixed(1)+'%;transition:width .4s"></div>'+
+      '<div style="flex:1;min-width:0;margin-right:8px;max-width:calc(100% - 70px)">'+
+        '<div style="background:var(--s3);height:6px;border-radius:3px;width:100%;overflow:hidden">'+
+          '<div style="height:6px;border-radius:3px;background:var(--accent);width:'+(t[1]/maxT*100).toFixed(1)+'%;max-width:100%;display:block"></div>'+
         '<\/div>'+
       '<\/div>'+
-      '<div style="width:56px;text-align:right;font-family:var(--fmono);font-size:11px;font-weight:600;flex-shrink:0">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
+      '<div style="width:60px;text-align:right;font-family:var(--fmono);font-size:11px;font-weight:700;flex-shrink:0;color:var(--text)">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
     '<\/div>';
   }).join('');
 }
@@ -6747,7 +6756,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v67');
+    localStorage.removeItem('fc_rows_cache_v68');
     setTimeout(refresh, 200);
   }
 }
@@ -6791,7 +6800,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v67');
+  localStorage.removeItem('fc_rows_cache_v68');
   veltroAplicarLinks(id, links);
 }
 
