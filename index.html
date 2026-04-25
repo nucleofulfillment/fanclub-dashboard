@@ -4138,6 +4138,7 @@ function salvarResumo() {
   var lista = JSON.parse(localStorage.getItem(RESUMOS_KEY)||'[]');
   lista.unshift(resumo);
   localStorage.setItem(RESUMOS_KEY, JSON.stringify(lista));
+  console.log('[Roizen] Resumo salvo. Total de resumos no localStorage:', lista.length);
   renderResumos();
   alert('✅ Resumo "'+nome+'" salvo com sucesso!');
 }
@@ -4164,16 +4165,16 @@ function renderResumos() {
         '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
           (i < lista.length-1 ? '<button onclick="compararResumos('+i+','+(i+1)+')" style="padding:4px 12px;background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.2);border-radius:6px;color:#818CF8;font-size:11px;cursor:pointer">⚖️ Comparar com anterior</button>' : '')+
           '<button onclick="gerarLinkResumo('+i+')" style="padding:4px 12px;background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--muted2);font-size:11px;cursor:pointer">🔗 Gerar Link</button>'+
-          '<button onclick="excluirResumo('+r.id+')" style="padding:4px 12px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);border-radius:6px;color:var(--red);font-size:11px;cursor:pointer">🗑️</button>'+
+          '<button onclick="excluirResumo('+r.id+')" title="Excluir este resumo" style="padding:4px 12px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);border-radius:6px;color:var(--red);font-size:11px;cursor:pointer">🗑️ Excluir</button>'+
         '</div>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">'+
-        _resumoKPI('💰','GMV',fM(k.gmv),''),
-        _resumoKPI('📦','Pedidos',k.pedidos.toLocaleString('pt-BR'),''),
-        _resumoKPI('🎯','Ticket Médio',fM(k.ticket),''),
-        _resumoKPI('📈','ROAS',(k.roas>0?k.roas.toFixed(2)+'x':'—'),''),
-        _resumoKPI('📊','% Mídia',(k.pctMidia>0?k.pctMidia.toFixed(1)+'%':'—'),''),
-        _resumoKPI('🧾','Impostos',fM(k.impostos),''),
+        _resumoKPI('💰','GMV',fM(k.gmv),'')+
+        _resumoKPI('📦','Pedidos',k.pedidos.toLocaleString('pt-BR'),'')+
+        _resumoKPI('🎯','Ticket Médio',fM(k.ticket),'')+
+        _resumoKPI('📈','ROAS',(k.roas>0?k.roas.toFixed(2)+'x':'—'),'')+
+        _resumoKPI('📊','% Mídia',(k.pctMidia>0?k.pctMidia.toFixed(1)+'%':'—'),'')+
+        _resumoKPI('🧾','Impostos',fM(k.impostos),'')+
       '</div>'+
     '</div>';
   }).join('');
@@ -5458,11 +5459,15 @@ function limparCacheTotal() {
   }
 
   // Limpar TODOS os caches do localStorage
+  // EXCEÇÃO: preservar dados do usuário (resumos salvos, configurações da empresa, plataforma)
   var removidos = 0;
   var keysToRemove = [];
+  var CHAVES_PRESERVAR = ['fc_resumos_v1'];  // resumos salvos pelo usuário não devem ser apagados
   for(var i = 0; i < localStorage.length; i++) {
     var k = localStorage.key(i);
-    if(k && (k.startsWith('fc_rows_cache_') || k.startsWith('fc_') || k === CACHE_LS_KEY)) {
+    if(!k) continue;
+    if(CHAVES_PRESERVAR.indexOf(k) !== -1) continue;  // pular chaves protegidas
+    if(k.startsWith('fc_rows_cache_') || k.startsWith('fc_') || k === CACHE_LS_KEY) {
       keysToRemove.push(k);
     }
   }
