@@ -2053,8 +2053,8 @@ body.light body::before { opacity: 0; }
                     style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
                 </div>
               </div>
-              <div>
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Financeiro %</label>
+              <div title="Aplica apenas para Loja Própria — marketplaces fazem retenção própria">
+                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Financeiro % <span style="color:var(--accent);font-size:9px">(só Loja Própria)</span></label>
                 <input type="number" id="prec-fin" value="0" min="0" max="100" step="0.1" oninput="calcPreco()"
                   style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
               </div>
@@ -4533,7 +4533,8 @@ function calcPreco() {
   // Custos operacionais (% sobre preço de venda)
   var custoArm    = arm_rs * kit;  // R$ fixo por item × kit (ex: kit2 = 2× armazém)
   var custoAdsCanal = preco * (adsCanalPct/100);  // ADS Marketplace % sobre preço
-  var custoFin    = preco * (fin/100);
+  // FIX: Financeiro % aplica APENAS para Loja Própria (marketplaces fazem retenção própria)
+  var custoFin    = canal === 'Loja Própria' ? preco * (fin/100) : 0;
   var custoAds    = preco * (ads/100);
   var custoPlat   = preco * (plat/100);
   var custoPerdas = preco * (perdas/100);
@@ -4671,8 +4672,10 @@ function calcPrecoMinimo() {
   var sn = PREC_SIMPLES[faixa-1]||PREC_SIMPLES[2];
   var impPct = regime==='simples' ? sn.aliquota : (regime==='presumido' ? 0.1445 : 0.243);
   var comissaoPct = canal==='Shopee' ? 0.20 : canalInfo.comissao;  // usar 20% como estimativa para Shopee
+  // FIX: Financeiro % aplica APENAS para Loja Própria
+  var finCanal = canal === 'Loja Própria' ? fin : 0;
   // Armazém é R$ fixo — inclui no numerador, não no denominador
-  var pctVariavel  = comissaoPct + (fin+adsCanalPct+plat+perdas+fixo_pct)/100 + impPct;
+  var pctVariavel  = comissaoPct + (finCanal+adsCanalPct+plat+perdas+fixo_pct)/100 + impPct;
   var pctLucro    = metaMargem/100;
 
   // PrecoMin = (CustoProduto + TaxaFixa) / (1 - pctVariavel - pctLucro)
@@ -4737,7 +4740,8 @@ function renderPrecosMinimosPorCanal() {
   var custoTotal = custo * kit + frete;
   var sn = PREC_SIMPLES[faixa-1]||PREC_SIMPLES[2];
   var impPct = regime==='simples' ? sn.aliquota : (regime==='presumido' ? 0.1445 : 0.243);
-  var opPct  = (fin + adsPct + plat + perdas + fixo_pct) / 100;
+  // FIX: Financeiro % é movido para dentro do loop por canal (aplica APENAS para Loja Própria)
+  var opPctSemFin = (adsPct + plat + perdas + fixo_pct) / 100;
   var pctLucro = metaMargem / 100;
 
   var kitN = PREC_ESTADO.kit || 1;
@@ -4754,6 +4758,8 @@ function renderPrecosMinimosPorCanal() {
     var taxaF  = c==='Shopee' ? 4 : (ci.taxaFixa||0);
     // Dafiti: mensalidade diluída
     var extraPct = c==='Dafiti' ? calcCustoDafitiExtra(100) : 0;  // 100 como proxy inicial
+    // FIX: Financeiro % SOMENTE para Loja Própria
+    var opPct = opPctSemFin + (c === 'Loja Própria' ? fin/100 : 0);
     var totalPct = comPct + impPct + opPct + extraPct;
     var denom = 1 - totalPct - pctLucro;
     var precoMin = denom > 0.01 ? (custoTotal + arm_rs * kitN + taxaF) / denom : null;
