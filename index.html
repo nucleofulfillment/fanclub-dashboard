@@ -4196,14 +4196,71 @@ async function salvarResumo() {
       mkt:     mkt,
       pctMidia:d.total>0?mkt/d.total*100:0,
       roas:    mkt>0?d.total/mkt:0,
-      // Total de produtos vendidos (soma de quantidades da planilha de produtos vendidos)
+      // Total de produtos vendidos do PERÍODO DO RESUMO (from/to).
+      // Lê produtosVendidosMap[sku].por_mes que tem chaves tipo "abr26", "mar26"
+      // e soma SOMENTE os meses dentro do período. Isso garante isolamento entre snapshots.
       produtosVendidos: (function() {
         try {
-          if(typeof produtosVendidosMap === 'object' && produtosVendidosMap) {
-            return Object.values(produtosVendidosMap).reduce(function(s,p){ return s+(p.qtd||0); }, 0);
+          if(typeof produtosVendidosMap !== 'object' || !produtosVendidosMap) return 0;
+          var skus = Object.keys(produtosVendidosMap);
+          if(skus.length === 0) return 0;
+          // Coletar todas as chaves de meses presentes para diagnóstico
+          var todosMesesNoMap = new Set();
+          skus.forEach(function(sku) {
+            var p = produtosVendidosMap[sku];
+            if(p && p.por_mes) Object.keys(p.por_mes).forEach(function(m){ todosMesesNoMap.add(m); });
+          });
+          // Construir set de meses do período (formato "mes3letras+yy", ex: "abr26")
+          var mesesPeriodo = null;
+          if(from || to) {
+            mesesPeriodo = new Set();
+            var dF = from ? new Date(from+'T00:00') : new Date();
+            var dT = to   ? new Date(to+'T00:00')   : new Date();
+            var cur = new Date(dF.getFullYear(), dF.getMonth(), 1);
+            var end = new Date(dT.getFullYear(), dT.getMonth(), 1);
+            // Mapa MM → 3 primeiras letras (sem acento) do nome do mês usado nas chaves
+            var nomeMes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+            while(cur <= end) {
+              var mm = cur.getMonth();
+              var yy = cur.getFullYear().toString().slice(-2);
+              mesesPeriodo.add(nomeMes[mm] + yy);
+              cur.setMonth(cur.getMonth()+1);
+            }
           }
-        } catch(e) {}
-        return 0;
+          console.log('[Roizen] Produtos vendidos — período:', from+' → '+to,
+            '| meses esperados:', mesesPeriodo ? Array.from(mesesPeriodo) : 'todos',
+            '| meses no map:', Array.from(todosMesesNoMap),
+            '| total SKUs:', skus.length);
+          var total = 0, semPorMes = 0;
+          Object.values(produtosVendidosMap).forEach(function(p) {
+            if(!p) return;
+            // Sem filtro de período: usa qtd total
+            if(!mesesPeriodo) { total += (p.qtd || 0); return; }
+            // Com filtro: soma só os meses dentro do período via por_mes
+            if(p.por_mes && Object.keys(p.por_mes).length > 0) {
+              Object.keys(p.por_mes).forEach(function(mesKey) {
+                if(mesesPeriodo.has(mesKey)) total += (p.por_mes[mesKey] || 0);
+              });
+            } else {
+              semPorMes++;
+            }
+          });
+          if(semPorMes > 0) {
+            console.warn('[Roizen] '+semPorMes+' produto(s) sem por_mes — não puderam ser filtrados por período');
+          }
+          // Fallback: se filtro de período resultou em 0 mas o map tem dados,
+          // significa que o por_mes não bate com o período (planilha sem abas mensais).
+          // Nesse caso usar qtd total para não mostrar 0 enganador.
+          if(mesesPeriodo && total === 0 && skus.length > 0) {
+            var qtdTotal = Object.values(produtosVendidosMap).reduce(function(s,p){ return s+(p.qtd||0); }, 0);
+            if(qtdTotal > 0) {
+              console.warn('[Roizen] Fallback ativado: por_mes não bate com período → usando qtd total ('+qtdTotal+'). A planilha pode não ter abas mensais.');
+              total = qtdTotal;
+            }
+          }
+          console.log('[Roizen] Produtos vendidos no período:', total);
+          return total;
+        } catch(e) { console.error('[Roizen] Erro ao calcular produtosVendidos:', e); return 0; }
       })(),
       taxRate: rate
     },
