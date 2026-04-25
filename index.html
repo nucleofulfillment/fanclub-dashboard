@@ -2240,7 +2240,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v76';
+const CACHE_LS_KEY = 'fc_rows_cache_v77';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -5671,6 +5671,11 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   var novoMap = {};
   var abasOk = 0, abasFail = 0;
   var abasEncontradas = [];
+  // Se não há filtro de data (carregamento completo), resetar abas conhecidas
+  if(!from && !to) {
+    window._prodAbasEncontradas = [];
+    console.log('[FanClub Produtos] Carregamento completo — resetando abas conhecidas');
+  }
 
   // Tentar descobrir abas automaticamente
   var abasDisponiveis = null;
@@ -5739,12 +5744,33 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         if(header) {
           var foundHeader = false;
           header.forEach(function(h, ci) {
-            var s = String(h||'').toLowerCase().trim();
-            if(s==='sku'||s==='código'||s==='codigo'||s==='cod'||s==='ref') { colSku=ci; foundHeader=true; }
-            else if(s.includes('nome')||s.includes('produto')||s.includes('descrição')) { colNome=ci; foundHeader=true; }
-            else if(s==='qtd'||s==='quantidade'||s.includes('qtd')||s.includes('vendid')||s.includes('total')) { colQtd=ci; foundHeader=true; }
+            var s = String(h||'').toLowerCase().trim()
+              .normalize('NFD').replace(/[\u0300-\u036f]/g,''); // remover acentos
+            // Coluna A — código/SKU
+            if(s==='sku'||s==='codigo'||s==='cod'||s==='ref'||s==='referencia'||
+               s==='id'||s==='item'||s==='codprod'||s.startsWith('cod')) {
+              colSku=ci; foundHeader=true;
+            }
+            // Coluna B — nome/produto
+            else if(s.includes('nome')||s.includes('produto')||s.includes('descricao')||
+                    s.includes('descr')||s==='titulo'||s==='artigo') {
+              colNome=ci; foundHeader=true;
+            }
+            // Coluna C — quantidade
+            else if(s==='qtd'||s==='quantidade'||s==='quant'||s==='qty'||
+                    s.includes('qtd')||s.includes('vendid')||s.includes('total')||
+                    s.includes('venda')||s.includes('unid')) {
+              colQtd=ci; foundHeader=true;
+            }
           });
           if(foundHeader) startRow = 1;
+          console.log('[FanClub Produtos] Colunas detectadas: sku='+colSku+' nome='+colNome+' qtd='+colQtd+' startRow='+startRow);
+          console.log('[FanClub Produtos] Header:', header.slice(0,5).join(' | '));
+          // Se header não detectado, logar primeira linha para diagnóstico
+          if(!foundHeader && rows[0]) {
+            console.log('[FanClub Produtos] Header não detectado — usando padrão A=SKU B=Nome C=Qtd');
+            console.log('[FanClub Produtos] Linha 0:', rows[0].slice(0,5).join(' | '));
+          }
         }
 
         var dataRows = rows.slice(startRow);
@@ -5848,7 +5874,13 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
 
   produtosVendidosMap = novoMap;
   // Salvar abas encontradas globalmente para o seletor de meses
-  window._prodAbasEncontradas = abasEncontradas.filter(function(a){ return !a.startsWith('GID:'); });
+  var abasReais = abasEncontradas.filter(function(a){ return !a.startsWith('GID:'); });
+  // Mesclar com abas já conhecidas (não sobrescrever abas de carregamentos anteriores)
+  var abasAntigas = window._prodAbasEncontradas || [];
+  var abasUnidas = abasAntigas.slice();
+  abasReais.forEach(function(a){ if(!abasUnidas.includes(a)) abasUnidas.push(a); });
+  window._prodAbasEncontradas = abasUnidas;
+  console.log('[FanClub Produtos] Abas encontradas:', window._prodAbasEncontradas);
   var total = Object.keys(novoMap).length;
   if(statusEl) { statusEl.textContent = '✅ ' + total + ' SKUs · ' + abasOk + ' aba(s)' + (abasFail > 0 ? ' · '+abasFail+' erro(s)':''); statusEl.style.color = 'var(--green)'; }
   if(urlEl) urlEl.style.borderColor = 'var(--green)';
@@ -6919,7 +6951,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v76');
+    localStorage.removeItem('fc_rows_cache_v77');
     setTimeout(refresh, 200);
   }
 }
@@ -6963,7 +6995,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v76');
+  localStorage.removeItem('fc_rows_cache_v77');
   veltroAplicarLinks(id, links);
 }
 
