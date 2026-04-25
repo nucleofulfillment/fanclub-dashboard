@@ -443,6 +443,7 @@ body.light body::before { opacity: 0; }
 .rlist { display:flex; flex-direction:column; gap:10px; }
 .ritem { display:flex; align-items:center; gap:8px; overflow:hidden; }
 .ritem .rbw { min-width:0; flex:1; }
+.rbfill { max-width:100%; }
 .rpos { font-family:var(--fmono); font-size:11px; font-weight:600; color:var(--muted); width:16px; text-align:right; flex-shrink:0; }
 .rpos.g { color:#F59E0B; } .rpos.s { color:#94A3B8; } .rpos.b { color:#B45309; }
 .rlbl { font-family:var(--fdisplay); font-size:14px; font-weight:600; width:40px; text-align:center; flex-shrink:0; }
@@ -1364,6 +1365,12 @@ body.light body::before { opacity: 0; }
           </div>
           <div class="sub">mensal / período</div>
         </div>
+        <!-- Investimento Mídia -->
+        <div class="kpi" style="--cc:#F472B6">
+          <div class="ico">📢</div><div class="lbl">Mídia / ADS</div>
+          <div class="val" id="fin-mkt" style="font-size:18px">R$0</div>
+          <div class="sub" id="fin-mkt-sub">configure em Marketing</div>
+        </div>
         <!-- Resultado Líquido — destaque -->
         <div class="kpi" id="fin-resultado-kpi" style="--cc:#6EE7B7;grid-column:span 2">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -1387,8 +1394,8 @@ body.light body::before { opacity: 0; }
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
-          <div id="cf-body" style="display:flex;flex-direction:column;gap:8px;max-height:380px;overflow-y:auto;padding-right:4px">
-            <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px">Navegue até esta página para carregar</div>
+          <div id="cf-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:4px 0">
+            <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px;grid-column:1/-1">Navegue até esta página para carregar</div>
           </div>
         </div>
       </div>
@@ -2221,7 +2228,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v53'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v54'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2827,11 +2834,13 @@ function renderAll(d){
   // Cashflow table
   const today=td();
   const COMISSOES={'Shopee':0.20,'Mercado Livre':0.16,'Shein':0.18,'TikTok Shop':0.12,'Dafiti':0.20,'Netshoes':0.20,'Loja Própria':0.03};
+  // Calcular total GMV de todos os canais para % participação
+  var totalGMVCF = Object.values(d.cfc).reduce(function(s,i){ return s+i.gmv; }, 0);
+
   document.getElementById('cf-body').innerHTML=Object.entries(d.cfc)
     .sort((a,b)=>(a[1].data||'').localeCompare(b[1].data||''))
     .map(function([canal,info]){
       const diff=info.data?Math.round((new Date(info.data)-new Date(today))/86400000):999;
-      const cls=diff<=0?'ok':diff<=7?'em':'fut';
       const lbl=diff<=0?'✓ Disponível':'Em '+diff+'d';
       const stBg=diff<=0?'rgba(110,231,183,.15)':diff<=7?'rgba(245,158,11,.12)':'rgba(100,116,139,.1)';
       const stColor=diff<=0?'var(--green)':diff<=7?'var(--amber)':'var(--muted)';
@@ -2839,32 +2848,51 @@ function renderAll(d){
       const comVal=info.gmv*comRate;
       const liq=info.gmv-comVal;
       const cor=CCORES[canal]||'#888';
-      const prazo=PRAZOS[canal]||7;
+      const pct=totalGMVCF>0?(info.gmv/totalGMVCF*100).toFixed(1):'0.0';
       const prevFmt=info.data?new Date(info.data+'T00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'—';
-      return '<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;border-left:3px solid '+cor+'">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
-          '<span style="font-family:var(--fhead);font-size:12px;font-weight:700;color:'+cor+'">'+canal+'<\/span>'+
-          '<span style="padding:3px 10px;border-radius:20px;font-family:var(--fmono);font-size:10px;font-weight:600;background:'+stBg+';color:'+stColor+'">'+lbl+'<\/span>'+
+
+      return '<div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;'+
+        'padding:14px 12px;border-top:3px solid '+cor+';display:flex;flex-direction:column;gap:10px;min-width:0">'+
+
+        // Cabeçalho: nome + status
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:4px">'+
+          '<span style="font-family:var(--fhead);font-size:12px;font-weight:700;color:'+cor+';'+
+                'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+canal+'<\/span>'+
+          '<span style="padding:2px 8px;border-radius:20px;font-family:var(--fmono);font-size:9px;'+
+                'font-weight:600;background:'+stBg+';color:'+stColor+';flex-shrink:0">'+lbl+'<\/span>'+
         '<\/div>'+
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;min-width:0">'+
-          '<div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">GMV<\/div>'+
-            '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--text)">'+fMF(info.gmv)+'<\/div>'+
+
+        // GMV
+        '<div>'+
+          '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">GMV<\/div>'+
+          '<div style="font-family:var(--fdisplay);font-size:15px;font-weight:800;color:var(--text)">'+fMF(info.gmv)+'<\/div>'+
+        '<\/div>'+
+
+        // Comissão
+        '<div>'+
+          '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Comissão<\/div>'+
+          '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--red)">-'+fMF(comVal)+'<\/div>'+
+          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted)">'+(comRate*100).toFixed(0)+'%<\/div>'+
+        '<\/div>'+
+
+        // Líquido — destaque
+        '<div style="background:rgba(110,231,183,.06);border-radius:8px;padding:8px">'+
+          '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Líquido<\/div>'+
+          '<div style="font-family:var(--fdisplay);font-size:16px;font-weight:800;color:var(--green)">'+fMF(liq)+'<\/div>'+
+        '<\/div>'+
+
+        // Rodapé: prazo, data e participação
+        '<div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:4px">'+
+          '<div style="display:flex;justify-content:space-between">'+
+            '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Previsão<\/span>'+
+            '<strong style="font-family:var(--fmono);font-size:9px;color:var(--text)">'+prevFmt+'<\/strong>'+
           '<\/div>'+
-          '<div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Comissão<\/div>'+
-            '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--red)">-'+fMF(comVal)+'<\/div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted)">'+(comRate*100).toFixed(0)+'%<\/div>'+
-          '<\/div>'+
-          '<div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Líquido<\/div>'+
-            '<div style="font-family:var(--fdisplay);font-size:15px;font-weight:800;color:var(--green)">'+fMF(liq)+'<\/div>'+
+          '<div style="display:flex;justify-content:space-between">'+
+            '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Participação<\/span>'+
+            '<strong style="font-family:var(--fmono);font-size:9px;color:'+cor+'">'+pct+'%<\/strong>'+
           '<\/div>'+
         '<\/div>'+
-        '<div style="display:flex;gap:12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">'+
-          '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">Prazo: <strong style="color:var(--text)">+'+prazo+'d<\/strong><\/span>'+
-          '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">Previsão: <strong style="color:var(--text)">'+prevFmt+'<\/strong><\/span>'+
-        '<\/div>'+
+
       '<\/div>';
     }).join('');
 
@@ -5460,31 +5488,57 @@ function _popularSeletorMesProd() {
   var sel = document.getElementById('prod-mes-sel');
   if(!sel) return;
 
-  // Meses em pt-BR para normalização
+  // Meses em pt-BR para normalização — inclui variações com acento e sem
   var MESES_NORM = {
     'jan':'Janeiro','fev':'Fevereiro','mar':'Março','abr':'Abril',
     'mai':'Maio','jun':'Junho','jul':'Julho','ago':'Agosto',
     'set':'Setembro','out':'Outubro','nov':'Novembro','dez':'Dezembro',
-    'janeiro':'Janeiro','fevereiro':'Fevereiro','março':'Março','abril':'Abril',
-    'maio':'Maio','junho':'Junho','julho':'Julho','agosto':'Agosto',
-    'setembro':'Setembro','outubro':'Outubro','novembro':'Novembro','dezembro':'Dezembro'
+    'janeiro':'Janeiro','fevereiro':'Fevereiro',
+    'marco':'Março','março':'Março','mar':'Março',
+    'abril':'Abril','maio':'Maio','junho':'Junho','julho':'Julho',
+    'agosto':'Agosto','setembro':'Setembro','outubro':'Outubro',
+    'novembro':'Novembro','dezembro':'Dezembro'
   };
 
   // Normalizar nome de aba para "MesNome-AA"
+  // Suporta: "Janeiro-26", "janeiro-26", "jan-26", "jan/26", "jan26",
+  //          "janeiro 2026", "Janeiro 26", "01-26", "01/2026"
   function normalizarAba(aba) {
     if(!aba) return aba;
     var s = aba.trim();
-    // Extrair ano: 2 ou 4 dígitos
-    var anoM = s.match(/(\d{4})/); 
-    var aa = anoM ? anoM[1].slice(-2) : (new Date().getFullYear().toString().slice(-2));
-    // Extrair nome do mês
+    var anoAtual = new Date().getFullYear().toString().slice(-2);
+
+    // Tentar extrair ano (2 ou 4 dígitos)
+    var anoM4 = s.match(/20(\d{2})/);
+    var anoM2 = s.match(/[-\/\s_](\d{2})$/);
+    var anoM2b = s.match(/(\d{2})$/);
+    var aa = anoM4 ? anoM4[1] : (anoM2 ? anoM2[1] : (anoM2b ? anoM2b[1] : anoAtual));
+
+    // Remover o ano para isolar o mês
+    var semAno = s.replace(/20\d{2}/,'').replace(/[-\/\s_]\d{2}$/,'').replace(/\d{2}$/,'').trim();
     var mesNome = null;
-    var partes = s.toLowerCase().replace(/[-_\/\s]+/g,' ').split(' ');
-    for(var i=0; i<partes.length; i++) {
-      var p = partes[i].replace(/[^a-záéíóúâêîôûãõç]/g,'');
-      if(MESES_NORM[p]) { mesNome = MESES_NORM[p]; break; }
+
+    // Tentativa 1: nome por extenso
+    var chave = semAno.toLowerCase().replace(/[-_\/\s]+/g,'').replace(/[^a-z]/g,'');
+    if(MESES_NORM[chave]) { mesNome = MESES_NORM[chave]; }
+
+    // Tentativa 2: primeiras 3 letras
+    if(!mesNome && chave.length >= 3) {
+      var prefix = chave.substring(0,3);
+      if(MESES_NORM[prefix]) mesNome = MESES_NORM[prefix];
     }
-    if(!mesNome) return aba; // não conseguiu normalizar
+
+    // Tentativa 3: número do mês (01-12)
+    if(!mesNome) {
+      var numM = semAno.match(/^(\d{1,2})$/);
+      if(numM) {
+        var n = parseInt(numM[1]);
+        var mNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+        if(n>=1 && n<=12) mesNome = mNomes[n-1];
+      }
+    }
+
+    if(!mesNome) { console.warn('[Veltro] Não normalizou aba:', aba); return aba; }
     return mesNome+'-'+aa;
   }
 
@@ -5701,8 +5755,8 @@ function renderEstoqueIndicadores() {
     return '<div class="ritem">'+
       '<div class="rpos '+(MEDALS[i]||'')+'">'+(i+1)+'<\/div>'+
       '<div class="rlbl">'+t[0]+'<\/div>'+
-      '<div style="width:'+(t[1]/maxT*38).toFixed(1)+'%;min-width:30px;max-width:38%;overflow:hidden"><div class="rbbg" style="width:100%"><div class="rbfill" style="width:100%"><\/div><\/div><\/div>'+
-      '<div style="flex:1;text-align:right;font-family:var(--fmono);font-size:12px;font-weight:600;padding-left:8px;white-space:nowrap;min-width:50px">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
+      '<div style="flex:1;min-width:0;padding-right:8px"><div class="rbbg"><div class="rbfill" style="width:'+(t[1]/maxT*100).toFixed(1)+'%;max-width:100%"><\/div><\/div><\/div>'+
+      '<div style="width:58px;text-align:right;font-family:var(--fmono);font-size:12px;font-weight:600;flex-shrink:0;white-space:nowrap">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
     '<\/div>';
   }).join('');
 }
@@ -6196,6 +6250,11 @@ function syncFinanceiroKPIs(d) {
   try{document.getElementById("fin-frt").textContent = fMKPI(d.frete);}catch(e){}
   try{document.getElementById("fin-tax").textContent = fMKPI(impostos);}catch(e){}
   try{document.getElementById("fin-tax-rate").textContent = "aliquota "+rate+"%";}catch(e){}
+  // Mídia
+  try{
+    document.getElementById("fin-mkt").textContent = fMKPI(custoMkt);
+    document.getElementById("fin-mkt-sub").textContent = custoMkt > 0 ? 'investimento em ADS' : 'configure em Marketing';
+  }catch(e){}
 
   // Resultado Líquido
   try{
@@ -6404,7 +6463,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v53');
+    localStorage.removeItem('fc_rows_cache_v54');
     setTimeout(refresh, 200);
   }
 }
@@ -6448,7 +6507,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v53');
+  localStorage.removeItem('fc_rows_cache_v54');
   veltroAplicarLinks(id, links);
 }
 
