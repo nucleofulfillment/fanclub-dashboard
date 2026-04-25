@@ -884,7 +884,9 @@ body.light body::before { opacity: 0; }
                  outline:none;color-scheme:dark;box-sizing:border-box">
       </div>
 
-    </div> style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);
+    </div>
+
+    <div id="onb-erro" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);
          min-height:18px;margin-bottom:12px;text-align:center"></div>
 
     <button onclick="veltroSalvarConfig()"
@@ -2232,7 +2234,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v62'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v64'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -4869,6 +4871,11 @@ function renderFluxoCaixa() {
   var entradas = 0, saidas = 0, custoFixoProj = 0;
   var movReal = 0, movProj = 0;
 
+  // Diagnóstico: mostrar linhas com custoFixo preenchido
+  var linhasComFixo = dados.filter(function(d){ return d.custoFixo !== 0; });
+  console.log('[FC] Linhas com custoFixo:', linhasComFixo.length, 
+    linhasComFixo.slice(0,3).map(function(d){ return d.data+' status:'+d.status+' fixo:'+d.custoFixo; }));
+
   // Caixa inicial = do primeiro lançamento do período filtrado
   var caixaInicial = dados[0] ? dados[0].caixaInicial : 0;
 
@@ -4889,8 +4896,9 @@ function renderFluxoCaixa() {
     // Saldo PROJETADO: todos os lançamentos incluindo a vencer (N)
     movProj += mov;
 
-    // Custo Fixo Projetado: col B com status N E data > hoje (realmente futuro)
-    if(d.status === 'N' && d.custoFixo !== 0 && d.data > hoje) custoFixoProj += Math.abs(d.custoFixo);
+    // Custo Fixo Projetado: col B com status N (compromissos fixos ainda a pagar)
+    // Inclui todos os lançamentos N com custoFixo preenchido no período filtrado
+    if(d.status === 'N' && d.custoFixo !== 0) custoFixoProj += Math.abs(d.custoFixo);
   });
 
   // Saldo = Caixa Inicial ± movimentos do período
@@ -6732,7 +6740,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v62');
+    localStorage.removeItem('fc_rows_cache_v64');
     setTimeout(refresh, 200);
   }
 }
@@ -6776,7 +6784,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v62');
+  localStorage.removeItem('fc_rows_cache_v64');
   veltroAplicarLinks(id, links);
 }
 
