@@ -2232,7 +2232,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v60'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v62'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -4321,7 +4321,7 @@ function calcPreco() {
   try{document.getElementById('prec-taxa-total').textContent='R$'+taxaFixaTotal.toFixed(2);}catch(e){}
 
   // Custos operacionais (% sobre preço de venda)
-  var custoArm    = arm_rs;  // R$ fixo por pedido (independe do preço)
+  var custoArm    = arm_rs * kit;  // R$ fixo por item × kit (ex: kit2 = 2× armazém)
   var custoAdsCanal = preco * (adsCanalPct/100);  // ADS Marketplace % sobre preço
   var custoFin    = preco * (fin/100);
   var custoAds    = preco * (ads/100);
@@ -4395,7 +4395,7 @@ function calcPreco() {
       var cmpImposto = preco * impPctGlobal;
       // Custos operacionais (mesmos do formulário)
       // ADS consolidado: mesmo % para todos os canais no comparativo
-      var cmpOpCosts = arm_rs + preco*(fin+adsCanalPct+plat+perdas+fixo_pct)/100;
+      var cmpOpCosts = arm_rs * kit + preco*(fin+adsCanalPct+plat+perdas+fixo_pct)/100;
       var cmpTotal   = custoTotal + cmpComissao + cmpImposto + cmpOpCosts;
       var cmpLucro   = preco - cmpTotal;
       var cmpMargem  = preco>0 ? cmpLucro/preco*100 : 0;
@@ -4473,7 +4473,7 @@ function calcPrecoMinimo() {
     if(minTopEl) { minTopEl.textContent=msg; minTopEl.style.color='var(--red)'; }
     return;
   }
-  var precoMin = (custoTotal + taxaFixaBase + arm_rs) / denom;  // arm_rs é custo fixo
+  var precoMin = (custoTotal + taxaFixaBase + arm_rs * kit) / denom;  // arm_rs × kit
   var fmt = fMF(precoMin);
 
   if(minEl)    { minEl.textContent=fmt;    minEl.style.color='#818CF8'; }
@@ -4530,6 +4530,7 @@ function renderPrecosMinimosPorCanal() {
   var opPct  = (fin + adsPct + plat + perdas + fixo_pct) / 100;
   var pctLucro = metaMargem / 100;
 
+  var kitN = PREC_ESTADO.kit || 1;
   // Primeiro card: margem desejada (destaque visual na linha)
   var metaAtual = parseFloat((document.getElementById('prec-meta-margem-top')||{}).value)||20;
   var margCard = '<div style="background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.3);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;align-items:center">'+
@@ -4545,7 +4546,7 @@ function renderPrecosMinimosPorCanal() {
     var extraPct = c==='Dafiti' ? calcCustoDafitiExtra(100) : 0;  // 100 como proxy inicial
     var totalPct = comPct + impPct + opPct + extraPct;
     var denom = 1 - totalPct - pctLucro;
-    var precoMin = denom > 0.01 ? (custoTotal + arm_rs + taxaF) / denom : null;
+    var precoMin = denom > 0.01 ? (custoTotal + arm_rs * kitN + taxaF) / denom : null;
     var isAtivo  = c === PREC_ESTADO.canal;
 
     var cor = ci.cor || '#888';
@@ -4707,21 +4708,55 @@ async function loadFluxoCaixa() {
       if(colSaldo<0)  colSaldo  = 6;
 
       console.log('[FC] Colunas detectadas:', {colData,colFixo,colMov,colClassif,colDesc,colStatus,colSaldo});
-
-      // Caixa inicial: linha 3 da planilha (rows[2]), coluna G (colSaldo)
-      if(rows[2] && rows[2][colSaldo] !== null && rows[2][colSaldo] !== undefined) {
-        caixaInicial = parseFloat(rows[2][colSaldo]) || 0;
+      // Diagnóstico: mostrar as primeiras 5 linhas brutas para verificar col B
+      console.log('[FC] Primeiras 3 linhas brutas (para verificar col B = custoFixo):');
+      for(var di=0; di<Math.min(3,rows.length); di++) {
+        console.log('  row['+di+']:', rows[di] ? rows[di].slice(0,8).map(function(v,i){return i+':'+JSON.stringify(v);}).join(' ') : 'null');
       }
 
-      // Processar linhas a partir de L4 (índice 3 = linha 4 da planilha)
+      // Detectar linha de Caixa Inicial — buscar pela descrição "Caixa Inicial"
+      // ou usar rows[2] como fallback (linha 3 da planilha)
+      var caixaInicial = 0;
+      var caixaInicialRowIdx = 2; // padrão: linha 3
+      for(var si=0; si<Math.min(5, rows.length); si++) {
+        var sr = rows[si];
+        if(!sr) continue;
+        // Procurar "Caixa Inicial" em qualquer coluna de texto
+        var temCaixaInicial = sr.some(function(v){ return String(v||'').toLowerCase().includes('caixa ini'); });
+        if(temCaixaInicial) {
+          caixaInicialRowIdx = si;
+          break;
+        }
+      }
+      // Ler caixa inicial da linha encontrada (coluna G = colSaldo)
+      var rowCI = rows[caixaInicialRowIdx];
+      if(rowCI) {
+        // Tentar col G primeiro, depois qualquer número positivo na linha
+        var ciVal = rowCI[colSaldo];
+        if(ciVal === null || ciVal === undefined || ciVal === '') {
+          // Buscar o primeiro número positivo na linha
+          rowCI.forEach(function(v){ if(!caixaInicial && parseFloat(v) > 0) caixaInicial = parseFloat(v); });
+        } else {
+          caixaInicial = parseFloat(ciVal) || 0;
+        }
+        console.log('[FC] Caixa inicial: R$'+caixaInicial+' (linha '+caixaInicialRowIdx+', col '+colSaldo+')');
+      }
+
+      // Processar linhas a partir da linha após o caixa inicial
       var linhasValidas = 0;
-      for(var ri = 3; ri < rows.length; ri++) {
+      for(var ri = caixaInicialRowIdx + 1; ri < rows.length; ri++) {
         var r = rows[ri];
         if(!r || r.length < 2) continue;
 
         var dataVal    = r[colData];
-        var custoFixo  = parseFloat(r[colFixo])   || 0;
-        var movimento  = parseFloat(r[colMov])    || 0;
+        // custoFixo: col B — pode vir como string '', null, ou número negativo
+        var custoFixoRaw = r[colFixo];
+        var custoFixo  = (custoFixoRaw !== '' && custoFixoRaw !== null && custoFixoRaw !== undefined)
+                         ? (parseFloat(custoFixoRaw) || 0) : 0;
+        // movimento: col C — pode vir como string '', null, ou número
+        var movimentoRaw = r[colMov];
+        var movimento  = (movimentoRaw !== '' && movimentoRaw !== null && movimentoRaw !== undefined)
+                         ? (parseFloat(movimentoRaw) || 0) : 0;
         var classif    = String(r[colClassif]||'').trim();
         var descricao  = String(r[colDesc]||'').trim();
         var status     = String(r[colStatus]||'N').trim().toUpperCase();
@@ -6613,6 +6648,10 @@ function veltroEntrarDashboard(empresa) {
 
   // Aplicar links nos campos do sistema existente
   veltroAplicarLinks(empresa.id, links);
+  // Garantir que sheetURL está definida antes do refresh automático
+  if(links.principal && !sheetURL) {
+    try{ sheetURL = _toGvizUrl(links.principal, '1435598200'); }catch(e){}
+  }
 }
 
 function veltroMostrarOnboarding(empresa) {
@@ -6659,8 +6698,12 @@ function veltroAplicarLinks(id, links) {
   if(links.principal) {
     var mainUrl = _toGvizUrl(links.principal, '1435598200');
     localStorage.setItem('fc_sheet_url', mainUrl);
+    // CRÍTICO: refresh() lê de 'fc_url' e sheetURL — garantir que ambos estão setados
+    localStorage.setItem('fc_url', mainUrl);
+    try{ sheetURL = mainUrl; }catch(e){}  // variável global usada por refresh()
     // Atualizar input do drawer se existir
     try{ document.getElementById('url-input').value = links.principal; }catch(e){}
+    try{ document.getElementById('url-in').value = links.principal; }catch(e){}
   }
   // Estoque
   if(links.estoque) {
@@ -6689,7 +6732,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v60');
+    localStorage.removeItem('fc_rows_cache_v62');
     setTimeout(refresh, 200);
   }
 }
@@ -6733,7 +6776,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v60');
+  localStorage.removeItem('fc_rows_cache_v62');
   veltroAplicarLinks(id, links);
 }
 
