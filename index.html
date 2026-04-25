@@ -1723,10 +1723,17 @@ body.light body::before { opacity: 0; }
       <!-- Gráficos ABAIXO da tabela -->
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px" class="g3-charts">
         <div class="card">
-          <div class="ch"><div><div class="ct">GMV por Canal</div><div class="cs">Receita real do período por marketplace</div></div></div>
-          <canvas id="ch-mkt-inv" height="160"></canvas>
-          <!-- Lista vertical com total -->
-          <div id="gmv-canal-lista" style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px"></div>
+          <div class="ch"><div><div class="ct">GMV por Canal</div><div class="cs">Receita por marketplace — comparação de participação</div></div></div>
+          <!-- Grid de colunas por canal -->
+          <div id="gmv-canal-grid" style="
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+            gap:10px;
+            margin-top:4px
+          "></div>
+          <!-- Canvas oculto para compatibilidade (não destruir lógica) -->
+          <canvas id="ch-mkt-inv" height="0" style="display:none"></canvas>
+          <div id="gmv-canal-lista" style="display:none"></div>
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">ROAS por Canal</div><div class="cs">Calculado individualmente por canal</div></div></div>
@@ -2214,7 +2221,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v50'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v51'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2471,8 +2478,11 @@ function processarDados(pedidos) {
     // GMV por dia
     byData[p.data] = (byData[p.data]||0) + p.valor;
 
-    // GMV por canal
+    // GMV por canal (com contagem de pedidos)
+    if(!byCanal[p.canal]) byCanal[p.canal] = 0;
     byCanal[p.canal] = (byCanal[p.canal]||0) + p.valor;
+    if(!byCanal._qtd) byCanal._qtd = {};
+    byCanal._qtd[p.canal] = (byCanal._qtd[p.canal]||0) + 1;
 
     // GMV por canal/mês
     var mes = p.data.slice(0,7);
@@ -2835,7 +2845,7 @@ function renderAll(d){
           '<span style="font-family:var(--fhead);font-size:12px;font-weight:700;color:'+cor+'">'+canal+'<\/span>'+
           '<span style="padding:3px 10px;border-radius:20px;font-family:var(--fmono);font-size:10px;font-weight:600;background:'+stBg+';color:'+stColor+'">'+lbl+'<\/span>'+
         '<\/div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;min-width:0">'+
           '<div>'+
             '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">GMV<\/div>'+
             '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--text)">'+fMF(info.gmv)+'<\/div>'+
@@ -3531,8 +3541,11 @@ function calcMarketing() {
       options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' GMV: '+fMF(c.raw);}}}},scales:{x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:10},callback:function(v){return fM(v);}}}}}
     });
   }
-  // Lista vertical GMV por canal com total
-  renderGMVCanalLista(d.canais);
+  // Lista vertical GMV por canal com total — passar GMV e pedidos
+  var canaisComQtd = d.canais.map(function(c){
+    return [c[0], {gmv: c[1], qtd: (byCanal._qtd && byCanal._qtd[c[0]]) || 0}];
+  });
+  renderGMVCanalLista(canaisComQtd);
 
   // ── Gráfico ROAS INDIVIDUAL por canal ────────────────────
   var el2 = document.getElementById('ch-mkt-roas');
@@ -4823,38 +4836,85 @@ function renderFluxoCaixaPage() {
   if(saved) loadFluxoCaixa();
 }
 
-/* ─ Lista vertical GMV por canal com total ─ */
+/* ─ Grid de colunas GMV por canal ─ */
 function renderGMVCanalLista(canais) {
-  var el = document.getElementById('gmv-canal-lista');
+  var el = document.getElementById('gmv-canal-grid');
   if(!el || !canais || !canais.length) return;
 
-  var total = canais.reduce(function(s, c){ return s + c[1]; }, 0);
-  var maxVal = canais[0][1] || 1;
+  // Calcular totais
+  var totalGMV = canais.reduce(function(s,c){ return s+(c[1]||0); }, 0);
+  var totalPed  = canais.reduce(function(s,c){ return s+((c[1]&&c[1].qtd)||0); }, 0);
 
-  el.innerHTML = canais.map(function(c) {
-    var cor = CCORES[c[0]] || '#64748B';
-    var pct = total > 0 ? (c[1]/total*100).toFixed(1) : '0.0';
-    var barW = (c[1]/maxVal*100).toFixed(1);
-    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.04)">'+
-      '<div style="width:3px;height:30px;border-radius:2px;background:'+cor+';flex-shrink:0"></div>'+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">'+
-          '<span style="font-family:var(--fmono);font-size:10px;color:'+cor+';font-weight:600">'+c[0]+'</span>'+
-          '<span style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:var(--text)">'+fMF(c[1])+'</span>'+
+  // Suporte a dois formatos: [nome, valor] ou [nome, {gmv,qtd}]
+  var itens = canais.map(function(c) {
+    var nome = c[0];
+    var gmv  = typeof c[1]==='object' ? (c[1].gmv||0) : (c[1]||0);
+    var qtd  = typeof c[1]==='object' ? (c[1].qtd||0) : 0;
+    return {nome:nome, gmv:gmv, qtd:qtd};
+  });
+  totalGMV = itens.reduce(function(s,i){ return s+i.gmv; }, 0);
+  totalPed  = itens.reduce(function(s,i){ return s+i.qtd; }, 0);
+
+  el.innerHTML = itens.map(function(item) {
+    var cor  = CCORES[item.nome] || '#64748B';
+    var pct  = totalGMV > 0 ? (item.gmv/totalGMV*100).toFixed(1) : '0.0';
+    var barH = Math.max(4, Math.round(item.gmv/totalGMV*48));
+
+    return '<div style="'+
+        'background:var(--s2);border:1px solid var(--border);border-radius:10px;'+
+        'padding:12px 10px;text-align:center;border-top:3px solid '+cor+';'+
+        'display:flex;flex-direction:column;gap:6px;min-width:0'+
+      '">'+
+      // Nome do canal
+      '<div style="font-family:var(--fmono);font-size:10px;font-weight:700;color:'+cor+';'+
+           'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px">'+
+        item.nome+
+      '</div>'+
+      // Barra visual proporcional
+      '<div style="display:flex;align-items:flex-end;justify-content:center;height:48px">'+
+        '<div style="width:24px;height:'+barH+'px;background:'+cor+'44;border-radius:3px 3px 0 0;'+
+             'border:1px solid '+cor+'88;position:relative">'+
+          '<div style="position:absolute;bottom:0;left:0;right:0;height:'+Math.round(barH*0.7)+'px;'+
+               'background:'+cor+';border-radius:2px 2px 0 0;opacity:.8"></div>'+
         '</div>'+
-        '<div style="display:flex;align-items:center;gap:6px">'+
-          '<div style="flex:1;height:3px;background:var(--s3);border-radius:2px">'+
-            '<div style="width:'+barW+'%;height:3px;background:'+cor+';border-radius:2px;transition:width .4s"></div>'+
-          '</div>'+
-          '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted);min-width:32px;text-align:right">'+pct+'%</span>'+
-        '</div>'+
+      '</div>'+
+      // GMV
+      '<div>'+
+        '<div style="font-family:var(--fmono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">GMV</div>'+
+        '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:800;color:var(--text);line-height:1.2">'+fMF(item.gmv)+'</div>'+
+      '</div>'+
+      // Pedidos (se disponível)
+      (item.qtd > 0 ? '<div>'+
+        '<div style="font-family:var(--fmono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Pedidos</div>'+
+        '<div style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:var(--text)">'+item.qtd.toLocaleString('pt-BR')+'</div>'+
+      '</div>' : '')+
+      // Participação
+      '<div style="background:'+cor+'18;border-radius:6px;padding:3px 6px">'+
+        '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:800;color:'+cor+'">'+pct+'%</div>'+
       '</div>'+
     '</div>';
   }).join('') +
-  // Linha de total
-  '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px 2px;margin-top:2px">'+
-    '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Total Geral</span>'+
-    '<span style="font-family:var(--fdisplay);font-size:14px;font-weight:800;color:var(--accent)">'+fMF(total)+'</span>'+
+  // Card de Total Geral
+  '<div style="'+
+      'background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.2);border-radius:10px;'+
+      'padding:12px 10px;text-align:center;border-top:3px solid var(--accent);'+
+      'display:flex;flex-direction:column;gap:6px;min-width:0'+
+    '">'+
+    '<div style="font-family:var(--fmono);font-size:10px;font-weight:700;color:var(--accent);letter-spacing:.3px">TOTAL</div>'+
+    '<div style="display:flex;align-items:flex-end;justify-content:center;height:48px">'+
+      '<div style="width:24px;height:48px;background:var(--accent);border-radius:3px 3px 0 0;opacity:.3"></div>'+
+    '</div>'+
+    '<div>'+
+      '<div style="font-family:var(--fmono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">GMV</div>'+
+      '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:800;color:var(--accent);line-height:1.2">'+fMF(totalGMV)+'</div>'+
+    '</div>'+
+    (totalPed > 0 ? '<div>'+
+      '<div style="font-family:var(--fmono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Pedidos</div>'+
+      '<div style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:var(--text)">'+totalPed.toLocaleString('pt-BR')+'</div>'+
+    '</div>' : '')+
+    '<div style="background:rgba(110,231,183,.15);border-radius:6px;padding:3px 6px">'+
+      '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:800;color:var(--accent)">100%</div>'+
+    '</div>'+
   '</div>';
 }
 
@@ -6333,7 +6393,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v50');
+    localStorage.removeItem('fc_rows_cache_v51');
     setTimeout(refresh, 200);
   }
 }
@@ -6377,7 +6437,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v50');
+  localStorage.removeItem('fc_rows_cache_v51');
   veltroAplicarLinks(id, links);
 }
 
