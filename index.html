@@ -2240,7 +2240,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v78';
+const CACHE_LS_KEY = 'fc_rows_cache_v79';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -5717,10 +5717,28 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   // Loop de carregamento
   // Quando abasDisponiveis existe: abasParaCarregar = strings (nomes reais) → tentar direto
   // Quando fallback: abasParaCarregar = strings de variações → tentar cada uma
+  // Controle para evitar carregar o mesmo mês múltiplas vezes
+  // (gviz aceita várias variações do mesmo nome de aba)
+  var mesesJaCarregados = new Set(); // guarda meses normalizados já processados
+
   for(var i = 0; i < abasParaCarregar.length; i++) {
     var item = abasParaCarregar[i];
     // Sempre string neste ponto (nomes reais do feed ou variações do fallback)
     var aba = typeof item === 'string' ? item : (item.mes + '-' + item.yy);
+
+    // Normalizar o nome para detectar duplicatas (jan-26, Janeiro-26, janeiro 26 → mesmo mês)
+    var abaNorm = aba.toLowerCase()
+      .replace(/[^a-z0-9]/g, '') // remove espaços, hífens, etc.
+      .replace(/2026$/, '26')    // normalizar ano
+      .replace(/2025$/, '25');
+    // Extrair só as 3 primeiras letras do mês
+    var mesKey = abaNorm.replace(/\d+/,'').substring(0,3) + (abaNorm.match(/\d+/)||[''])[0].slice(-2);
+    
+    if(mesesJaCarregados.has(mesKey)) {
+      console.log('[FanClub Produtos] ⏭️ Pulando "'+aba+'" — mês já carregado ('+mesKey+')');
+      continue;
+    }
+
     var variacoes = [aba]; // tentar apenas esse nome
 
     for(var vi = 0; vi < variacoes.length; vi++) {
@@ -5795,7 +5813,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
 
           if(!novoMap[skuBase]) novoMap[skuBase] = {nome: nomeBase, sku: skuBase, cod: skuBase, gmv:0, qtd: 0, tamanhos: {}, por_mes: {}};
           novoMap[skuBase].qtd += qtd;
-          novoMap[skuBase].por_mes[aba] = (novoMap[skuBase].por_mes[aba]||0) + qtd;
+          novoMap[skuBase].por_mes[mesKey] = (novoMap[skuBase].por_mes[mesKey]||0) + qtd;
 
           // Tamanhos: extrair de SKU ou nome
           var tamM = sku.match(/-(\d{2,3})$/) || nome.match(/[-\s](\d{2,3})\s*$/);
@@ -5812,6 +5830,8 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           abasEncontradas.push(aba);
           abasOk++;
           console.log('[FanClub Produtos] ✅ "'+aba+'": '+linhasValidas+' itens (cols sku='+colSku+' nome='+colNome+' qtd='+colQtd+')');
+          // Marcar mês como processado para não recarregar outras variações
+          mesesJaCarregados.add(mesKey);
           // Top 3 para verificar dados
           var _top3 = Object.entries(novoMap).sort(function(a,b){return b[1].qtd-a[1].qtd;}).slice(0,3);
           console.log('[FanClub Produtos] Top 3:', _top3.map(function(p){return p[1].nome+'('+p[1].qtd+')'}).join(', '));
@@ -6977,7 +6997,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v78');
+    localStorage.removeItem('fc_rows_cache_v79');
     setTimeout(refresh, 200);
   }
 }
@@ -7021,7 +7041,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v78');
+  localStorage.removeItem('fc_rows_cache_v79');
   veltroAplicarLinks(id, links);
 }
 
