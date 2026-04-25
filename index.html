@@ -2240,7 +2240,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v75';
+const CACHE_LS_KEY = 'fc_rows_cache_v76';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -5043,9 +5043,9 @@ function renderFluxoCaixa() {
     // Saldo PROJETADO: todos os lançamentos incluindo a vencer (N)
     movProj += mov;
 
-    // Custo Fixo Projetado: col B com status N (compromissos fixos ainda a pagar)
-    // Inclui todos os lançamentos N com custoFixo preenchido no período filtrado
-    if(d.status === 'N' && d.custoFixo !== 0) custoFixoProj += Math.abs(d.custoFixo);
+    // Custo Fixo Projetado: soma de todos os valores da col B (custo fixo)
+    // Independente do status — reflete o total de custos fixos do período
+    if(d.custoFixo !== 0) custoFixoProj += Math.abs(d.custoFixo);
   });
 
   // Saldo = Caixa Inicial ± movimentos do período
@@ -6919,7 +6919,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v75');
+    localStorage.removeItem('fc_rows_cache_v76');
     setTimeout(refresh, 200);
   }
 }
@@ -6963,7 +6963,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v75');
+  localStorage.removeItem('fc_rows_cache_v76');
   veltroAplicarLinks(id, links);
 }
 
