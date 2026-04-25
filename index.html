@@ -1384,11 +1384,8 @@ body.light body::before { opacity: 0; }
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
-          <div style="max-height:320px;overflow-y:auto">
-            <table class="cf-table">
-              <thead><tr><th>Canal</th><th>GMV</th><th>Comissão</th><th>Líquido</th><th>Prazo</th><th>Previsão</th><th>Status</th></tr></thead>
-              <tbody id="cf-body"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Navegue até esta página para carregar</td></tr></tbody>
-            </table>
+          <div id="cf-body" style="display:flex;flex-direction:column;gap:8px;max-height:380px;overflow-y:auto;padding-right:4px">
+            <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px">Navegue até esta página para carregar</div>
           </div>
         </div>
       </div>
@@ -2214,7 +2211,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v48'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
+const CACHE_LS_KEY = 'fc_rows_cache_v49'; // v13: estoque filtro cat→indicadores, top20 SKU+nome, tamanhos correto, UX config card
 const ESTOQUE_URL_KEY = 'fc_estoque_url';
 const ESTADOS_URL_KEY = 'fc_estados_url';
 
@@ -2822,18 +2819,39 @@ function renderAll(d){
       const diff=info.data?Math.round((new Date(info.data)-new Date(today))/86400000):999;
       const cls=diff<=0?'ok':diff<=7?'em':'fut';
       const lbl=diff<=0?'✓ Disponível':'Em '+diff+'d';
+      const stBg=diff<=0?'rgba(110,231,183,.15)':diff<=7?'rgba(245,158,11,.12)':'rgba(100,116,139,.1)';
+      const stColor=diff<=0?'var(--green)':diff<=7?'var(--amber)':'var(--muted)';
       const comRate=COMISSOES[canal]||0.15;
       const comVal=info.gmv*comRate;
       const liq=info.gmv-comVal;
-      return '<tr>'+
-        '<td><span class="cchip" style="background:'+(CCORES[canal]||'#888')+'18;color:'+(CCORES[canal]||'#888')+'">'+canal+'<\/span><\/td>'+
-        '<td><span class="cfval" style="color:var(--text);font-size:13px">'+fMF(info.gmv)+'<\/span><\/td>'+
-        '<td style="font-size:11px"><span style="color:var(--red);font-weight:600">-'+fMF(comVal)+'<\/span><br><span style="color:var(--muted);font-family:var(--fmono);font-size:10px">'+(comRate*100).toFixed(0)+'% comissão<\/span><\/td>'+
-        '<td><div style="font-family:var(--fdisplay);font-size:16px;font-weight:700;color:var(--green)">'+fMF(liq)+'<\/div><div style="font-family:var(--fmono);font-size:10px;color:var(--muted)">líquido<\/div><\/td>'+
-        '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted)">+'+info.prazo+'d<\/td>'+
-        '<td><span class="cfdate">'+(info.data?fD(info.data):'—')+'<\/span><\/td>'+
-        '<td><span class="cfst '+cls+'">'+lbl+'<\/span><\/td>'+
-      '<\/tr>';
+      const cor=CCORES[canal]||'#888';
+      const prazo=PRAZOS[canal]||7;
+      const prevFmt=info.data?new Date(info.data+'T00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'—';
+      return '<div style="background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;border-left:3px solid '+cor+'">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+          '<span style="font-family:var(--fhead);font-size:12px;font-weight:700;color:'+cor+'">'+canal+'<\/span>'+
+          '<span style="padding:3px 10px;border-radius:20px;font-family:var(--fmono);font-size:10px;font-weight:600;background:'+stBg+';color:'+stColor+'">'+lbl+'<\/span>'+
+        '<\/div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+          '<div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">GMV<\/div>'+
+            '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--text)">'+fMF(info.gmv)+'<\/div>'+
+          '<\/div>'+
+          '<div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Comissão<\/div>'+
+            '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--red)">-'+fMF(comVal)+'<\/div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted)">'+(comRate*100).toFixed(0)+'%<\/div>'+
+          '<\/div>'+
+          '<div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Líquido<\/div>'+
+            '<div style="font-family:var(--fdisplay);font-size:15px;font-weight:800;color:var(--green)">'+fMF(liq)+'<\/div>'+
+          '<\/div>'+
+        '<\/div>'+
+        '<div style="display:flex;gap:12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">'+
+          '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">Prazo: <strong style="color:var(--text)">+'+prazo+'d<\/strong><\/span>'+
+          '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">Previsão: <strong style="color:var(--text)">'+prevFmt+'<\/strong><\/span>'+
+        '<\/div>'+
+      '<\/div>';
     }).join('');
 
   makeCharts(d);
@@ -5546,8 +5564,8 @@ function renderEstoqueIndicadores() {
     return '<div class="ritem">'+
       '<div class="rpos '+(MEDALS[i]||'')+'">'+(i+1)+'<\/div>'+
       '<div class="rlbl">'+t[0]+'<\/div>'+
-      '<div style="flex:1;min-width:0;max-width:50%"><div class="rbbg"><div class="rbfill" style="width:'+(t[1]/maxT*100).toFixed(1)+'%"><\/div><\/div><\/div>'+
-      '<div style="min-width:55px;text-align:right;flex-shrink:0;font-family:var(--fmono);font-size:12px;font-weight:600;padding-left:6px">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
+      '<div style="flex:1;min-width:0;max-width:42%"><div class="rbbg"><div class="rbfill" style="width:'+(t[1]/maxT*100).toFixed(1)+'%"><\/div><\/div><\/div>'+
+      '<div style="min-width:58px;text-align:right;flex-shrink:0;font-family:var(--fmono);font-size:12px;font-weight:600;padding-left:8px;white-space:nowrap">'+Math.round(t[1]).toLocaleString('pt-BR')+'<\/div>'+
     '<\/div>';
   }).join('');
 }
@@ -6249,7 +6267,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v48');
+    localStorage.removeItem('fc_rows_cache_v49');
     setTimeout(refresh, 200);
   }
 }
@@ -6293,7 +6311,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v48');
+  localStorage.removeItem('fc_rows_cache_v49');
   veltroAplicarLinks(id, links);
 }
 
