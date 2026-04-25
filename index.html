@@ -552,16 +552,33 @@ body.light body::before { opacity: 0; }
 /* ── Responsive ─────────────────────────────────────── */
 @media(max-width:1024px){ .g21,.g3{grid-template-columns:1fr} .g2{grid-template-columns:1fr} }
 @media(max-width:768px){
-  .main{padding:14px 16px} .header{padding:0 16px}
+  .main{padding:14px 12px} .header{padding:0 12px}
   .kpi-grid{grid-template-columns:1fr 1fr} .kpi .val{font-size:22px}
   .hdr-time{display:none}
   .drawer{width:100vw;right:-100vw}
   .fbar{gap:8px} .fsep{display:none}
   .finfo{margin-left:0;width:100%;text-align:center}
+  /* Precificação — 3 campos em coluna */
+  #page-precificacao [style*="repeat(auto-fit,minmax(200px"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* FC KPIs — 2 por linha */
+  #fc-kpis {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  /* Grids de 3 colunas → 1 coluna */
+  .g3-charts, [style*="grid-template-columns:2fr 1fr 1fr"],
+  [style*="grid-template-columns:1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Overflow geral */
+  .page, .main, .card { overflow-x: hidden !important; max-width: 100% !important; }
 }
 @media(max-width:480px){
   .kpi-grid{grid-template-columns:1fr}
+  #fc-kpis { grid-template-columns: 1fr !important; }
   .alert{flex-direction:column;align-items:flex-start}
+  .kpi .val { font-size: 18px; }
 }
 
   /* ══════════════════════════════════════════════
@@ -2182,7 +2199,7 @@ body.light body::before { opacity: 0; }
             <span style="color:var(--green)">▬ Realizado</span>
             <span style="color:var(--amber)">▬ Projetado</span>
           </div></div>
-          <canvas id="ch-fc-diario" height="180"></canvas>
+          <canvas id="ch-fc-diario" style="max-width:100%;height:180px;display:block;"></canvas>
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">Saídas por Categoria</div><div class="cs">Distribuição das despesas</div></div></div>
@@ -2240,7 +2257,7 @@ body.light body::before { opacity: 0; }
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
 const CACHE_TTL    = 5 * 60 * 1000; // 5 minutos em ms
-const CACHE_LS_KEY = 'fc_rows_cache_v81';
+const CACHE_LS_KEY = 'fc_rows_cache_v82';
 // Limpar caches de versões anteriores E cache de pedidos automaticamente
 (function(){
   var keysToRemove = [];
@@ -5146,9 +5163,8 @@ function renderFluxoCaixa() {
         ]
       },
       options:{
-        responsive:true,maintainAspectRatio:true,
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',
-          callbacks:{label:function(c){return ' '+c.dataset.label+': '+fMF(c.raw);}}}},
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' '+c.dataset.label+': '+fMF(c.raw);}}}},
         scales:{
           x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:9},maxTicksLimit:12}},
           y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:9},
@@ -7049,7 +7065,7 @@ function veltroAplicarLinks(id, links) {
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
-    localStorage.removeItem('fc_rows_cache_v81');
+    localStorage.removeItem('fc_rows_cache_v82');
     setTimeout(refresh, 200);
   }
 }
@@ -7093,7 +7109,7 @@ function veltroSalvarConfigModal() {
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
-  localStorage.removeItem('fc_rows_cache_v81');
+  localStorage.removeItem('fc_rows_cache_v82');
   veltroAplicarLinks(id, links);
 }
 
