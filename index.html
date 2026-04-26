@@ -321,20 +321,18 @@ body.light body::before { opacity: 0; }
 /* ─────────────────────────────────────────────────────────────────
    INDICADOR DE INTEGRAÇÃO — fluxo de dados
    Financeiro & Marketing alimentam o menu Resumos.
-   A linha gradient flui de cima para baixo, na direção dos dados:
-   Financeiro ──┐
-                ├──► Resumos
-   Marketing ───┘
-   - .sync-dot: bolinha pulsante ao lado do texto do menu
-   - .nav-item[data-sync="resumos"]::before: linha gradient lateral animada
+   Uma ÚNICA linha contínua liga os 3 menus (Fin → Mkt → Resumos),
+   atravessando os itens intermediários. A linha é renderizada via
+   um <div class="sync-line"> absoluto, posicionado por JS conforme
+   a altura real dos itens (responsivo a colapso/expansão da sidebar).
    ───────────────────────────────────────────────────────────────── */
-.nav-item[data-sync="resumos"]::before {
-  content: "";
+/* Container de "Análises" precisa ser referência pro absolute */
+.sidebar-section { position: relative; }
+
+.sync-line {
   position: absolute;
   left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
+  width: 1.5px;  /* metade da espessura anterior — mais discreto */
   background: linear-gradient(180deg,
     transparent 0%,
     rgba(110, 231, 183, .9) 25%,
@@ -344,22 +342,20 @@ body.light body::before { opacity: 0; }
   background-size: 100% 300%;
   background-position: 0% 100%;
   animation: syncFlow 4.5s linear infinite;
-  border-radius: 0 2px 2px 0;
-  opacity: .7;
+  border-radius: 1px;
+  opacity: .8;
   pointer-events: none;
+  z-index: 1;
+  transition: top .2s ease, height .2s ease;
 }
-.nav-item[data-sync="resumos"]:hover::before,
-.nav-item[data-sync="resumos"].active::before {
-  opacity: 1;
-  width: 4px;
-}
-/* Fluxo direcional: cima para baixo (Financeiro/Marketing → Resumos) */
+
+/* Fluxo direcional: Financeiro/Marketing → Resumos (gradient sobe) */
 @keyframes syncFlow {
   0%   { background-position: 0% 100%; }
   100% { background-position: 0%   0%; }
 }
 
-/* Bolinha pulsante ao lado do texto */
+/* Bolinha pulsante ao lado do texto — indica que o item está conectado à linha */
 .sync-dot {
   position: absolute;
   right: 12px;
@@ -377,13 +373,14 @@ body.light body::before { opacity: 0; }
   0%, 100% { opacity: .4; transform: translateY(-50%) scale(.85); }
   50%      { opacity: 1;  transform: translateY(-50%) scale(1.15); }
 }
-/* Esconder bolinha no modo recolhido (já há tooltip + a borda lateral fica visível) */
-.sidebar.collapsed .sync-dot { display: none; }
+
+/* No modo recolhido: esconde bolinhas e linha (sidebar fica muito apertada) */
+.sidebar.collapsed .sync-dot,
+.sidebar.collapsed .sync-line { display: none; }
 
 /* Respeitar usuários com preferência de movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
-  .nav-item[data-sync="resumos"]::before,
-  .sync-dot { animation: none; }
+  .sync-line, .sync-dot { animation: none; }
 }
 .sidebar.collapsed .nav-item::after {
   content: attr(data-label);
@@ -1102,6 +1099,8 @@ body.light body::before { opacity: 0; }
   </div>
 
   <div class="sidebar-section">
+    <!-- Linha animada conectando Financeiro → Marketing → Resumos (posicionada via JS) -->
+    <div class="sync-line" id="sync-line-resumos"></div>
     <div class="sidebar-label">Análises</div>
     <div class="nav-item" onclick="showPage('financeiro',this)" data-page="financeiro" data-label="Financeiro" data-sync="resumos">
       <span class="nav-icon">💰</span>
@@ -2296,6 +2295,31 @@ body.light body::before { opacity: 0; }
           style="margin-left:auto;background:var(--s2);border:1px solid var(--border2);border-radius:6px;
                  padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;width:200px">
       </div>
+
+      <!-- Resumo dos lançamentos: 4 cards (Recebido / Pago / A Receber / A Pagar) -->
+      <div id="fc-resumo-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px">
+        <div class="card" style="padding:14px;border-left:3px solid var(--green)">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">✅ Recebido</div>
+          <div id="fc-rs-recebido" style="font-family:var(--fdisplay);font-size:20px;font-weight:700;color:var(--green)">R$ 0,00</div>
+          <div id="fc-rs-recebido-qtd" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">0 lançamentos</div>
+        </div>
+        <div class="card" style="padding:14px;border-left:3px solid var(--red)">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">💸 Pago</div>
+          <div id="fc-rs-pago" style="font-family:var(--fdisplay);font-size:20px;font-weight:700;color:var(--red)">R$ 0,00</div>
+          <div id="fc-rs-pago-qtd" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">0 lançamentos</div>
+        </div>
+        <div class="card" style="padding:14px;border-left:3px solid #60A5FA">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔮 A Receber</div>
+          <div id="fc-rs-areceber" style="font-family:var(--fdisplay);font-size:20px;font-weight:700;color:#60A5FA">R$ 0,00</div>
+          <div id="fc-rs-areceber-qtd" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">0 lançamentos</div>
+        </div>
+        <div class="card" style="padding:14px;border-left:3px solid #F59E0B">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⏰ A Pagar</div>
+          <div id="fc-rs-apagar" style="font-family:var(--fdisplay);font-size:20px;font-weight:700;color:#F59E0B">R$ 0,00</div>
+          <div id="fc-rs-apagar-qtd" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">0 lançamentos</div>
+        </div>
+      </div>
+
       <div class="card">
         <div style="overflow-x:auto;max-height:500px;overflow-y:auto">
           <table class="dtbl">
@@ -3847,6 +3871,8 @@ function showPage(pageId, navEl) {
   // Update nav items
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if(navEl) navEl.classList.add('active');
+  // Reposicionar a linha conectora pois itens mudaram de classe (active)
+  if(typeof _posicionarSyncLine === 'function') setTimeout(_posicionarSyncLine, 50);
   // Close sidebar on mobile
   if(window.innerWidth <= 900) closeSidebar();
 
@@ -4237,7 +4263,40 @@ function toggleSidebarCollapse() {
   var collapsed = sb.classList.toggle('collapsed');
   if(btn) btn.textContent = collapsed ? '›' : '‹';
   localStorage.setItem('fc_sidebar_collapsed', collapsed ? '1' : '0');
+  // Reposicionar a linha conectora após mudança de largura da sidebar
+  setTimeout(_posicionarSyncLine, 250);
 }
+
+/* Posiciona a linha contínua que conecta Financeiro → Marketing → Resumos.
+   Mede o primeiro e o último item com data-sync="resumos" e ajusta top/height. */
+function _posicionarSyncLine() {
+  try {
+    var line = document.getElementById('sync-line-resumos');
+    if(!line) return;
+    var section = line.parentElement;  // .sidebar-section "Análises"
+    if(!section) return;
+    var itens = section.querySelectorAll('.nav-item[data-sync="resumos"]');
+    if(itens.length < 2) { line.style.display = 'none'; return; }
+    var primeiro = itens[0];
+    var ultimo   = itens[itens.length - 1];
+    // Posições relativas ao container da seção
+    var sectionRect = section.getBoundingClientRect();
+    var pRect = primeiro.getBoundingClientRect();
+    var uRect = ultimo.getBoundingClientRect();
+    // Top: meio do primeiro item; Bottom: meio do último — assim a linha
+    // "atravessa" os itens conectados centrada verticalmente
+    var top    = (pRect.top + pRect.height/2) - sectionRect.top;
+    var bottom = (uRect.top + uRect.height/2) - sectionRect.top;
+    line.style.display = '';
+    line.style.top = top + 'px';
+    line.style.height = (bottom - top) + 'px';
+  } catch(e){ /* silencioso */ }
+}
+
+/* Reposicionar quando carrega, redimensiona, ou navega entre páginas
+   (showPage muda classes 'active' que podem alterar altura dos itens) */
+window.addEventListener('load', function(){ setTimeout(_posicionarSyncLine, 100); });
+window.addEventListener('resize', _posicionarSyncLine);
 
 /* ─ Dark / Light mode ─ */
 function toggleTheme() {
@@ -5792,7 +5851,60 @@ function fcFiltroStatus(st, btn) {
   renderFluxoTabela();
 }
 
+/* ─────────────────────────────────────────────────────────────────
+   RESUMO DOS LANÇAMENTOS — 4 cards acima da tabela
+   Calcula com base nos lançamentos do MÊS FILTRADO (mesmo escopo
+   do _fcFiltrado()), respeitando o status de cada linha.
+   - Recebido (R + movimento>0): entradas já confirmadas
+   - Pago     (P + qualquer movimento ou custo fixo): saídas já efetivadas
+   - A Receber (N + movimento>0): entradas projetadas no futuro
+   - A Pagar   (N + movimento<0 ou custoFixo): saídas projetadas no futuro
+   ───────────────────────────────────────────────────────────────── */
+function renderFluxoResumo() {
+  var dados = _fcFiltrado();
+  var rec = 0, pag = 0, areceber = 0, apagar = 0;
+  var qRec = 0, qPag = 0, qAR = 0, qAP = 0;
+
+  dados.forEach(function(d) {
+    var fix = d.custoFixo || 0;
+    var mov = d.movimento || 0;
+    if(d.status === 'R') {
+      // Recebido — entradas confirmadas (movimento positivo)
+      if(mov > 0) { rec += mov; qRec++; }
+      // Linhas de pagamento marcadas como R (raro, mas trata como pago)
+      if(mov < 0) { pag += Math.abs(mov); qPag++; }
+      if(fix < 0) { pag += Math.abs(fix); qPag++; }
+    } else if(d.status === 'P') {
+      // Pago — saídas efetivadas (sempre como valor absoluto)
+      if(fix !== 0) { pag += Math.abs(fix); qPag++; }
+      if(mov < 0)   { pag += Math.abs(mov); qPag++; }
+      if(mov > 0)   { rec += mov; qRec++; } // raro: entrada com status P
+    } else {
+      // 'N' ou outro: projeção futura
+      if(mov > 0) { areceber += mov;          qAR++; }
+      if(mov < 0) { apagar  += Math.abs(mov); qAP++; }
+      if(fix < 0) { apagar  += Math.abs(fix); qAP++; }
+    }
+  });
+
+  var setTxt = function(id, txt) {
+    var el = document.getElementById(id);
+    if(el) el.textContent = txt;
+  };
+  setTxt('fc-rs-recebido', fMF(rec));
+  setTxt('fc-rs-pago',     fMF(pag));
+  setTxt('fc-rs-areceber', fMF(areceber));
+  setTxt('fc-rs-apagar',   fMF(apagar));
+  setTxt('fc-rs-recebido-qtd', qRec.toLocaleString('pt-BR') + ' lançamento'+(qRec===1?'':'s'));
+  setTxt('fc-rs-pago-qtd',     qPag.toLocaleString('pt-BR') + ' lançamento'+(qPag===1?'':'s'));
+  setTxt('fc-rs-areceber-qtd', qAR.toLocaleString('pt-BR')  + ' lançamento'+(qAR===1?'':'s'));
+  setTxt('fc-rs-apagar-qtd',   qAP.toLocaleString('pt-BR')  + ' lançamento'+(qAP===1?'':'s'));
+}
+
 function renderFluxoTabela() {
+  // Atualizar os 4 cards de resumo (sempre antes da tabela)
+  try { renderFluxoResumo(); } catch(e){ console.warn('[FC] renderFluxoResumo falhou:', e); }
+
   var tbody = document.getElementById('fc-tabela-body');
   if(!tbody) return;
   var busca = ((document.getElementById('fc-busca')||{}).value||'').toLowerCase();
