@@ -4196,93 +4196,20 @@ async function salvarResumo() {
       mkt:     mkt,
       pctMidia:d.total>0?mkt/d.total*100:0,
       roas:    mkt>0?d.total/mkt:0,
-      // Total de produtos vendidos do PERÍODO DO RESUMO (from/to).
-      // Lê produtosVendidosMap[sku].por_mes que tem chaves tipo "abr26", "mar26"
-      // e soma SOMENTE os meses dentro do período. Isso garante isolamento entre snapshots.
+      // Total de produtos vendidos: lê DIRETAMENTE do KPI 'Produtos Vendidos' do dashboard.
+      // O dashboard já calcula esse número corretamente com o filtro de período aplicado.
+      // Em vez de duplicar a lógica aqui, basta ler o valor que já está renderizado na tela.
       produtosVendidos: (function() {
         try {
-          if(typeof produtosVendidosMap !== 'object' || !produtosVendidosMap) return 0;
-          var skus = Object.keys(produtosVendidosMap);
-          if(skus.length === 0) return 0;
-          // Coletar todas as chaves de meses presentes para diagnóstico
-          var todosMesesNoMap = new Set();
-          skus.forEach(function(sku) {
-            var p = produtosVendidosMap[sku];
-            if(p && p.por_mes) Object.keys(p.por_mes).forEach(function(m){ todosMesesNoMap.add(m); });
-          });
-          // Construir set de meses do período. Aceita 2 formatos por causa de
-          // como o normalizador gera mesKey: 'abr26' (aba "abril 2026") ou só 'abr' (aba "abril").
-          var mesesPeriodo = null;       // formato com ano: ['abr26']
-          var mesesPeriodoSemAno = null; // formato sem ano: ['abr']
-          if(from || to) {
-            mesesPeriodo = new Set();
-            mesesPeriodoSemAno = new Set();
-            var dF = from ? new Date(from+'T00:00') : new Date();
-            var dT = to   ? new Date(to+'T00:00')   : new Date();
-            var cur = new Date(dF.getFullYear(), dF.getMonth(), 1);
-            var end = new Date(dT.getFullYear(), dT.getMonth(), 1);
-            // Mapa MM → 3 primeiras letras (sem acento) do nome do mês usado nas chaves
-            var nomeMes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-            while(cur <= end) {
-              var mm = cur.getMonth();
-              var yy = cur.getFullYear().toString().slice(-2);
-              mesesPeriodo.add(nomeMes[mm] + yy);
-              mesesPeriodoSemAno.add(nomeMes[mm]);
-              cur.setMonth(cur.getMonth()+1);
-            }
-          }
-          console.log('[Roizen] Produtos vendidos — período:', from+' → '+to,
-            '| meses esperados (com ano):', mesesPeriodo ? Array.from(mesesPeriodo) : 'todos',
-            '| (sem ano):',                  mesesPeriodoSemAno ? Array.from(mesesPeriodoSemAno) : 'todos',
-            '| meses no map:',               Array.from(todosMesesNoMap),
-            '| total SKUs:', skus.length);
-          var total = 0, semPorMes = 0;
-          Object.values(produtosVendidosMap).forEach(function(p) {
-            if(!p) return;
-            // DEDUPLICAÇÃO universal: a planilha pode ter múltiplas abas pro mesmo mês
-            // ('abril', 'abril-26', 'Abril 2026') gerando entradas duplicadas em por_mes.
-            // Agrupamos por sigla (3 letras do mês, sem ano) e pegamos o MAIOR valor
-            // entre as variações — assume que abas duplicadas têm dados idênticos.
-            var porMesNorm = {};  // 'abr' → maior qtd vista nesse mês
-            if(p.por_mes && Object.keys(p.por_mes).length > 0) {
-              Object.keys(p.por_mes).forEach(function(mesKey) {
-                var sigla = mesKey.replace(/\d+$/, '');  // 'abr26' → 'abr'
-                var v = p.por_mes[mesKey] || 0;
-                if(porMesNorm[sigla] === undefined || v > porMesNorm[sigla]) {
-                  porMesNorm[sigla] = v;
-                }
-              });
-            } else {
-              semPorMes++;
-            }
-            // Sem filtro: soma todos os meses normalizados (deduplicado)
-            if(!mesesPeriodo) {
-              Object.values(porMesNorm).forEach(function(v){ total += v; });
-              return;
-            }
-            // Com filtro: soma só os meses dentro do período (compara pela sigla)
-            Object.keys(porMesNorm).forEach(function(sigla) {
-              if(mesesPeriodoSemAno && mesesPeriodoSemAno.has(sigla)) {
-                total += porMesNorm[sigla];
-              }
-            });
-          });
-          if(semPorMes > 0) {
-            console.warn('[Roizen] '+semPorMes+' produto(s) sem por_mes — não puderam ser filtrados por período');
-          }
-          // Fallback: se filtro de período resultou em 0 mas o map tem dados,
-          // significa que o por_mes não bate com o período (planilha sem abas mensais).
-          // Nesse caso usar qtd total para não mostrar 0 enganador.
-          if(mesesPeriodo && total === 0 && skus.length > 0) {
-            var qtdTotal = Object.values(produtosVendidosMap).reduce(function(s,p){ return s+(p.qtd||0); }, 0);
-            if(qtdTotal > 0) {
-              console.warn('[Roizen] Fallback ativado: por_mes não bate com período → usando qtd total ('+qtdTotal+'). A planilha pode não ter abas mensais.');
-              total = qtdTotal;
-            }
-          }
-          console.log('[Roizen] Produtos vendidos no período:', total);
-          return total;
-        } catch(e) { console.error('[Roizen] Erro ao calcular produtosVendidos:', e); return 0; }
+          var el = document.getElementById('k-qtd');
+          if(!el) return 0;
+          // Remove tudo que não for dígito (pontos, vírgulas, espaços)
+          var txt = (el.textContent || '').replace(/[^\d]/g, '');
+          var n = parseInt(txt, 10);
+          var resultado = isNaN(n) ? 0 : n;
+          console.log('[Roizen] Produtos vendidos lido do KPI k-qtd:', el.textContent, '→', resultado);
+          return resultado;
+        } catch(e) { console.error('[Roizen] Erro ao ler k-qtd:', e); return 0; }
       })(),
       taxRate: rate
     },
