@@ -989,7 +989,6 @@ body.light body::before { opacity: 0; }
     <span class="hdr-time" id="hdr-time">—</span>
     <div class="live-badge"><span class="live-dot"></span><span id="sync-lbl">AO VIVO</span></div>
     <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" title="Alternar tema">🌙</button>
-    <button class="btn-cfg" onclick="openDrawer()">⚙ Planilha</button>
     <div id="plat-badge" onclick="veltroMostrarOnboarding(veltroGetEmpresaAtualObj())"
       title="Plataforma ativa — clique para alterar"
       style="display:inline-flex;align-items:center;gap:4px;background:var(--s2);
@@ -1008,46 +1007,7 @@ body.light body::before { opacity: 0; }
   </div>
 </header>
 
-<!-- Drawer -->
-<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
-<div class="drawer" id="drawer">
-  <button class="drawer-close" onclick="closeDrawer()">✕</button>
-  <h3>Conectar Google Sheets</h3>
-  <p>Publique sua planilha e cole a URL para sincronização em tempo real com auto-refresh configurável.</p>
-  <div class="dg">
-    <label class="dlbl">URL da Planilha (JSON)</label>
-    <input class="dinput" type="text" id="url-in" placeholder="https://docs.google.com/spreadsheets/d/ID/gviz/tq?tqx=out:json">
-    <div class="dhint">Formato: <code>...spreadsheets/d/SEU_ID/gviz/tq?tqx=out:json&sheet=NomeDaAba</code></div>
-  </div>
-  <div class="dg">
-    <label class="dlbl">Auto-refresh</label>
-    <select class="dinput" id="iv-sel">
-      <option value="30">A cada 30 segundos</option>
-      <option value="1800" selected>A cada 30 minutos</option>
-      <option value="300">A cada 5 minutos</option>
-    </select>
-  </div>
-  <button class="btn-load" onclick="applyDrawer()">↻ Carregar e salvar</button>
-  <div class="drawer-steps">
-    <h4>Passo a passo</h4>
-    <div class="step"><div class="snum">1</div><div class="stxt">Abra sua planilha → <strong>Arquivo → Publicar na web</strong></div></div>
-    <div class="step"><div class="snum">2</div><div class="stxt">Selecione a aba → formato <strong>Página Web</strong> → Publicar</div></div>
-    <div class="step"><div class="snum">3</div><div class="stxt">Substitua o final da URL por <code>gviz/tq?tqx=out:json</code></div></div>
-    <div class="step"><div class="snum">4</div><div class="stxt">Cole acima e clique em <strong>Carregar e salvar</strong></div></div>
-    <div class="scols">
-      <h5>Estrutura esperada (linha 1 = cabeçalho)</h5>
-      <div class="scol"><span class="scol-l">A</span><span class="scol-n">Data do Pedido (AAAA-MM-DD)</span></div>
-      <div class="scol"><span class="scol-l">B</span><span class="scol-n">Pedido ID</span></div>
-      <div class="scol"><span class="scol-l">C</span><span class="scol-n">Cliente</span></div>
-      <div class="scol"><span class="scol-l">D</span><span class="scol-n">Produto</span></div>
-      <div class="scol"><span class="scol-l">E</span><span class="scol-n">Tamanho</span></div>
-      <div class="scol"><span class="scol-l">F</span><span class="scol-n">Forma de Pagamento</span></div>
-      <div class="scol"><span class="scol-l">G</span><span class="scol-n">Canal de Venda</span></div>
-      <div class="scol"><span class="scol-l">H</span><span class="scol-n">Status (Aprovado / Em Transporte / Entregue)</span></div>
-      <div class="scol"><span class="scol-l">I</span><span class="scol-n">Valor do Pedido</span></div>
-    </div>
-  </div>
-</div>
+<!-- Drawer e overlay removidos: configuração de planilhas migrou para o sistema de Links por empresa -->
 
 <!-- MAIN -->
 
@@ -1361,17 +1321,6 @@ body.light body::before { opacity: 0; }
     </div>
   </div>
 
-  <!-- Guia publicação -->
-  <div class="slabel" style="margin-top:32px">como publicar e manter atualizado</div>
-  <div class="ggrid fu">
-    <div class="gcard"><div class="gnum">01</div><div class="gico">📊</div><div class="gtit">Prepare o Google Sheets</div><div class="gbody">Abra sua planilha → <strong>Arquivo → Publicar na web</strong>. Selecione a aba e formato <strong>Página Web</strong>.</div><div class="gcode">Arquivo → Publicar na web → Formato: JSON</div></div>
-    <div class="gcard"><div class="gnum">02</div><div class="gico">🔗</div><div class="gtit">Cole a URL no Dashboard</div><div class="gbody">Clique em <strong>⚙ Planilha</strong> no topo. Cole a URL e configure o intervalo de refresh.</div><div class="gcode">...spreadsheets/d/ID/gviz/tq?tqx=out:json</div></div>
-    <div class="gcard"><div class="gnum">03</div><div class="gico">⚡</div><div class="gtit">Auto-refresh ativo</div><div class="gbody">O dashboard se atualiza automaticamente a cada <strong>30 minutos</strong>. Sem necessidade de recarregar.</div><div class="gcode">setInterval(refresh, 30 * 60 * 1000)</div></div>
-    <div class="gcard"><div class="gnum">04</div><div class="gico">🌐</div><div class="gtit">Publique online (grátis)</div><div class="gbody"><strong>Netlify Drop</strong> — arraste o .html em app.netlify.com/drop.<br><strong>GitHub Pages</strong> — suba como index.html.</div><div class="gcode">app.netlify.com/drop → arraste → link ✓</div></div>
-  </div>
-  <div class="gtip fu">💡 <strong>Dica pro:</strong> Para atualização em segundos (tempo real), use <strong>Google Apps Script</strong> para criar um webhook que dispara quando a planilha é editada.</div>
-
-
     </main>
   </div>
 
@@ -1535,6 +1484,20 @@ body.light body::before { opacity: 0; }
           </div>
           <div class="val" id="fin-perdas" style="font-size:17px;color:var(--text)">R$ 0,00</div>
           <div class="sub" style="font-size:9px">% do GMV</div>
+        </div>
+        <!-- Financeiro % LP — sincronizado com Saúde do Estoque e Precificação -->
+        <div class="kpi" style="--cc:#94A3B8" title="Custo financeiro adicional — aplicado sobre Loja Própria. Sincronizado com Saúde do Estoque e Precificação.">
+          <div class="ico">🏦</div><div class="lbl">Financeiro <span style="font-size:9px;color:var(--muted2)">(LP)</span></div>
+          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
+            <input type="number" id="fin-financeiro-pct" value="0" min="0" max="100" step="0.1"
+              oninput="atualizarResultado()"
+              style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
+                     padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
+                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
+            <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
+          </div>
+          <div class="val" id="fin-financeiro" style="font-size:17px;color:var(--text)">R$ 0,00</div>
+          <div class="sub" style="font-size:9px">% do GMV LP</div>
         </div>
         <!-- Custo Fixo (R$ mensal) -->
         <div class="kpi" style="--cc:#94A3B8">
@@ -2760,7 +2723,6 @@ body.light body::before { opacity: 0; }
 
 <footer class="footer">
   <span>Veltro Analytics Dashboard — Atualização automática via Google Sheets</span>
-  <span><a href="#" onclick="openDrawer()">Configurar planilha</a> &bull; Dados de exemplo ativos</span>
 </footer>
 
 <script>
@@ -5258,18 +5220,11 @@ async function loadGS(url){
 }
 
 /* ─ Drawer ─ */
-function openDrawer(){ document.getElementById('overlay').classList.add('open'); document.getElementById('drawer').classList.add('open'); const s=localStorage.getItem('fc_url'); if(s) document.getElementById('url-in').value=s; }
-function closeDrawer(){ document.getElementById('overlay').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); }
-async function applyDrawer(){
-  const url=document.getElementById('url-in').value.trim();
-  const iv=parseInt(document.getElementById('iv-sel').value)*1000;
-  if(!url){alert('Cole a URL do Google Sheets');return;}
-  localStorage.setItem('fc_url',url); localStorage.setItem('fc_iv',iv);
-  // Limpar caches ao trocar de planilha
-  localStorage.removeItem(CACHE_LS_KEY);
-  _colIdx = null; _pedidosCache = null; _pedidosCacheKey = '';
-  sheetURL=url; closeDrawer(); refresh(); startTimer(iv);
-}
+/* ─ Drawer removido — sistema de Links por empresa substituiu a configuração de planilhas.
+   Funções abaixo mantidas como no-op apenas para evitar erros caso algum código legado as chame. */
+function openDrawer(){ /* no-op */ }
+function closeDrawer(){ /* no-op */ }
+async function applyDrawer(){ /* no-op */ }
 
 /* ─ Refresh ─ */
 let sheetURL=null, timer=null;
@@ -9081,11 +9036,13 @@ function syncFinanceiroKPIs(d) {
   var pctTaxaPgto     = parseFloat((document.getElementById('fin-taxa-pgto-pct')||{}).value) || 0;
   var rsTaxaFixaPgto  = parseFloat((document.getElementById('fin-taxa-fixa-pgto-rs')||{}).value) || 0;
   var pctPerdas       = parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0;
+  var pctFinanceiro   = parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0;
   var custoCMV          = d.total * (pctCMV / 100);
   var custoPlataforma   = d.total * (pctPlataforma / 100);
   var custoTaxaPgto     = gmvLojaPropria * (pctTaxaPgto / 100);    // só LP (engloba antecipação)
   var custoTaxaFixaPgto = pedidosLojaPropria * rsTaxaFixaPgto;      // R$ × pedidos LP
   var custoPerdas       = d.total * (pctPerdas / 100);
+  var custoFinanceiro   = gmvLojaPropria * (pctFinanceiro / 100); // só LP (sincronizado entre módulos)
 
   // ═══════════════════════════════════════════════════════════════════
   // MÍDIA: prioriza override manual, senão puxa do Marketing
@@ -9111,7 +9068,7 @@ function syncFinanceiroKPIs(d) {
                   - custoCMV
                   - totalComissao - totalTaxaFixa
                   - freteLojaPropria
-                  - custoPlataforma - custoTaxaPgto - custoTaxaFixaPgto - custoPerdas
+                  - custoPlataforma - custoTaxaPgto - custoTaxaFixaPgto - custoPerdas - custoFinanceiro
                   - custoMkt - impostos - custoFixo;
   var pctResultado = d.total > 0 ? (resultado / d.total * 100) : 0;
 
@@ -9222,6 +9179,7 @@ function syncFinanceiroKPIs(d) {
     ? 'R$ '+rsTaxaFixaPgto.toFixed(2).replace('.',',')+' × '+pedidosLojaPropria+' pedidos LP'
     : 'R$ × pedidos LP');
   setT('fin-perdas',     fMKPI(custoPerdas));
+  setT('fin-financeiro', fMKPI(custoFinanceiro));
 
   // Custo Fixo aplicado
   setT('fin-custo-fixo-aplicado', custoFixoMensal > 0
@@ -9284,6 +9242,7 @@ function syncFinanceiroKPIs(d) {
         ? linhaBR('💵 Taxa Fixa Pgto (LP)', custoTaxaFixaPgto, 'R$ '+rsTaxaFixaPgto.toFixed(2).replace('.',',')+' × '+pedidosLojaPropria+' pedidos', 'deducao')
         : '') +
       linhaBR('📉 Perdas', custoPerdas, pctPerdas.toFixed(1)+'% sobre GMV', 'deducao') +
+      linhaBR('🏦 Financeiro (LP)', custoFinanceiro, pctFinanceiro.toFixed(1)+'% sobre GMV LP', 'deducao') +
       linhaBR('📢 Mídia / ADS', custoMkt, mktFonte, 'deducao') +
       linhaBR('🧾 Impostos', impostos, rate+'% sobre GMV', 'deducao') +
       linhaBR('🏭 Custo Fixo', custoFixo, custoFixoMensal > 0
@@ -9313,6 +9272,7 @@ function syncFinanceiroKPIs(d) {
     custoTaxaPgto: custoTaxaPgto, pctTaxaPgto: pctTaxaPgto,
     custoTaxaFixaPgto: custoTaxaFixaPgto, rsTaxaFixaPgto: rsTaxaFixaPgto,
     custoPerdas: custoPerdas, pctPerdas: pctPerdas,
+    custoFinanceiro: custoFinanceiro, pctFinanceiro: pctFinanceiro,
     custoMkt: custoMkt, mktFonte: mktFonte,
     impostos: impostos, taxRate: rate,
     custoFixo: custoFixo, custoFixoMensal: custoFixoMensal,
@@ -9407,6 +9367,7 @@ function finExportarExcel() {
     addRow(['(-) Taxa Fixa Pgto (LP)', '-' + fmtBR(data.custoTaxaFixaPgto), pctSobreGMV(data.custoTaxaFixaPgto), 'R$ ' + fmtBR(data.rsTaxaFixaPgto) + ' x ' + data.pedidosLP + ' pedidos LP']);
   }
   addRow(['(-) Perdas', '-' + fmtBR(data.custoPerdas), pctSobreGMV(data.custoPerdas), fmtPctBR(data.pctPerdas) + ' sobre GMV']);
+  addRow(['(-) Financeiro (LP)', '-' + fmtBR(data.custoFinanceiro), pctSobreGMV(data.custoFinanceiro), fmtPctBR(data.pctFinanceiro) + ' sobre GMV LP']);
   addRow(['(-) Mídia / ADS', '-' + fmtBR(data.custoMkt), pctSobreGMV(data.custoMkt), data.mktFonte]);
   addRow(['(-) Impostos', '-' + fmtBR(data.impostos), pctSobreGMV(data.impostos), data.taxRate + '% sobre GMV']);
   addRow(['(-) Custo Fixo', '-' + fmtBR(data.custoFixo), pctSobreGMV(data.custoFixo),
@@ -9493,7 +9454,8 @@ function finSalvarParams() {
       paramsGlobaisSet({
         plataformaPct: parseFloat((document.getElementById('fin-plataforma-pct')||{}).value) || 0,
         taxaPgtoPct:   parseFloat((document.getElementById('fin-taxa-pgto-pct')||{}).value) || 0,
-        perdasPct:     parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0
+        perdasPct:     parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0,
+        financeiroPct: parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0
       });
     } catch(e){ console.warn('[Fin] erro ao salvar params:', e); }
   }, 500);
@@ -9516,6 +9478,7 @@ function finRestaurarParams() {
     setVal('fin-plataforma-pct',    g.plataformaPct);
     setVal('fin-taxa-pgto-pct',     g.taxaPgtoPct);
     setVal('fin-perdas-pct',        g.perdasPct);
+    setVal('fin-financeiro-pct',    g.financeiroPct);
     console.log('[Fin] Parâmetros restaurados');
   } catch(e){ console.warn('[Fin] erro ao restaurar params:', e); }
 }
