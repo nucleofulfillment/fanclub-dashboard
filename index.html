@@ -3148,30 +3148,113 @@ function normStatus(raw) {
   return 'Aprovado';
 }
 
+/* Histórico de valores não mapeados (pra debug rápido) */
+window._pagNaoMapeados = window._pagNaoMapeados || {};
+
 function normPag(raw) {
   var s = String(raw||'').toLowerCase().trim();
-  if(!s || s==='-' || s==='null' || s==='undefined') return 'Outros';
+  if(!s || s==='-' || s==='null' || s==='undefined' || s==='n/a' || s==='nan') return 'Outros';
+  // PIX
   if(s.includes('pix')) return 'Pix';
-  if(s.includes('boleto') || s.includes('bank_slip') || s.includes('bankslip') || s.includes('billet')) return 'Boleto';
+  // Boleto
+  if(s.includes('boleto') || s.includes('bank_slip') || s.includes('bankslip') ||
+     s.includes('billet') || s.includes('bolet')) return 'Boleto';
+  // Cartão de crédito (testar antes de débito pra evitar match falso)
   if(s.includes('credito') || s.includes('crédito') || s.includes('credit') ||
-     s.includes('cartao_cred') || s.includes('visa') || s.includes('master') ||
+     s.includes('cartao_cred') || s.includes('cartão_cred') ||
+     s.includes('cc') && s.length <= 3 ||
+     s.includes('visa') || s.includes('master') || s.includes('mastercard') ||
      s.includes('amex') || s.includes('elo') || s.includes('hipercard') ||
-     (s.includes('cart') && !s.includes('debito') && !s.includes('débito')))
+     s.includes('hiper') || s.includes('aura') || s.includes('diners') ||
+     s.includes('discover') || s.includes('jcb') ||
+     (s.includes('cart') && !s.includes('debito') && !s.includes('débito') && !s.includes('debit')))
     return 'Cartão Crédito';
-  if(s.includes('debito') || s.includes('débito') || s.includes('debit') || s.includes('cartao_deb'))
+  // Cartão de débito
+  if(s.includes('debito') || s.includes('débito') || s.includes('debit') ||
+     s.includes('cartao_deb') || s.includes('cartão_deb'))
     return 'Cartão Débito';
+  // Carteira digital (incluindo as principais BR)
   if(s.includes('wallet') || s.includes('carteira') || s.includes('paypal') ||
      s.includes('picpay') || s.includes('mercadopago') || s.includes('mercado pago') ||
-     s.includes('shopeepay') || s.includes('shopee pay') ||
-     s.includes('nubank') || s.includes('pagbank') || s.includes('pagseguro'))
+     s.includes('mercado_pago') || s.includes('mp_wallet') ||
+     s.includes('shopeepay') || s.includes('shopee pay') || s.includes('shopee_pay') ||
+     s.includes('nubank') || s.includes('pagbank') || s.includes('pagseguro') ||
+     s.includes('banco_inter') || s.includes('inter ') || s.includes('googlepay') ||
+     s.includes('apple pay') || s.includes('applepay') || s.includes('samsungpay'))
     return 'Carteira Digital';
-  if(s.includes('parcel') || s.includes('financi') || s.includes('installment'))
+  // Parcelamento (geralmente vem com "parcelado em X"/"installment")
+  if(s.includes('parcel') || s.includes('financi') || s.includes('installment') ||
+     s.includes('parcelamento'))
     return 'Parcelado';
-  if(s.includes('brinde') || s.includes('gratis') || s.includes('gratuito') || s.includes('free'))
+  // Brinde / Cortesia
+  if(s.includes('brinde') || s.includes('gratis') || s.includes('grátis') ||
+     s.includes('gratuito') || s.includes('free') || s.includes('cortesia') ||
+     s.includes('zero') || s === '0' || s === 'r$ 0')
     return 'Brinde';
-  console.log('[Roizen] normPag não mapeado:', JSON.stringify(raw));
+  // Marketplace direto (pagamento processado pela plataforma)
+  if(s.includes('marketplace') || s.includes('shopee_checkout') ||
+     s.includes('mercadolivre_checkout') || s.includes('ml_checkout') ||
+     s.includes('checkout_marketplace'))
+    return 'Marketplace';
+  // Transferência / TED / DOC
+  if(s.includes('ted') || s.includes('doc') || s.includes('transferencia') ||
+     s.includes('transferência') || s.includes('bank_transfer'))
+    return 'Transferência';
+  // Dinheiro (raríssimo em e-commerce, mas possível em retiradas)
+  if(s.includes('dinheiro') || s.includes('cash') || s.includes('especie') ||
+     s.includes('espécie'))
+    return 'Dinheiro';
+
+  // Não mapeado — registrar pra debug
+  if(raw) {
+    var key = String(raw).slice(0, 50);
+    window._pagNaoMapeados[key] = (window._pagNaoMapeados[key] || 0) + 1;
+  }
   return 'Outros';
 }
+
+/* Debug do mapeamento de formas de pagamento.
+   Uso: console: debugPag.status() | debugPag.amostras() | debugPag.naoMapeados() */
+window.debugPag = {
+  status: function() {
+    var col = (typeof _colIdx !== 'undefined') ? _colIdx.pag : '?';
+    var totRaw = (typeof entr !== 'undefined' && entr) ? entr.length : '?';
+    console.log('═══ Debug Forma de Pagamento ═══');
+    console.log('Coluna detectada (pag):', col);
+    console.log('Pedidos no _lastProcessedData:', (window._lastProcessedData && window._lastProcessedData.qtd) || '?');
+    var d = window._lastProcessedData;
+    if(d && d.pagamentos) {
+      console.log('Distribuição pagamentos:');
+      d.pagamentos.forEach(function(p){ console.log('  '+p[0]+': '+p[1]); });
+    }
+    console.log('Não mapeados (sample):');
+    var nm = Object.keys(window._pagNaoMapeados || {});
+    nm.slice(0, 20).forEach(function(k){
+      console.log('  "'+k+'" → '+window._pagNaoMapeados[k]+'x');
+    });
+    if(nm.length > 20) console.log('  ... +'+(nm.length-20)+' valores únicos não mapeados');
+    return { coluna:col, naoMapeados:Object.keys(window._pagNaoMapeados||{}).length };
+  },
+  amostras: function() {
+    // Amostra os 20 primeiros valores brutos da coluna pag
+    if(!window._fcRowsCache && !window._lastProcessedData) {
+      console.log('Sem dados carregados. Faça um refresh primeiro.');
+      return;
+    }
+    var ci = (typeof _colIdx !== 'undefined') ? _colIdx : null;
+    if(!ci) { console.log('_colIdx não disponível'); return; }
+    console.log('Coluna pag = índice '+ci.pag);
+    console.log('Para ver os valores brutos, recarregue e olhe o console durante o parse.');
+    return ci;
+  },
+  naoMapeados: function() {
+    return window._pagNaoMapeados || {};
+  },
+  resetar: function() {
+    window._pagNaoMapeados = {};
+    console.log('Histórico de não mapeados resetado.');
+  }
+};
 
 /* ═══════════════════════════════════════════════════════════════
    MAPEAMENTO DE LINHA RAW → OBJETO PEDIDO
@@ -5530,6 +5613,54 @@ async function loadGS(url){
       console.warn('[Veltro] ⚠️ Canal não detectado automaticamente. Use: _setCanal(N) para definir manualmente.');
     }
   }
+
+  /* ─── DETECÇÃO DE COLUNA "FORMA DE PAGAMENTO" POR CONTEÚDO ───
+     Estratégia: varrer 50 linhas, contar quantas células de cada coluna
+     contêm palavras-chave de pagamento (pix, boleto, credit, etc).
+     A coluna com maior score é provavelmente a de pagamento. */
+  var KW_PAGAMENTO = ['pix','boleto','credit','débito','debito','wallet','carteira',
+                      'paypal','picpay','mercadopago','shopeepay','nubank','pagseguro',
+                      'pagbank','transferencia','cartão','cartao','master','visa','elo',
+                      'hipercard','amex','installment','parcel'];
+  var pagColScore = {};
+  amostra.forEach(function(r) {
+    if(!r) return;
+    r.forEach(function(cell, ci) {
+      if(!cell) return;
+      var sl = String(cell).toLowerCase();
+      // Não confundir com coluna de canal: pular se for o canal já detectado
+      if(ci === _colIdx.canal) return;
+      KW_PAGAMENTO.forEach(function(kw) {
+        if(sl.includes(kw)) pagColScore[ci] = (pagColScore[ci]||0) + 1;
+      });
+    });
+  });
+  var pagScoreEntries = Object.entries(pagColScore).sort(function(a,b){return b[1]-a[1];});
+  if(pagScoreEntries.length > 0) {
+    console.log('[Veltro] Top colunas com formas de pagamento:',
+      pagScoreEntries.slice(0,3).map(function(e){return 'col'+e[0]+'('+e[1]+'x)';}).join(', '));
+    var melhorPagCol = parseInt(pagScoreEntries[0][0]);
+    var melhorPagScore = pagScoreEntries[0][1];
+    // Aplicar só se score for relevante (5+ matches em 50 linhas = >10%)
+    if(melhorPagScore >= 5 && melhorPagCol !== _colIdx.pag) {
+      console.log('[Veltro] ✅ Coluna de PAGAMENTO atualizada: '+_colIdx.pag+' → '+melhorPagCol+' (score '+melhorPagScore+')');
+      _colIdx.pag = melhorPagCol;
+      _pedidosCache = null;
+      _pedidosCacheKey = '';
+      localStorage.removeItem(CACHE_LS_KEY);
+      try { localStorage.setItem('veltro_pag_col', melhorPagCol); } catch(e){}
+    }
+  } else {
+    // Tentar recuperar da sessão anterior
+    var savedPag = parseInt(localStorage.getItem('veltro_pag_col')||'-1');
+    if(savedPag >= 0 && savedPag !== _colIdx.pag) {
+      console.log('[Veltro] Usando coluna de pagamento salva: col'+savedPag);
+      _colIdx.pag = savedPag;
+    } else {
+      console.warn('[Veltro] ⚠️ Forma de pagamento não detectada. Verifique: _colIdx.pag = '+_colIdx.pag);
+    }
+  }
+
   // Se encontrou cabeçalho, detectar índices reais das colunas
   if(header) {
     var novoIdx = {};
