@@ -1777,6 +1777,31 @@ body.light body::before { opacity: 0; }
           </div>
         </div>
 
+        <!-- ── Limites de classificação de saúde (configuráveis) ──── -->
+        <div style="margin-top:14px;padding:10px 12px;background:var(--s2);border:1px solid var(--border2);border-radius:7px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+            <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px">⚖️ Limites de Classificação</div>
+            <span style="font-family:var(--fmono);font-size:9px;color:var(--muted2)" title="Margem real = lucro líquido / preço de venda. Define quando produto vira 🟢 Saudável, 🟡 Atenção ou 🔴 Crítico">Define as faixas verde / amarelo / vermelho</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end">
+            <div>
+              <label style="font-family:var(--fmono);font-size:10px;color:var(--green);display:block;margin-bottom:4px;font-weight:600" title="Margem real ≥ este valor → produto é classificado como 🟢 Saudável">🟢 Saudável a partir de %</label>
+              <input type="number" id="saude-limite-verde" value="10.1" min="-50" max="100" step="0.1" oninput="saudeRecalcular()"
+                style="width:100%;background:var(--s);border:1px solid rgba(110,231,183,.3);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--green);outline:none;color-scheme:dark;font-weight:600">
+            </div>
+            <div>
+              <label style="font-family:var(--fmono);font-size:10px;color:#F59E0B;display:block;margin-bottom:4px;font-weight:600" title="Margem real ≥ este valor (mas abaixo do Saudável) → produto é 🟡 Atenção. Abaixo deste valor → 🔴 Crítico (prejuízo se ≤ 0)">🟡 Atenção a partir de %</label>
+              <input type="number" id="saude-limite-amarelo" value="0" min="-50" max="100" step="0.1" oninput="saudeRecalcular()"
+                style="width:100%;background:var(--s);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:#F59E0B;outline:none;color-scheme:dark;font-weight:600">
+            </div>
+            <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);line-height:1.5">
+              <span style="color:var(--red)">🔴 Crítico</span> = margem &lt; <span id="saude-preview-amarelo">0</span>%<br>
+              <span style="color:#F59E0B">🟡 Atenção</span> = entre <span id="saude-preview-amarelo2">0</span>% e <span id="saude-preview-verde">10.1</span>%<br>
+              <span style="color:var(--green)">🟢 Saudável</span> = ≥ <span id="saude-preview-verde2">10.1</span>%
+            </div>
+          </div>
+        </div>
+
         <!-- ── Bloco de Regras por Canal (transparência) ──────────── -->
         <div style="margin-top:12px;padding:12px;background:var(--s2);border:1px solid var(--border2);border-radius:7px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
@@ -3126,7 +3151,7 @@ var SAUDE_CUSTO_PCT = { A: 0.40, B: 0.50, C: 0.60 };
 var SAUDE_MARGEM_ALVO = { A: 0.60, B: 0.50, C: 0.40 };
 
 // Faixas de status (margem real)
-var SAUDE_FAIXAS = { verde: 0.30, amarelo: 0.15 };  // ≥30% verde · 15-30% amarelo · <15% vermelho
+var SAUDE_FAIXAS = { verde: 0.101, amarelo: 0 };  // configurável via inputs (≥10.1% verde · 0-10.1% amarelo · <0% vermelho)
 
 // Estado interno do módulo
 var _saudeProdutos = [];      // produtos calculados na última recálculo
@@ -3198,7 +3223,9 @@ function _saudeGetParams() {
     custoFixo: num('saude-custo-fixo', 0),
     frete:     num('saude-frete', 0),
     financeiro:num('saude-financeiro', 0),
-    margemDesejada: num('saude-margem-desejada', 10)
+    margemDesejada: num('saude-margem-desejada', 10),
+    limiteVerde:    num('saude-limite-verde', 10.1),
+    limiteAmarelo:  num('saude-limite-amarelo', 0)
   };
 }
 
@@ -3610,6 +3637,20 @@ function _saudeCalcularMargem(produto, params) {
 function saudeRecalcular() {
   var produtos = _saudeColetarProdutos();
   var params   = _saudeGetParams();
+  // Sincronizar limites configuráveis com a constante global
+  // (validação: limiteAmarelo nunca pode ser maior que limiteVerde)
+  var lv = params.limiteVerde;
+  var la = params.limiteAmarelo;
+  if(la >= lv) la = lv - 0.1;  // garantir consistência
+  SAUDE_FAIXAS.verde   = lv / 100;
+  SAUDE_FAIXAS.amarelo = la / 100;
+  // Atualizar preview no card
+  var setTxt = function(id, t){ var el = document.getElementById(id); if(el) el.textContent = t; };
+  setTxt('saude-preview-amarelo',  la.toFixed(1));
+  setTxt('saude-preview-amarelo2', la.toFixed(1));
+  setTxt('saude-preview-verde',    lv.toFixed(1));
+  setTxt('saude-preview-verde2',   lv.toFixed(1));
+
   produtos.forEach(function(p){
     var calc = _saudeCalcularMargem(p, params);
     p.custoEstimado  = calc.custo;
@@ -4064,6 +4105,8 @@ function _saudeRestaurarParams() {
     setVal('saude-frete', p.frete);
     setVal('saude-financeiro', p.financeiro);
     setVal('saude-margem-desejada', p.margemDesejada);
+    setVal('saude-limite-verde', p.limiteVerde);
+    setVal('saude-limite-amarelo', p.limiteAmarelo);
     if(p.regime) {
       var btn = document.getElementById('saude-rt-' + p.regime);
       if(btn) saudeSetRegime(p.regime, btn);
