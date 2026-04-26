@@ -1427,10 +1427,14 @@ body.light body::before { opacity: 0; }
            ═══════════════════════════════════════════════════════════ -->
       <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px">⚙️ parâmetros editáveis</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:8px" id="fin-kpis-row2">
-        <!-- Custo do Produto (NOVO) -->
-        <div class="kpi" style="--cc:#94A3B8" title="Custo médio do produto (CMV) sobre o GMV — entrada manual neste momento. Futuramente pode vir automático da planilha de produtos.">
+        <!-- Custo do Produto: modo Auto (custo real × qtd) ou Manual (% do GMV) -->
+        <div class="kpi" style="--cc:#94A3B8" title="CMV — Modo Auto: calcula a partir do custo real × qtd vendida (planilha de custos). Modo Manual: digita % sobre GMV.">
           <div class="ico">📦</div><div class="lbl">Custo Produto</div>
-          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
+          <div style="display:flex;align-items:center;gap:6px;margin:6px 0">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none" title="Quando ativo, calcula automaticamente a partir da planilha de custos">
+              <input type="checkbox" id="fin-cmv-toggle" onchange="atualizarResultado()" style="margin:0;cursor:pointer;width:11px;height:11px">
+              <span style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase">auto</span>
+            </label>
             <input type="number" id="fin-cmv-pct" value="0" min="0" max="100" step="0.1"
               oninput="atualizarResultado()"
               style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
@@ -1439,7 +1443,7 @@ body.light body::before { opacity: 0; }
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
           </div>
           <div class="val" id="fin-cmv" style="font-size:17px;color:var(--text)">R$ 0,00</div>
-          <div class="sub" style="font-size:9px">CMV % do GMV (manual)</div>
+          <div class="sub" id="fin-cmv-sub" style="font-size:9px">CMV % do GMV (manual)</div>
         </div>
         <!-- Plataforma % editável (sobre GMV total) -->
         <div class="kpi" style="--cc:#94A3B8">
@@ -8579,6 +8583,13 @@ async function loadCustoProdutos() {
         saudeRecalcular();
       }
     } catch(e){}
+    // Re-renderizar Financeiro se estiver aberto (modo Auto pode estar ativo)
+    try {
+      var finPage = document.getElementById('page-financeiro');
+      if(finPage && finPage.classList.contains('active') && typeof atualizarResultado === 'function') {
+        atualizarResultado();
+      }
+    } catch(e){}
   } catch(e) {
     console.error('[Custo] Erro ao carregar planilha:', e);
   }
@@ -8603,6 +8614,82 @@ function getMarcaProduto(sku) {
   var base = s.replace(/-\d{1,4}$/, '');
   if(marcaPorSku[base]) return marcaPorSku[base];
   return null;
+}
+
+/* ─ CMV REAL: soma custo × qtd vendida dos SKUs no período filtrado ──
+   Usa produtosVendidosMap (qtd por SKU/mês) × getCustoReal (custo por SKU).
+   Para SKUs sem custo real, estima pelo preço médio × % da curva ABC.
+   Retorna: {total, skusReais, skusEstimados} ──────────────────────── */
+function calcCMVReal() {
+  var resultado = { total: 0, skusReais: 0, skusEstimados: 0 };
+  try {
+    if(typeof produtosVendidosMap !== 'object' || !produtosVendidosMap) return resultado;
+    var skus = Object.values(produtosVendidosMap);
+    if(skus.length === 0) return resultado;
+
+    // Pegar filtro de período atual (mesma lógica de calcQtdProdutosVendidos)
+    var from = (document.getElementById('f-from')||{}).value || '';
+    var to   = (document.getElementById('f-to')||{}).value   || '';
+    var mesesSet = null;
+    if(from || to) {
+      mesesSet = new Set();
+      try {
+        var d1 = new Date(from + 'T00:00');
+        var d2 = new Date(to   + 'T00:00');
+        if(!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+          var cur = new Date(d1.getFullYear(), d1.getMonth(), 1);
+          var end = new Date(d2.getFullYear(), d2.getMonth(), 1);
+          while(cur <= end) {
+            var mm = String(cur.getMonth()+1).padStart(2,'0');
+            var yy = cur.getFullYear().toString().slice(-2);
+            var nomeMes = (typeof MESES_ABAS !== 'undefined') ? MESES_ABAS[mm] : null;
+            if(nomeMes) {
+              var mesKey = nomeMes.toLowerCase().replace(/[^a-z]/g,'').substring(0,3) + yy;
+              mesesSet.add(mesKey);
+            }
+            cur.setMonth(cur.getMonth()+1);
+          }
+        }
+      } catch(e){}
+    }
+
+    // % de fallback por curva (mesmo que Saúde do Estoque usa)
+    var SAUDE_FALLBACK = (typeof SAUDE_CUSTO_PCT !== 'undefined') ? SAUDE_CUSTO_PCT : { A:0.45, B:0.50, C:0.60 };
+
+    skus.forEach(function(p){
+      if(!p || !p.sku) return;
+
+      // Calcular qtd no período
+      var qtd = 0;
+      if(mesesSet && p.por_mes) {
+        Object.keys(p.por_mes).forEach(function(mk){
+          if(mesesSet.has(mk)) qtd += (p.por_mes[mk] || 0);
+        });
+      } else if(!mesesSet) {
+        qtd = p.qtd || 0;
+      }
+      if(qtd <= 0) return;
+
+      // Custo: tenta real, senão estima por preço médio × % curva
+      var info = (typeof getCustoReal === 'function') ? getCustoReal(p.sku) : null;
+      var custoUnit = 0;
+      if(info && info.custo > 0) {
+        custoUnit = info.custo;
+        resultado.skusReais++;
+      } else {
+        // Fallback: precoMedio × pct curva (curva pode não estar definida nesse mapa)
+        var precoMed = p.gmv && p.qtd ? (p.gmv / p.qtd) : 0;
+        // Sem curva conhecida aqui, usa B como neutro
+        custoUnit = precoMed * SAUDE_FALLBACK.B;
+        resultado.skusEstimados++;
+      }
+
+      resultado.total += custoUnit * qtd;
+    });
+  } catch(e) {
+    console.warn('[CMV Real] erro:', e);
+  }
+  return resultado;
 }
 
 /* ─ Funções de debug (acessíveis pelo console: window.debugCusto.X) ─── */
@@ -9475,7 +9562,7 @@ function syncFinanceiroKPIs(d) {
 
   // ═══════════════════════════════════════════════════════════════════
   // PARÂMETROS EDITÁVEIS
-  // CMV % → sobre GMV total
+  // CMV → modo AUTO (custo real × qtd vendida) ou MANUAL (% sobre GMV)
   // Plataforma → sobre GMV total
   // Perdas → sobre GMV total
   // Taxa Pgto % e Taxa Fixa Pgto R$ → APENAS sobre LP (engloba antecipação)
@@ -9486,7 +9573,41 @@ function syncFinanceiroKPIs(d) {
   var rsTaxaFixaPgto  = parseFloat((document.getElementById('fin-taxa-fixa-pgto-rs')||{}).value) || 0;
   var pctPerdas       = parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0;
   var pctFinanceiro   = parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0;
-  var custoCMV          = d.total * (pctCMV / 100);
+
+  // ─── CMV: AUTO (calculado) vs MANUAL (% sobre GMV) ──────────────
+  // Modo Auto exige: planilha de custo carregada + toggle ativo
+  var cmvModoAuto = (function(){
+    var t = document.getElementById('fin-cmv-toggle');
+    if(!t) return false;
+    if(typeof _custoStats === 'undefined' || !_custoStats.carregado) return false;
+    return t.checked;
+  })();
+  var custoCMV = 0;
+  var cmvDetalhes = { skusReais: 0, skusEstimados: 0, modo: 'manual' };
+  if(cmvModoAuto && typeof calcCMVReal === 'function') {
+    var cmvCalc = calcCMVReal();
+    custoCMV = cmvCalc.total;
+    cmvDetalhes.skusReais     = cmvCalc.skusReais;
+    cmvDetalhes.skusEstimados = cmvCalc.skusEstimados;
+    cmvDetalhes.modo          = 'auto';
+    // Atualizar % visual exibido (apenas display — input fica readonly em modo Auto)
+    if(d.total > 0) {
+      var pctCalc = (custoCMV / d.total * 100);
+      try {
+        var inp = document.getElementById('fin-cmv-pct');
+        if(inp) { inp.value = pctCalc.toFixed(1); inp.readOnly = true; inp.style.opacity = '0.7'; }
+      } catch(e){}
+      pctCMV = pctCalc;
+    }
+  } else {
+    // MODO MANUAL: igual ao comportamento original
+    custoCMV = d.total * (pctCMV / 100);
+    try {
+      var inp2 = document.getElementById('fin-cmv-pct');
+      if(inp2) { inp2.readOnly = false; inp2.style.opacity = '1'; }
+    } catch(e){}
+  }
+
   var custoPlataforma   = d.total * (pctPlataforma / 100);
   var custoTaxaPgto     = gmvLojaPropria * (pctTaxaPgto / 100);    // só LP (engloba antecipação)
   var custoTaxaFixaPgto = pedidosLojaPropria * rsTaxaFixaPgto;      // R$ × pedidos LP
@@ -9621,6 +9742,14 @@ function syncFinanceiroKPIs(d) {
 
   // Parâmetros editáveis (R$ aplicado)
   setT('fin-cmv',        fMKPI(custoCMV));
+  // Subtítulo dinâmico: explica fonte (auto vs manual) + cobertura
+  if(cmvDetalhes.modo === 'auto') {
+    var totalSkus = cmvDetalhes.skusReais + cmvDetalhes.skusEstimados;
+    var pctReal = totalSkus > 0 ? (cmvDetalhes.skusReais/totalSkus*100).toFixed(0) : '0';
+    setT('fin-cmv-sub', '🟢 auto · '+cmvDetalhes.skusReais+'/'+totalSkus+' SKUs com custo real ('+pctReal+'%)');
+  } else {
+    setT('fin-cmv-sub', 'CMV % do GMV (manual)');
+  }
   setT('fin-plataforma', fMKPI(custoPlataforma));
   setT('fin-taxa-pgto',  fMKPI(custoTaxaPgto));
   setT('fin-taxa-fixa-pgto', fMKPI(custoTaxaFixaPgto));
@@ -9681,7 +9810,11 @@ function syncFinanceiroKPIs(d) {
     '<tbody>' +
       linhaBR('💰 Receita Bruta (GMV)', d.total, fmtPct(d.total), 'receita') +
       sepLine +
-      linhaBR('📦 Custo do Produto (CMV)', custoCMV, pctCMV.toFixed(1)+'% (manual)', 'deducao') +
+      linhaBR('📦 Custo do Produto (CMV)', custoCMV,
+        cmvDetalhes.modo === 'auto'
+          ? pctCMV.toFixed(1)+'% efetivo · 🟢 auto: '+cmvDetalhes.skusReais+'/'+(cmvDetalhes.skusReais+cmvDetalhes.skusEstimados)+' SKUs reais'
+          : pctCMV.toFixed(1)+'% (manual)',
+        'deducao') +
       linhaBR('🏪 Comissão Marketplace', totalComissao, pctComissaoMedio.toFixed(2)+'% médio · regras reais por canal', 'deducao') +
       linhaBR('📌 Taxa Fixa Marketplace', totalTaxaFixa, 'R$ '+taxaFixaMediaPedido.toFixed(2).replace('.',',')+'/pedido médio', 'deducao') +
       linhaBR('🚚 Frete (LP)', freteLojaPropria, pedidosLojaPropria+' pedidos LP', 'deducao') +
@@ -9713,7 +9846,8 @@ function syncFinanceiroKPIs(d) {
     pedidosLP: pedidosLojaPropria,
     gmvTotal: d.total,
     gmvLP: gmvLojaPropria,
-    custoCMV: custoCMV, pctCMV: pctCMV,
+    custoCMV: custoCMV, pctCMV: pctCMV, cmvModo: cmvDetalhes.modo,
+    cmvSkusReais: cmvDetalhes.skusReais, cmvSkusEstimados: cmvDetalhes.skusEstimados,
     totalComissao: totalComissao, pctComissaoMedio: pctComissaoMedio,
     totalTaxaFixa: totalTaxaFixa, taxaFixaMediaPedido: taxaFixaMediaPedido,
     freteLojaPropria: freteLojaPropria, freteTotalGeral: freteTotalGeral,
@@ -9895,6 +10029,7 @@ function finSalvarParams() {
         mktPct:        (document.getElementById('fin-mkt-pct')||{}).value || '',
         taxRate:       (document.getElementById('tax-rate')||{}).value || '',
         cmvPct:        (document.getElementById('fin-cmv-pct')||{}).value || '',
+        cmvAuto:       !!((document.getElementById('fin-cmv-toggle')||{}).checked),
         taxaFixaPgto:  (document.getElementById('fin-taxa-fixa-pgto-rs')||{}).value || ''
       };
       localStorage.setItem(_finKey(), JSON.stringify(localParams));
@@ -9920,6 +10055,11 @@ function finRestaurarParams() {
     setVal('fin-mkt-pct',           local.mktPct);
     setVal('tax-rate',              local.taxRate);
     setVal('fin-cmv-pct',           local.cmvPct);
+    // Restaurar toggle Auto (boolean)
+    try {
+      var tg = document.getElementById('fin-cmv-toggle');
+      if(tg && local.cmvAuto !== undefined) tg.checked = !!local.cmvAuto;
+    } catch(e){}
     setVal('fin-taxa-fixa-pgto-rs', local.taxaFixaPgto);
 
     // Restaura globais (compartilhados)
