@@ -2810,6 +2810,20 @@ body.light body::before { opacity: 0; }
         </div>
       </div>
 
+      <!-- Faixa de soma do filtro: só aparece quando busca/status filtra algo -->
+      <div id="fc-filtro-soma" style="display:none;margin-bottom:10px;padding:10px 14px;
+           background:linear-gradient(90deg,rgba(110,231,183,.06),rgba(110,231,183,.01));
+           border:1px solid rgba(110,231,183,.2);border-radius:10px;
+           font-family:var(--fmono);font-size:11px;align-items:center;gap:14px;flex-wrap:wrap">
+        <span style="color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:10px">∑ Filtro ativo</span>
+        <span id="fc-filtro-soma-info" style="color:var(--muted);font-size:10px">—</span>
+        <div style="margin-left:auto;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+          <span style="color:var(--muted)">Custo fixo: <span id="fc-filtro-soma-fixo" style="color:var(--red);font-weight:600">—</span></span>
+          <span style="color:var(--muted)">Movimento: <span id="fc-filtro-soma-mov" style="color:var(--text);font-weight:600">—</span></span>
+          <span style="color:var(--muted)">Total: <span id="fc-filtro-soma-total" style="font-weight:700">—</span></span>
+        </div>
+      </div>
+
       <div class="card">
         <div style="overflow-x:auto;max-height:500px;overflow-y:auto">
           <table class="dtbl">
@@ -7796,6 +7810,35 @@ function renderFluxoTabela() {
     if(busca && !d.descricao.toLowerCase().includes(busca) && !d.classif.toLowerCase().includes(busca)) return false;
     return true;
   });
+
+  // ─── Atualizar faixa de soma do filtro ───
+  // Só exibe quando há filtro ativo (busca preenchida OU status != "todos")
+  try {
+    var faixa = document.getElementById('fc-filtro-soma');
+    var temFiltro = (busca && busca.trim().length > 0) || (_fcFiltroSt && _fcFiltroSt !== 'todos');
+    if(faixa) {
+      if(temFiltro && dados.length > 0) {
+        var somaFixo = 0, somaMov = 0;
+        dados.forEach(function(d){ somaFixo += (d.custoFixo||0); somaMov += (d.movimento||0); });
+        var total = somaFixo + somaMov;
+        var info = dados.length + ' lançamento'+(dados.length>1?'s':'');
+        if(busca) info += ' · busca: "' + busca + '"';
+        if(_fcFiltroSt && _fcFiltroSt !== 'todos') {
+          var stLbl = _fcFiltroSt === 'R' ? 'Recebido/Pago' : _fcFiltroSt === 'P' ? 'Saídas Pagas' : 'A Vencer';
+          info += ' · status: ' + stLbl;
+        }
+        var setT = function(id, t, color){ var el = document.getElementById(id); if(el){ el.textContent = t; if(color) el.style.color = color; } };
+        var fmt = function(v){ return (typeof fMF === 'function') ? fMF(v) : 'R$ '+v.toFixed(2); };
+        setT('fc-filtro-soma-info', info);
+        setT('fc-filtro-soma-fixo', somaFixo !== 0 ? fmt(somaFixo) : '—', somaFixo < 0 ? 'var(--red)' : 'var(--muted)');
+        setT('fc-filtro-soma-mov',  somaMov  !== 0 ? fmt(somaMov)  : '—', somaMov < 0 ? 'var(--red)' : somaMov > 0 ? 'var(--green)' : 'var(--muted)');
+        setT('fc-filtro-soma-total',                fmt(total),           total < 0 ? 'var(--red)' : 'var(--green)');
+        faixa.style.display = 'flex';
+      } else {
+        faixa.style.display = 'none';
+      }
+    }
+  } catch(e) { console.warn('[FC] erro na soma do filtro:', e); }
 
   if(dados.length === 0) {
     tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Nenhum lançamento com este filtro</td></tr>';
