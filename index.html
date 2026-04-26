@@ -1409,8 +1409,8 @@ body.light body::before { opacity: 0; }
       </div>
 
       <div class="slabel">visão geral financeira</div>
-      <!-- KPIs financeiros -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px" id="fin-kpis">
+      <!-- ── FILEIRA 1: KPIs operacionais (dados reais dos pedidos/marketing) ── -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:8px" id="fin-kpis-row1">
         <div class="kpi" style="--cc:#6EE7B7">
           <div class="ico">💰</div><div class="lbl">GMV Total</div>
           <div class="val" id="fin-gmv" style="font-size:18px">—</div>
@@ -1431,10 +1431,102 @@ body.light body::before { opacity: 0; }
           <div class="val" id="fin-frt" style="font-size:18px">—</div>
           <div class="sub">cobrado dos clientes</div>
         </div>
+        <!-- Mídia / ADS — auto do Marketing ou input manual -->
+        <div class="kpi" style="--cc:#F472B6" id="fin-mkt-card">
+          <div class="ico">📢</div><div class="lbl">Mídia / ADS</div>
+          <div class="val" id="fin-mkt" style="font-size:18px;color:var(--red)">R$ 0,00</div>
+          <div class="sub" id="fin-mkt-sub" style="font-size:9px">aguardando dados de Marketing</div>
+          <details style="margin-top:4px">
+            <summary style="font-family:var(--fmono);font-size:9px;color:var(--muted2);cursor:pointer;outline:none">override manual %</summary>
+            <div style="display:flex;align-items:center;gap:4px;margin-top:4px">
+              <input type="number" id="fin-mkt-pct" value="0" min="0" max="100" step="0.1"
+                oninput="atualizarResultado()" placeholder="0"
+                style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
+                       padding:3px 5px;font-family:var(--fmono);font-size:11px;
+                       color:var(--text);outline:none;color-scheme:dark;text-align:center">
+              <span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">% sobre GMV</span>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- ── FILEIRA 2: Deduções (calculadas + parâmetros editáveis) ── -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:8px" id="fin-kpis-row2">
+        <!-- Comissão Marketplace (CALCULADO pedido a pedido) -->
+        <div class="kpi" style="--cc:#A78BFA" id="fin-com-card">
+          <div class="ico">🏪</div><div class="lbl">Comissão MKT</div>
+          <div class="val" id="fin-com" style="font-size:18px;color:#F43F5E">R$ 0,00</div>
+          <div class="sub" id="fin-com-sub">% médio: —</div>
+          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:var(--accent)" title="Calculado pedido a pedido com regras reais por canal (Shopee, ML, Shein, etc.). Passe o mouse para ver detalhes." id="fin-com-tooltip-icon">ℹ︎ regras reais por canal</div>
+        </div>
+        <!-- Taxa Fixa Marketplace (CALCULADO) -->
+        <div class="kpi" style="--cc:#A78BFA" id="fin-taxafix-card">
+          <div class="ico">📌</div><div class="lbl">Taxa Fixa MKT</div>
+          <div class="val" id="fin-taxafix" style="font-size:18px;color:#F43F5E">R$ 0,00</div>
+          <div class="sub" id="fin-taxafix-sub">R$ —/pedido médio</div>
+          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:var(--accent)" title="Taxa fixa por pedido conforme canal: Shopee R$4-26, ML R$6,75, Shein R$5, etc." id="fin-taxafix-tooltip-icon">ℹ︎ R$ por pedido</div>
+        </div>
+        <!-- Estimativa Impostos -->
         <div class="kpi" style="--cc:#F43F5E">
-          <div class="ico">🧾</div><div class="lbl">Estimativa Impostos</div>
+          <div class="ico">🧾</div><div class="lbl">Impostos</div>
           <div class="val" id="fin-tax" style="font-size:18px">—</div>
           <div class="sub" id="fin-tax-rate">alíquota —%</div>
+        </div>
+        <!-- Plataforma % editável -->
+        <div class="kpi" style="--cc:#94A3B8">
+          <div class="ico">🖥️</div><div class="lbl">Plataforma</div>
+          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
+            <input type="number" id="fin-plataforma-pct" value="0" min="0" max="100" step="0.1"
+              oninput="atualizarResultado()"
+              style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
+                     padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
+                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
+            <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
+          </div>
+          <div class="val" id="fin-plataforma" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="sub">% do GMV</div>
+        </div>
+        <!-- Taxa Pagamento % editável -->
+        <div class="kpi" style="--cc:#94A3B8">
+          <div class="ico">💳</div><div class="lbl">Taxa Pagto</div>
+          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
+            <input type="number" id="fin-taxa-pgto-pct" value="0" min="0" max="100" step="0.1"
+              oninput="atualizarResultado()"
+              style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
+                     padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
+                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
+            <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
+          </div>
+          <div class="val" id="fin-taxa-pgto" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="sub">% do GMV</div>
+        </div>
+        <!-- Perdas % editável -->
+        <div class="kpi" style="--cc:#94A3B8">
+          <div class="ico">📉</div><div class="lbl">Perdas</div>
+          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
+            <input type="number" id="fin-perdas-pct" value="0" min="0" max="100" step="0.1"
+              oninput="atualizarResultado()"
+              style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
+                     padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
+                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
+            <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
+          </div>
+          <div class="val" id="fin-perdas" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="sub">% do GMV</div>
+        </div>
+        <!-- Financeiro Loja Própria % editável -->
+        <div class="kpi" style="--cc:#94A3B8" title="Aplicado APENAS sobre GMV de Loja Própria (marketplaces fazem retenção própria)">
+          <div class="ico">🏦</div><div class="lbl">Financeiro <span style="font-size:9px;color:var(--muted2)">(Loja Própria)</span></div>
+          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
+            <input type="number" id="fin-financeiro-pct" value="0" min="0" max="100" step="0.1"
+              oninput="atualizarResultado()"
+              style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
+                     padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
+                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
+            <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
+          </div>
+          <div class="val" id="fin-financeiro" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="sub">% do GMV LP</div>
         </div>
         <!-- Custo Fixo editável -->
         <div class="kpi" style="--cc:#94A3B8">
@@ -1442,36 +1534,28 @@ body.light body::before { opacity: 0; }
           <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="fin-custo-fixo" value="0" min="0" step="1" oninput="atualizarResultado()" onchange="atualizarResultado()"
-              style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:4px 6px;font-family:var(--fdisplay);font-size:16px;font-weight:600;color:var(--text);outline:none;color-scheme:dark;-moz-appearance:textfield" 
+              style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:5px;padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;color:var(--text);outline:none;color-scheme:dark;-moz-appearance:textfield"
               onwheel="this.blur()">
           </div>
+          <div class="val" id="fin-custo-fixo-aplicado" style="font-size:11px;color:var(--muted2)">— aplicado</div>
           <div class="sub">mensal / período</div>
         </div>
-        <!-- Mídia / ADS — campo % editável -->
-        <div class="kpi" style="--cc:#F472B6">
-          <div class="ico">📢</div><div class="lbl">Mídia / ADS</div>
-          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
-            <input type="number" id="fin-mkt-pct" value="0" min="0" max="100" step="0.1"
-              oninput="atualizarResultado()"
-              style="width:60px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;
-                     padding:4px 6px;font-family:var(--fdisplay);font-size:16px;font-weight:600;
-                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
-            <span style="font-family:var(--fmono);font-size:13px;color:var(--muted)">%</span>
-          </div>
-          <div class="val" id="fin-mkt" style="font-size:14px;color:var(--red)">R$ 0,00</div>
-          <div class="sub">% do GMV</div>
-        </div>
-        <!-- Resultado Líquido — destaque -->
-        <div class="kpi" id="fin-resultado-kpi" style="--cc:#6EE7B7;grid-column:span 2">
+      </div>
+
+      <!-- ── FILEIRA 3: Resultado Líquido (largura total, fórmula completa) ── -->
+      <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:20px">
+        <div class="kpi" id="fin-resultado-kpi" style="--cc:#6EE7B7;padding:12px 14px">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div>
               <div class="ico" style="display:inline">💎</div>
               <span class="lbl" style="display:inline;margin-left:6px">Resultado Líquido</span>
+              <span id="fin-resultado-status" style="display:inline-block;margin-left:8px;font-family:var(--fmono);font-size:10px;padding:2px 8px;border-radius:4px"></span>
             </div>
-            <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-align:right" id="fin-resultado-formula">GMV − Mkt − Impostos − Fixo</div>
+            <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-align:right" id="fin-resultado-formula">GMV − Comissões − Taxa Fixa − Plataforma − Taxa Pgto − Perdas − Financeiro − Mídia − Impostos − Custo Fixo</div>
           </div>
-          <div class="val" id="fin-resultado" style="font-size:32px;letter-spacing:-1.5px;margin-top:6px">—</div>
-          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:4px" id="fin-resultado-detalhe">—</div>
+          <div class="val" id="fin-resultado" style="font-size:26px;letter-spacing:-0.5px;margin-top:4px">—</div>
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px" id="fin-resultado-pct">— do GMV</div>
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:4px;line-height:1.6" id="fin-resultado-detalhe">—</div>
         </div>
       </div>
 
@@ -5206,6 +5290,8 @@ function showPage(pageId, navEl) {
   // If financeiro page, sincroniza filtros locais e recalcula com filtro global atual
   if(pageId === 'financeiro') {
     try {
+      // Restaurar parâmetros editáveis salvos (custo fixo, %, etc.) ANTES de recalcular
+      if(typeof finRestaurarParams === 'function') finRestaurarParams();
       var ffrom = document.getElementById('f-from')||{value:''};
       var fto   = document.getElementById('f-to')||{value:''};
       sincronizarFiltrosLocais(ffrom.value, fto.value);
@@ -8830,19 +8916,16 @@ function syncFinanceiroKPIs(d) {
   var custoFixoMensal = parseFloat((document.getElementById("fin-custo-fixo")||{}).value)||0;
 
   // ─── FIX: Custo Fixo proporcional aos dias do filtro de período ───────
-  // Regra: valor é mensal. 30 dias = valor cheio. 7 dias = 7/30 do valor.
-  // Período "Tudo" (sem filtro) = usa span entre primeiro e último pedido.
-  var diasPeriodo = 30;  // default: mês cheio
+  var diasPeriodo = 30;
   try {
     var fFrom = (document.getElementById('fin-from')||{}).value || '';
     var fTo   = (document.getElementById('fin-to')||{}).value   || '';
     if(fFrom && fTo) {
       var dF = new Date(fFrom + 'T00:00:00');
       var dT = new Date(fTo   + 'T00:00:00');
-      var diff = Math.round((dT - dF) / 86400000) + 1;  // inclusivo
+      var diff = Math.round((dT - dF) / 86400000) + 1;
       if(diff > 0) diasPeriodo = diff;
     } else {
-      // Sem filtro: pegar span entre primeiro e último pedido do dataset
       var todosPed = (d.aprov||[]).concat(d.trans||[]).concat(d.entr||[]);
       var datas = todosPed.map(function(p){ return p.data && p.data.length>=10 ? p.data.slice(0,10) : null; })
                           .filter(function(x){ return x; }).sort();
@@ -8857,78 +8940,270 @@ function syncFinanceiroKPIs(d) {
   var custoFixo = custoFixoMensal * (diasPeriodo / 30);
 
   var impostos  = d.total * (rate/100);
-  // Mídia: usar % manual (fin-mkt-pct) sobre GMV do período filtrado.
-  // Fallback (sem %): usa investimento de Marketing — se houver período filtrado,
-  // aplica proporção de dias para não duplicar/aplicar valor total fora do filtro.
+
+  // ═══════════════════════════════════════════════════════════════════
+  // CÁLCULO PEDIDO A PEDIDO: comissões + taxa fixa por canal real
+  // ═══════════════════════════════════════════════════════════════════
+  var todosPedidos = (d.aprov||[]).concat(d.trans||[]).concat(d.entr||[]);
+  var totalComissao = 0;
+  var totalTaxaFixa = 0;
+  var quebraPorCanal = {};  // { 'Shopee': {pedidos, gmv, comissao, taxaFixa}, ... }
+  var gmvLojaPropria = 0;
+
+  todosPedidos.forEach(function(p){
+    var canal = p.canal || 'Outros';
+    var valor = parseFloat(p.valor) || 0;
+    if(valor <= 0) return;
+
+    if(!quebraPorCanal[canal]) quebraPorCanal[canal] = {pedidos:0, gmv:0, comissao:0, taxaFixa:0};
+    quebraPorCanal[canal].pedidos++;
+    quebraPorCanal[canal].gmv += valor;
+
+    // Aplicar regras REAIS por canal (mesma lógica da tela Precificação / Saúde)
+    var info = (typeof PREC_CANAIS !== 'undefined' && PREC_CANAIS[canal]) ? PREC_CANAIS[canal] : null;
+    var comC, taxaC;
+    if(canal === 'Shopee' && typeof calcComissaoShopee === 'function') {
+      comC = calcComissaoShopee(valor);
+    } else {
+      comC = info ? (info.comissao || 0) : 0;
+    }
+    if(canal === 'Shopee' && typeof calcTaxaFixaShopee === 'function') {
+      taxaC = calcTaxaFixaShopee(valor);
+    } else {
+      taxaC = info ? (info.taxaFixa || 0) : 0;
+    }
+    var comR = valor * comC;
+    quebraPorCanal[canal].comissao += comR;
+    quebraPorCanal[canal].taxaFixa += taxaC;
+    totalComissao += comR;
+    totalTaxaFixa += taxaC;
+
+    if(canal === 'Loja Própria') gmvLojaPropria += valor;
+  });
+
+  var pctComissaoMedio = d.total > 0 ? (totalComissao / d.total * 100) : 0;
+  var taxaFixaMediaPedido = cnt > 0 ? (totalTaxaFixa / cnt) : 0;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PARÂMETROS EDITÁVEIS (% sobre GMV)
+  // ═══════════════════════════════════════════════════════════════════
+  var pctPlataforma = parseFloat((document.getElementById('fin-plataforma-pct')||{}).value) || 0;
+  var pctTaxaPgto   = parseFloat((document.getElementById('fin-taxa-pgto-pct')||{}).value) || 0;
+  var pctPerdas     = parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0;
+  var pctFinanceiro = parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0;
+  var custoPlataforma = d.total * (pctPlataforma / 100);
+  var custoTaxaPgto   = d.total * (pctTaxaPgto / 100);
+  var custoPerdas     = d.total * (pctPerdas / 100);
+  // Financeiro aplica APENAS sobre GMV de Loja Própria
+  var custoFinanceiro = gmvLojaPropria * (pctFinanceiro / 100);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MÍDIA: prioriza override manual, senão puxa do Marketing
+  // ═══════════════════════════════════════════════════════════════════
   var mktPct = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
-  var custoMkt;
+  var custoMkt = 0;
+  var mktFonte = '';
   if(mktPct > 0) {
-    custoMkt = d.total * (mktPct/100);  // sempre sobre GMV filtrado (d.total já é filtrado)
-  } else if(window._mktDataIA && window._mktDataIA.investimento) {
+    custoMkt = d.total * (mktPct/100);
+    mktFonte = 'manual: '+mktPct.toFixed(1)+'% do GMV';
+  } else if(window._mktDataIA && window._mktDataIA.investimento && window._mktDataIA.investimento.total > 0) {
     var invTotal = window._mktDataIA.investimento.total || 0;
-    // Se Marketing tem dado total mensal, proporcionar pelos dias do filtro
     custoMkt = invTotal * (diasPeriodo / 30);
+    mktFonte = 'auto: Marketing ('+(diasPeriodo)+'d/30d)';
   } else {
-    custoMkt = 0;
-  }
-  // Comissões totais do calendário de liberações
-  var COMISSOES = {'Shopee':0.20,'Mercado Livre':0.16,'Shein':0.18,'TikTok Shop':0.12,'Dafiti':0.20,'Netshoes':0.20,'Loja Própria':0.03};
-  var comissaoTotal = 0;
-  if(d.canais) {
-    d.canais.forEach(function(c){ comissaoTotal += c[1] * (COMISSOES[c[0]]||0.15); });
+    mktFonte = 'preencha "% override" ou conecte planilha de Marketing';
   }
 
-  // ─── FIX: Resultado Líquido NÃO desconta comissão neste card ──────────
-  // (comissão segue normal nos outros cards/áreas — Calendário de Liberações etc.)
-  var resultado = d.total - custoMkt - impostos - custoFixo;
-  var resultColor = resultado >= 0 ? 'var(--green)' : 'var(--red)';
+  // ═══════════════════════════════════════════════════════════════════
+  // RESULTADO LÍQUIDO COMPLETO
+  // ═══════════════════════════════════════════════════════════════════
+  var resultado = d.total
+                  - totalComissao - totalTaxaFixa
+                  - custoPlataforma - custoTaxaPgto - custoPerdas - custoFinanceiro
+                  - custoMkt - impostos - custoFixo;
+  var pctResultado = d.total > 0 ? (resultado / d.total * 100) : 0;
+
+  // Cor pelas faixas configuráveis (mesma lógica do Saúde do Estoque)
+  var faixaVerde   = (typeof SAUDE_FAIXAS !== 'undefined' ? SAUDE_FAIXAS.verde   : 0.101) * 100;
+  var faixaAmarelo = (typeof SAUDE_FAIXAS !== 'undefined' ? SAUDE_FAIXAS.amarelo : 0    ) * 100;
+  var resultColor, statusLabel, statusBg;
+  if(pctResultado >= faixaVerde) {
+    resultColor = 'var(--green)'; statusLabel = '🟢 Saudável';
+    statusBg = 'rgba(110,231,183,.15);color:var(--green)';
+  } else if(pctResultado >= faixaAmarelo) {
+    resultColor = '#F59E0B'; statusLabel = '🟡 Atenção';
+    statusBg = 'rgba(245,158,11,.15);color:#F59E0B';
+  } else {
+    resultColor = 'var(--red)'; statusLabel = '🔴 Crítico';
+    statusBg = 'rgba(244,63,94,.15);color:var(--red)';
+  }
+
   console.log('[Roizen] Financeiro KPI:',
     'GMV='+d.total.toFixed(2),
+    'pedidos='+cnt,
     'dias='+diasPeriodo,
-    'fixoMensal='+custoFixoMensal.toFixed(2),
-    'fixoAplicado='+custoFixo.toFixed(2),
-    'mktPct='+mktPct,
+    'comissao='+totalComissao.toFixed(2)+' ('+pctComissaoMedio.toFixed(2)+'%)',
+    'taxaFixa='+totalTaxaFixa.toFixed(2),
+    'plat='+custoPlataforma.toFixed(2),
+    'taxaPgto='+custoTaxaPgto.toFixed(2),
+    'perdas='+custoPerdas.toFixed(2),
+    'financLP='+custoFinanceiro.toFixed(2)+' (gmvLP='+gmvLojaPropria.toFixed(2)+')',
     'mkt='+custoMkt.toFixed(2),
     'imp='+impostos.toFixed(2),
-    'resultado='+resultado.toFixed(2),
-    '(comissão R$'+comissaoTotal.toFixed(2)+' NÃO incluída neste card)');
+    'fixo='+custoFixo.toFixed(2),
+    'resultado='+resultado.toFixed(2)+' ('+pctResultado.toFixed(2)+'%)');
 
-  try{document.getElementById("fin-gmv").textContent = fMKPI(d.total);}catch(e){}
-  try{document.getElementById("fin-gmv-sub").textContent = fMKPI(d.entr.reduce(function(s,p){return s+p.valor;},0))+" entregues";}catch(e){}
-  try{document.getElementById("fin-ped").textContent = cnt.toLocaleString("pt-BR");}catch(e){}
-  try{document.getElementById("fin-tkt").textContent = fMKPI(cnt>0?d.total/cnt:0);}catch(e){}
-  try{document.getElementById("fin-frt").textContent = fMKPI(d.frete);}catch(e){}
-  try{document.getElementById("fin-tax").textContent = fMKPI(impostos);}catch(e){}
-  try{document.getElementById("fin-tax-rate").textContent = "aliquota "+rate+"%";}catch(e){}
-  // Mídia — atualizar valor calculado
-  try{
-    document.getElementById("fin-mkt").textContent = fMKPI(custoMkt);
-  }catch(e){}
+  // ═══════════════════════════════════════════════════════════════════
+  // ATUALIZAR UI
+  // ═══════════════════════════════════════════════════════════════════
+  var setT = function(id, t){ try{ var el = document.getElementById(id); if(el) el.textContent = t; }catch(e){} };
+  var setHTML = function(id, h){ try{ var el = document.getElementById(id); if(el) el.innerHTML = h; }catch(e){} };
 
-  // Resultado Líquido
-  try{
-    var el = document.getElementById("fin-resultado");
+  // Fileira 1
+  setT('fin-gmv', fMKPI(d.total));
+  setT('fin-gmv-sub', fMKPI(d.entr.reduce(function(s,p){return s+p.valor;},0))+' entregues');
+  setT('fin-ped', cnt.toLocaleString('pt-BR'));
+  setT('fin-tkt', fMKPI(cnt>0?d.total/cnt:0));
+  setT('fin-frt', fMKPI(d.frete));
+  setT('fin-mkt', fMKPI(custoMkt));
+  setT('fin-mkt-sub', mktFonte);
+  // Avisar visualmente quando mídia está zerada
+  try {
+    var mktCard = document.getElementById('fin-mkt-card');
+    if(mktCard) {
+      if(custoMkt === 0) {
+        mktCard.style.borderColor = 'rgba(245,158,11,.4)';
+        document.getElementById('fin-mkt-sub').style.color = '#F59E0B';
+      } else {
+        mktCard.style.borderColor = '';
+        document.getElementById('fin-mkt-sub').style.color = '';
+      }
+    }
+  } catch(e){}
+
+  // Fileira 2 — calculados
+  setT('fin-com', fMKPI(totalComissao));
+  setT('fin-com-sub', '% médio: '+pctComissaoMedio.toFixed(2)+'% (ponderado)');
+  setT('fin-taxafix', fMKPI(totalTaxaFixa));
+  setT('fin-taxafix-sub', 'R$ '+taxaFixaMediaPedido.toFixed(2).replace('.',',')+'/pedido médio');
+
+  // Tooltip detalhado: quebra por canal
+  var canaisOrdenados = Object.keys(quebraPorCanal).sort(function(a,b){
+    return quebraPorCanal[b].gmv - quebraPorCanal[a].gmv;
+  });
+  var tooltipCom = canaisOrdenados.map(function(c){
+    var q = quebraPorCanal[c];
+    var pctCanal = q.gmv > 0 ? (q.comissao / q.gmv * 100).toFixed(1) : '0.0';
+    return c+': '+q.pedidos+' pedidos · '+fMKPI(q.gmv)+' GMV · '+fMKPI(q.comissao)+' comissão ('+pctCanal+'%)';
+  }).join('\n');
+  var tooltipTaxa = canaisOrdenados.map(function(c){
+    var q = quebraPorCanal[c];
+    var taxaPed = q.pedidos > 0 ? (q.taxaFixa / q.pedidos).toFixed(2) : '0';
+    return c+': '+q.pedidos+' pedidos · '+fMKPI(q.taxaFixa)+' taxa fixa (R$ '+taxaPed+'/ped)';
+  }).join('\n');
+  try {
+    var icoComEl = document.getElementById('fin-com-tooltip-icon');
+    if(icoComEl) icoComEl.title = 'Comissão calculada pedido a pedido com regras reais por canal:\n\n'+tooltipCom;
+    var icoTaxaEl = document.getElementById('fin-taxafix-tooltip-icon');
+    if(icoTaxaEl) icoTaxaEl.title = 'Taxa fixa por pedido conforme regra do canal:\n\n'+tooltipTaxa;
+  } catch(e){}
+
+  // Impostos
+  setT('fin-tax', fMKPI(impostos));
+  setT('fin-tax-rate', 'alíquota '+rate+'%');
+
+  // Parâmetros editáveis (R$ aplicado)
+  setT('fin-plataforma', fMKPI(custoPlataforma));
+  setT('fin-taxa-pgto',  fMKPI(custoTaxaPgto));
+  setT('fin-perdas',     fMKPI(custoPerdas));
+  setT('fin-financeiro', fMKPI(custoFinanceiro));
+
+  // Custo Fixo aplicado
+  setT('fin-custo-fixo-aplicado', custoFixoMensal > 0
+    ? fMKPI(custoFixo)+' aplicado ('+diasPeriodo+'d/30d)'
+    : 'sem custo fixo informado');
+
+  // ═══════════════════════════════════════════════════════════════════
+  // RESULTADO LÍQUIDO
+  // ═══════════════════════════════════════════════════════════════════
+  try {
+    var el = document.getElementById('fin-resultado');
     el.textContent = fMKPI(resultado);
     el.style.color = resultColor;
-    var kpi = document.getElementById("fin-resultado-kpi");
-    if(kpi) kpi.style.setProperty('--cc', resultado>=0?'#6EE7B7':'#F43F5E');
-  }catch(e){}
-  try{
-    var detTxt = 'GMV '+fM(d.total)+
-      ' − Mkt '+fM(custoMkt)+
-      ' − Imp. '+fM(impostos)+
-      ' − Fixo '+fM(custoFixo);
-    if(custoFixoMensal > 0 && diasPeriodo !== 30) {
-      detTxt += ' ('+diasPeriodo+'d/30d)';
-    }
-    document.getElementById("fin-resultado-detalhe").textContent = detTxt;
-  }catch(e){}
+    var kpi = document.getElementById('fin-resultado-kpi');
+    if(kpi) kpi.style.setProperty('--cc',
+      resultColor === 'var(--green)' ? '#6EE7B7' :
+      resultColor === '#F59E0B' ? '#F59E0B' : '#F43F5E');
+  } catch(e){}
+
+  setT('fin-resultado-pct', pctResultado.toFixed(2)+'% do GMV');
+  setHTML('fin-resultado-status', '<span style="background:'+statusBg+';padding:2px 8px;border-radius:4px;display:inline-block">'+statusLabel+'</span>');
+
+  // Detalhe — fórmula completa em texto
+  var detTxt =
+    'GMV '+fM(d.total) +
+    ' − Comissão '+fM(totalComissao)+' ('+pctComissaoMedio.toFixed(1)+'%)'+
+    ' − Taxa Fixa '+fM(totalTaxaFixa)+
+    ' − Plataforma '+fM(custoPlataforma)+' ('+pctPlataforma.toFixed(1)+'%)'+
+    ' − Taxa Pgto '+fM(custoTaxaPgto)+' ('+pctTaxaPgto.toFixed(1)+'%)'+
+    ' − Perdas '+fM(custoPerdas)+' ('+pctPerdas.toFixed(1)+'%)'+
+    ' − Financ. LP '+fM(custoFinanceiro)+' ('+pctFinanceiro.toFixed(1)+'%)'+
+    ' − Mídia '+fM(custoMkt)+
+    ' − Impostos '+fM(impostos)+' ('+rate+'%)'+
+    ' − Custo Fixo '+fM(custoFixo);
+  if(custoFixoMensal > 0 && diasPeriodo !== 30) {
+    detTxt += ' ('+diasPeriodo+'d/30d)';
+  }
+  setT('fin-resultado-detalhe', detTxt);
 }
 
 /* ─ Atualizar resultado quando custo fixo muda ─ */
 function atualizarResultado() {
   // Reusa os dados já processados — sem refetch
   if(window._lastProcessedData) syncFinanceiroKPIs(window._lastProcessedData);
+  // Persistir parâmetros editáveis (debounced)
+  finSalvarParams();
+}
+
+/* ─ Persistência dos parâmetros do Financeiro (por empresa) ──────── */
+function _finKey() {
+  var emp = (typeof veltroGetEmpresaAtual === 'function') ? (veltroGetEmpresaAtual() || 'default') : 'default';
+  return 'fc_fin_params_v1_' + emp;
+}
+
+var _finSalvarTimeout = null;
+function finSalvarParams() {
+  // Debounce: salva 500ms após última edição
+  clearTimeout(_finSalvarTimeout);
+  _finSalvarTimeout = setTimeout(function(){
+    try {
+      var params = {
+        custoFixo:     (document.getElementById('fin-custo-fixo')||{}).value || '',
+        mktPct:        (document.getElementById('fin-mkt-pct')||{}).value || '',
+        plataformaPct: (document.getElementById('fin-plataforma-pct')||{}).value || '',
+        taxaPgtoPct:   (document.getElementById('fin-taxa-pgto-pct')||{}).value || '',
+        perdasPct:     (document.getElementById('fin-perdas-pct')||{}).value || '',
+        financeiroPct: (document.getElementById('fin-financeiro-pct')||{}).value || ''
+      };
+      localStorage.setItem(_finKey(), JSON.stringify(params));
+    } catch(e){ console.warn('[Fin] erro ao salvar params:', e); }
+  }, 500);
+}
+
+function finRestaurarParams() {
+  try {
+    var raw = localStorage.getItem(_finKey());
+    if(!raw) return;
+    var p = JSON.parse(raw);
+    var setVal = function(id, v){ var el = document.getElementById(id); if(el && v !== undefined && v !== null && v !== '') el.value = v; };
+    setVal('fin-custo-fixo',     p.custoFixo);
+    setVal('fin-mkt-pct',        p.mktPct);
+    setVal('fin-plataforma-pct', p.plataformaPct);
+    setVal('fin-taxa-pgto-pct',  p.taxaPgtoPct);
+    setVal('fin-perdas-pct',     p.perdasPct);
+    setVal('fin-financeiro-pct', p.financeiroPct);
+    console.log('[Fin] Parâmetros restaurados');
+  } catch(e){ console.warn('[Fin] erro ao restaurar params:', e); }
 }
 
 
