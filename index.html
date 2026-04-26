@@ -1791,34 +1791,88 @@ body.light body::before { opacity: 0; }
 
         <!-- ── Bloco de Regras por Canal (transparência) ──────────── -->
         <div style="margin-top:12px;padding:12px;background:var(--s2);border:1px solid var(--border2);border-radius:7px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
             <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px">📋 Regras Aplicadas por Canal</div>
             <span style="font-family:var(--fmono);font-size:9px;color:var(--muted2)">Fonte: tela Precificação · Sincronizado automaticamente</span>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
-            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
-              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#EE4D2D;margin-bottom:3px">🛒 Shopee</div>
-              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">14-20% comissão (faixa)<br>+ R$4-26 taxa fixa</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+            <!-- Shopee -->
+            <div style="padding:10px;background:var(--s);border:1px solid var(--border);border-radius:6px;border-left:3px solid #EE4D2D">
+              <div style="font-family:var(--fmono);font-size:11px;font-weight:700;color:#EE4D2D;margin-bottom:6px">🛒 Shopee</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Comissão</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">14-20%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Taxa fixa</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">R$ 4-26</span>
+              </div>
+              <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px;border-top:1px solid var(--border);padding-top:4px">faixa por preço</div>
             </div>
-            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
-              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#FFD700;margin-bottom:3px">🛍️ Mercado Livre</div>
-              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">19% comissão<br>+ R$6,75 taxa fixa</div>
+            <!-- Mercado Livre -->
+            <div style="padding:10px;background:var(--s);border:1px solid var(--border);border-radius:6px;border-left:3px solid #FFD700">
+              <div style="font-family:var(--fmono);font-size:11px;font-weight:700;color:#FFD700;margin-bottom:6px">🛍️ Mercado Livre</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Comissão</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">19%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Taxa fixa</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">R$ 6,75</span>
+              </div>
+              <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px;border-top:1px solid var(--border);padding-top:4px">por item</div>
             </div>
-            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
-              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#FF6B9D;margin-bottom:3px">👗 Shein</div>
-              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">20% comissão<br>+ R$5,00 taxa fixa</div>
+            <!-- Shein -->
+            <div style="padding:10px;background:var(--s);border:1px solid var(--border);border-radius:6px;border-left:3px solid #FF6B9D">
+              <div style="font-family:var(--fmono);font-size:11px;font-weight:700;color:#FF6B9D;margin-bottom:6px">👗 Shein</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Comissão</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">20%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Taxa fixa</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">R$ 5,00</span>
+              </div>
+              <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px;border-top:1px solid var(--border);padding-top:4px">por produto</div>
             </div>
-            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
-              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#FF6900;margin-bottom:3px">👟 Dafiti</div>
-              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">25% comissão<br>+ R$299/mês diluída</div>
+            <!-- Dafiti -->
+            <div style="padding:10px;background:var(--s);border:1px solid var(--border);border-radius:6px;border-left:3px solid #FF6900">
+              <div style="font-family:var(--fmono);font-size:11px;font-weight:700;color:#FF6900;margin-bottom:6px">👟 Dafiti</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Comissão</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">25%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Mensalidade</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">R$ 299</span>
+              </div>
+              <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px;border-top:1px solid var(--border);padding-top:4px">diluída no GMV</div>
             </div>
-            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
-              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#69C9D0;margin-bottom:3px">🎵 TikTok Shop</div>
-              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">12% comissão<br>+ R$4,00 taxa fixa</div>
+            <!-- TikTok Shop -->
+            <div style="padding:10px;background:var(--s);border:1px solid var(--border);border-radius:6px;border-left:3px solid #69C9D0">
+              <div style="font-family:var(--fmono);font-size:11px;font-weight:700;color:#69C9D0;margin-bottom:6px">🎵 TikTok Shop</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Comissão</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">12%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Taxa fixa</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">R$ 4,00</span>
+              </div>
+              <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px;border-top:1px solid var(--border);padding-top:4px">por item</div>
             </div>
-            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
-              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#6EE7B7;margin-bottom:3px">🏪 Loja Própria</div>
-              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">0% comissão<br>Aplica Financeiro %</div>
+            <!-- Loja Própria -->
+            <div style="padding:10px;background:var(--s);border:1px solid var(--border);border-radius:6px;border-left:3px solid #6EE7B7">
+              <div style="font-family:var(--fmono);font-size:11px;font-weight:700;color:#6EE7B7;margin-bottom:6px">🏪 Loja Própria</div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Comissão</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">0%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Taxa fixa</span>
+                <span style="font-family:var(--fdisplay);font-size:14px;font-weight:700;color:var(--text)">—</span>
+              </div>
+              <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px;border-top:1px solid var(--border);padding-top:4px">aplica Financeiro %</div>
             </div>
           </div>
         </div>
@@ -3242,12 +3296,12 @@ function _saudeColetarProdutos() {
       var gmvCanal = gmvPeriodo * shareCanalGmv;
 
       // Preço médio: ORDEM DE PRIORIDADE
-      // 1. Coluna E da planilha (Valor Médio/Un) — fonte mais direta e confiável
+      // 1. Coluna E da planilha (Valor Médio/Un) — média ponderada pela qtd entre abas mensais
       // 2. GMV/qtd da planilha — derivado do total
       // 3. Ticket médio global dos pedidos — último recurso
       var precoMedio = 0;
-      if(p.precoMedioPlanilha && p.precoMedioPlanilha > 0) {
-        precoMedio = p.precoMedioPlanilha;
+      if(p.precoMedioSomaPond && p.precoMedioPesoQtd > 0) {
+        precoMedio = p.precoMedioSomaPond / p.precoMedioPesoQtd;
       } else if(gmvPeriodo > 0 && qtdPeriodo > 0) {
         precoMedio = gmvPeriodo / qtdPeriodo;
       } else if(p.qtd > 0 && p.gmv > 0) {
@@ -7414,72 +7468,48 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         // Detectar colunas
         var startRow = 0, colSku = 0, colNome = 1, colQtd = 2;
         var header = rows[0];
+        // ═══════════════════════════════════════════════════════════════
+        // ESTRUTURA PADRÃO DA PLANILHA "Produtos Vendidos" (cabeçalhos):
+        //   A=Código Produto · B=Nome Produto · C=Qtd Vendida
+        //   D=Vlr Total Vendido · E=Valor Médio/Un
+        // Usar POSIÇÃO FIXA é mais robusto que detecção por palavras-chave,
+        // pois cabeçalhos como "Vlr Total Vendido" contêm "vendido" e podem
+        // bater por engano em regex de outras colunas.
+        // ═══════════════════════════════════════════════════════════════
         if(header) {
-          var foundHeader = false;
-          var colGmv = -1;  // valor total vendido (coluna D na planilha do usuário)
-          var colPrecoMedio = -1;  // valor médio/unitário (coluna E na planilha do usuário)
-          header.forEach(function(h, ci) {
-            var s = String(h||'').toLowerCase().trim()
-              .normalize('NFD').replace(/[\u0300-\u036f]/g,''); // remover acentos
-            // Coluna A — código/SKU
-            if(s==='sku'||s==='codigo'||s==='cod'||s==='ref'||s==='referencia'||
-               s==='id'||s==='item'||s==='codprod'||s.startsWith('cod')) {
-              colSku=ci; foundHeader=true;
-            }
-            // Coluna B — nome/produto
-            else if(s.includes('nome')||s.includes('produto')||s.includes('descricao')||
-                    s.includes('descr')||s==='titulo'||s==='artigo') {
-              colNome=ci; foundHeader=true;
-            }
-            // Coluna E — Valor Médio/Unitário (testar ANTES de qtd para não confundir)
-            else if(s.includes('valor medio')||s.includes('valor med')||
-                    s.includes('preco medio')||s.includes('preco med')||
-                    s.includes('vlr medio')||s.includes('vlr med')||
-                    s.includes('medio') || s.includes('media')||
-                    s.includes('preco unit')||s.includes('valor unit')||
-                    s==='unitario'||s==='preco') {
-              colPrecoMedio=ci; foundHeader=true;
-            }
-            // Coluna C — quantidade
-            else if(s==='qtd'||s==='quantidade'||s==='quant'||s==='qty'||
-                    s.includes('qtd')||s.includes('vendid')||s.includes('total venda')) {
-              colQtd=ci; foundHeader=true;
-            }
-            // Coluna D — Vlr Total Vendido (GMV por produto)
-            else if(s.includes('vlr total')||s.includes('valor total')||
-                    (s.includes('total') && s.includes('vend'))||
-                    s==='gmv'||s==='receita'||s.includes('faturamento')) {
-              colGmv=ci; foundHeader=true;
-            }
-          });
-          if(foundHeader) startRow = 1;
-          console.log('[FanClub Produtos] Colunas detectadas: sku='+colSku+' nome='+colNome+' qtd='+colQtd+' gmv='+colGmv+' precoMedio='+colPrecoMedio+' startRow='+startRow);
-          console.log('[FanClub Produtos] Header:', header.slice(0,6).join(' | '));
-          // Se header não detectado, logar primeira linha para diagnóstico
-          if(!foundHeader && rows[0]) {
-            console.log('[FanClub Produtos] Header não detectado — usando padrão A=SKU B=Nome C=Qtd');
-            console.log('[FanClub Produtos] Linha 0:', rows[0].slice(0,5).join(' | '));
+          // Verificar se a linha 0 é cabeçalho (textual) ou já é dado (numérico)
+          var primeiroCampoTexto = isNaN(parseFloat(String(header[0]||'').replace(/[R$,. ]/g,'')));
+          if(primeiroCampoTexto && header.length >= 2) {
+            startRow = 1;
+            console.log('[FanClub Produtos] Cabeçalho detectado:', header.slice(0,5).join(' | '));
+          } else {
+            console.log('[FanClub Produtos] Sem cabeçalho — primeira linha já é dado');
           }
         }
+        // Posições fixas (padrão da planilha "Produtos Vendidos")
+        colSku = 0;
+        colNome = 1;
+        colQtd = 2;
+        var colGmv = 3;          // Vlr Total Vendido
+        var colPrecoMedio = 4;   // Valor Médio/Un
+        console.log('[FanClub Produtos] Colunas (POSIÇÃO FIXA): sku=0 · nome=1 · qtd=2 · gmv=3 · precoMedio=4');
 
         var dataRows = rows.slice(startRow);
         var linhasValidas = 0;
+        // Helper: limpar formato BR "R$ 1.234,56" → 1234.56
+        var limpaBR = function(v){
+          return parseFloat(String(v||'').replace(/[^\d,.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0;
+        };
         dataRows.forEach(function(r) {
           if(!r || r.length < 2) return;
           var sku  = String(r[colSku] ||r[0]||'').trim();
           var nome = String(r[colNome]||r[1]||'').trim();
-          var qtdRaw = r[colQtd] !== undefined ? r[colQtd] : r[2];
-          var qtd  = parseFloat(qtdRaw)||0;
-          // Helper: limpar formato BR "R$ 1.234,56" → 1234.56
-          var limpaBR = function(v){
-            return parseFloat(String(v||'').replace(/[^\d,.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0;
-          };
-          // GMV (Vlr Total Vendido)
-          var gmvProduto = 0;
-          if(colGmv >= 0 && r[colGmv] !== undefined) gmvProduto = limpaBR(r[colGmv]);
-          // Preço médio direto da planilha (coluna E "Valor Médio/Un")
-          var precoMedioPlanilha = 0;
-          if(colPrecoMedio >= 0 && r[colPrecoMedio] !== undefined) precoMedioPlanilha = limpaBR(r[colPrecoMedio]);
+          // Qtd: usar limpaBR também (pode vir como "1.234")
+          var qtd  = limpaBR(r[colQtd]);
+          // GMV (Vlr Total Vendido — coluna D)
+          var gmvProduto = (colGmv >= 0 && r[colGmv] !== undefined) ? limpaBR(r[colGmv]) : 0;
+          // Preço médio direto (coluna E "Valor Médio/Un")
+          var precoMedioPlanilha = (colPrecoMedio >= 0 && r[colPrecoMedio] !== undefined) ? limpaBR(r[colPrecoMedio]) : 0;
 
           if(!nome || nome.length < 2) return;
           if(qtd <= 0 || qtd > 1000000) return;
@@ -7492,20 +7522,27 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           var nomeBase = nome.replace(/\s*[-–]\s*\d{2,4}\s*$/, '').replace(/\s+\d{2,4}\s*$/, '').trim() || nome;
           if(!skuBase) skuBase = nomeBase.substring(0,20);
 
-          // Se GMV não veio mas preço médio veio: derivar GMV
+          // FALLBACKS de derivação:
+          //   1. Se preço médio veio mas GMV não veio → calcular GMV
+          //   2. Se GMV veio mas preço médio não veio → calcular preço médio
           if(gmvProduto === 0 && precoMedioPlanilha > 0 && qtd > 0) {
             gmvProduto = precoMedioPlanilha * qtd;
           }
+          if(precoMedioPlanilha === 0 && gmvProduto > 0 && qtd > 0) {
+            precoMedioPlanilha = gmvProduto / qtd;
+          }
 
-          if(!novoMap[skuBase]) novoMap[skuBase] = {nome: nomeBase, sku: skuBase, cod: skuBase, gmv:0, qtd: 0, tamanhos: {}, por_mes: {}, gmv_por_mes: {}, precoMedioPlanilha: 0};
+          if(!novoMap[skuBase]) novoMap[skuBase] = {nome: nomeBase, sku: skuBase, cod: skuBase, gmv:0, qtd: 0, tamanhos: {}, por_mes: {}, gmv_por_mes: {}, precoMedioSomaPond: 0, precoMedioPesoQtd: 0};
           novoMap[skuBase].qtd += qtd;
           novoMap[skuBase].gmv += gmvProduto;
           novoMap[skuBase].por_mes[mesKey] = (novoMap[skuBase].por_mes[mesKey]||0) + qtd;
           if(!novoMap[skuBase].gmv_por_mes) novoMap[skuBase].gmv_por_mes = {};
           novoMap[skuBase].gmv_por_mes[mesKey] = (novoMap[skuBase].gmv_por_mes[mesKey]||0) + gmvProduto;
-          // Preço médio direto: pega o maior (= preço atual ou mais recente)
-          if(precoMedioPlanilha > 0 && precoMedioPlanilha > (novoMap[skuBase].precoMedioPlanilha||0)) {
-            novoMap[skuBase].precoMedioPlanilha = precoMedioPlanilha;
+          // Preço médio AGREGADO entre abas: média ponderada pela qtd vendida
+          // (não soma — agrega para que múltiplas abas mensais não distorçam o valor)
+          if(precoMedioPlanilha > 0 && qtd > 0) {
+            novoMap[skuBase].precoMedioSomaPond = (novoMap[skuBase].precoMedioSomaPond||0) + precoMedioPlanilha * qtd;
+            novoMap[skuBase].precoMedioPesoQtd  = (novoMap[skuBase].precoMedioPesoQtd ||0) + qtd;
           }
 
           // Tamanhos: extrair de SKU ou nome
@@ -7522,7 +7559,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         if(linhasValidas > 0) {
           abasEncontradas.push(aba);
           abasOk++;
-          console.log('[FanClub Produtos] ✅ "'+aba+'": '+linhasValidas+' itens (cols sku='+colSku+' nome='+colNome+' qtd='+colQtd+')');
+          console.log('[FanClub Produtos] ✅ "'+aba+'": '+linhasValidas+' itens (cols sku=0 nome=1 qtd=2 gmv=3 precoMedio=4)');
           // Marcar mês como processado para não recarregar outras variações
           mesesJaCarregados.add(mesKey);
           // Top 3 para verificar dados
