@@ -7116,8 +7116,38 @@ async function loadFluxoCaixa() {
   try{ document.getElementById('fc-config').style.display='none'; }catch(e){}
   try{ document.getElementById('fc-config').style.display='none'; }catch(e){}
 
-  // Popular seletor de meses — deduplicate
+  // Popular seletor de meses — deduplicate + ordenar cronologicamente
   var mesesUnicos = _fcMeses.filter(function(m, i){ return _fcMeses.indexOf(m) === i; });
+  // Ordem cronológica: extrai mês (jan-dez) e ano (yy) do nome da aba e ordena
+  var ORDEM_MESES = {
+    'jan':1,'janeiro':1, 'fev':2,'fevereiro':2, 'mar':3,'março':3,'marco':3,
+    'abr':4,'abril':4,    'mai':5,'maio':5,      'jun':6,'junho':6,
+    'jul':7,'julho':7,    'ago':8,'agosto':8,    'set':9,'setembro':9,
+    'out':10,'outubro':10,'nov':11,'novembro':11,'dez':12,'dezembro':12
+  };
+  var _ordKey = function(aba) {
+    var s = String(aba||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    // Tenta achar nome do mês na string
+    var mesNum = 0;
+    for(var k in ORDEM_MESES) {
+      if(s.indexOf(k) === 0 || s.startsWith(k)) { mesNum = ORDEM_MESES[k]; break; }
+    }
+    if(mesNum === 0) {
+      // fallback: procura em qualquer posição
+      for(var k2 in ORDEM_MESES) {
+        if(s.indexOf(k2) >= 0) { mesNum = ORDEM_MESES[k2]; break; }
+      }
+    }
+    // Extrai ano (2 ou 4 dígitos)
+    var anoMatch = s.match(/(\d{2,4})$/);
+    var ano = 0;
+    if(anoMatch) {
+      ano = parseInt(anoMatch[1]);
+      if(ano < 100) ano += 2000;  // "26" → 2026
+    }
+    return ano * 100 + mesNum;  // ex: 202601 = jan/26, 202604 = abr/26
+  };
+  mesesUnicos.sort(function(a, b){ return _ordKey(a) - _ordKey(b); });
   var sel = document.getElementById('fc-mes-sel');
   if(sel) {
     sel.innerHTML = '<option value="todos">Todos os meses</option>' +
