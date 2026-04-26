@@ -1687,7 +1687,7 @@ body.light body::before { opacity: 0; }
         <div class="card" style="padding:14px;border-left:3px solid var(--muted2)">
           <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📦 Total SKUs</div>
           <div id="saude-kpi-total" style="font-family:var(--fdisplay);font-size:22px;font-weight:700;color:var(--text)">—</div>
-          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">no período filtrado</div>
+          <div id="saude-kpi-total-sub" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">no período filtrado</div>
         </div>
         <div class="card" style="padding:14px;border-left:3px solid var(--green)">
           <div style="font-family:var(--fmono);font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🟢 Saudáveis</div>
@@ -1872,6 +1872,7 @@ body.light body::before { opacity: 0; }
         <button class="ftab" onclick="saudeFiltroStatus('verde',this)" style="color:var(--green)">🟢 Saudáveis</button>
         <button class="ftab" onclick="saudeFiltroStatus('amarelo',this)" style="color:#F59E0B">🟡 Atenção</button>
         <button class="ftab" onclick="saudeFiltroStatus('vermelho',this)" style="color:var(--red)">🔴 Críticos</button>
+        <button class="ftab" onclick="saudeFiltroStatus('sem-vendas',this)" style="color:var(--muted2)">⚪ Sem vendas</button>
         <div class="fsep"></div>
         <select id="saude-filtro-curva" onchange="saudeAtualizarVisao()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
@@ -3367,9 +3368,70 @@ function _saudeColetarProdutos() {
   }
 
   console.log('[Saúde] Produtos coletados: '+arr.length+' (fonte: '+(temMap?'produtosVendidosMap':'pedidos brutos')+', canal: '+canalAnalise+', período: '+from+' → '+to+')');
+  // DEBUG: top 5 produtos para diagnóstico (raw + calculado)
+  if(arr.length > 0) {
+    var top5 = arr.slice().sort(function(a,b){ return b.gmv - a.gmv; }).slice(0,5);
+    console.log('[Saúde] DEBUG · Top 5 produtos por GMV:');
+    top5.forEach(function(p, i){
+      console.log('  '+(i+1)+'. SKU='+p.sku+' · qtd='+p.qtd+' · GMV=R$'+p.gmv.toFixed(2)+' · preçoMedio=R$'+p.precoMedio.toFixed(2)+' · curva='+p.curva+' · canalRegras='+p.canalRegras);
+    });
+  }
 
-  // Classificar ABC por GMV
+  // Classificar ABC por GMV (apenas produtos com vendas)
   arr = _saudeClassificarABC(arr);
+
+  // ═══════════════════════════════════════════════════════════════
+  // INCLUIR SKUs DO ESTOQUE SEM VENDAS NO PERÍODO
+  // O usuário pediu para ver os 3.693 SKUs cadastrados, com flag
+  // "sem vendas no período" para os que não venderam.
+  // Esses produtos NÃO entram nos KPIs de saudável/atenção/crítico
+  // (status='sem-vendas' é tratado separadamente nos KPIs).
+  // Também não recebem Curva ABC (não há GMV pra classificar).
+  // ═══════════════════════════════════════════════════════════════
+  try {
+    if(typeof estoqueData !== 'undefined' && estoqueData && estoqueData.length > 0) {
+      // Construir set de SKUs já presentes (vendidos no período)
+      var skusVendidos = new Set();
+      arr.forEach(function(p){
+        skusVendidos.add(String(p.sku||'').trim());
+        // Também tentar variações comuns (com/sem sufixo de tamanho)
+        var skuBase = String(p.sku||'').replace(/-\d{2,4}$/, '');
+        if(skuBase) skusVendidos.add(skuBase);
+      });
+
+      var semVendasCount = 0;
+      estoqueData.forEach(function(item){
+        if(!item || !item.sku) return;
+        var skuItem = String(item.sku).trim();
+        var skuBaseItem = skuItem.replace(/-\d{2,4}$/, '');
+        // Pular se já está em arr (vendido) — checa SKU completo OU base
+        if(skusVendidos.has(skuItem) || skusVendidos.has(skuBaseItem)) return;
+
+        arr.push({
+          sku: skuItem,
+          nome: item.nome,
+          qtd: 0,
+          gmv: 0,
+          precoMedio: 0,
+          canalAnalise: canalAnalise,
+          canalRegras: 'N/A',
+          canalTop: 'Sem vendas',
+          canalTopPct: 0,
+          tamanhos: {},
+          categoria: item.cat || 'Outros',
+          curva: '—',
+          semVendasNoPeriodo: true,    // ← flag para tratamento especial
+          estoqueAtual: item.estoque || 0  // info adicional do menu Estoque
+        });
+        semVendasCount++;
+      });
+
+      if(semVendasCount > 0) {
+        console.log('[Saúde] +'+semVendasCount+' SKUs do estoque sem vendas no período (total: '+arr.length+')');
+      }
+    }
+  } catch(e){ console.warn('[Saúde] Erro ao incluir SKUs sem vendas:', e); }
+
   return arr;
 }
 
@@ -3378,8 +3440,19 @@ function _saudeColetarProdutos() {
    calcComissaoShopee, calcTaxaFixaShopee) para garantir consistência
    total entre Precificação e Saúde do Estoque. */
 function _saudeCalcularMargem(produto, params) {
+  // Produtos sem vendas no período: não há como calcular margem
+  if(produto.semVendasNoPeriodo) {
+    return {
+      margem: 0, status: 'sem-vendas', custo: 0, deducoes: 0, lucro: 0,
+      precoSugerido: 0, ajustePct: 0,
+      canal: 'Sem vendas', comissaoPct: 0, taxaFixa: 0,
+      regrasInfo: 'SKU cadastrado mas sem vendas no período',
+      breakdown: [], regimeLabel: ''
+    };
+  }
+
   var preco = produto.precoMedio || 0;
-  if(preco <= 0) return { margem:0, status:'vermelho', custo:0, deducoes:0, regrasInfo:'sem preço' };
+  if(preco <= 0) return { margem:0, status:'vermelho', custo:0, deducoes:0, regrasInfo:'sem preço', breakdown: [], regimeLabel: '' };
 
   // Custo via função plugável (simulado ou real)
   var custo = _saudeCalcularCusto(produto);
@@ -3580,18 +3653,26 @@ function _saudeProdutosFiltrados() {
 function saudeRenderKPIs() {
   var lista = _saudeProdutosFiltrados();
   var total = lista.length;
-  var v = lista.filter(function(p){return p.statusSaude==='verde';}).length;
-  var a = lista.filter(function(p){return p.statusSaude==='amarelo';}).length;
-  var r = lista.filter(function(p){return p.statusSaude==='vermelho';}).length;
-  var pct = function(n){ return total>0 ? (n/total*100).toFixed(1)+'%' : '—'; };
+  var comVendas = lista.filter(function(p){ return !p.semVendasNoPeriodo; });
+  var semVendas = lista.filter(function(p){ return p.semVendasNoPeriodo; });
+  var totalComVendas = comVendas.length;
+  var v = comVendas.filter(function(p){return p.statusSaude==='verde';}).length;
+  var a = comVendas.filter(function(p){return p.statusSaude==='amarelo';}).length;
+  var r = comVendas.filter(function(p){return p.statusSaude==='vermelho';}).length;
+  // % calculado sobre os COM vendas (porque sem-vendas não tem margem analisável)
+  var pct = function(n){ return totalComVendas>0 ? (n/totalComVendas*100).toFixed(1)+'%' : '—'; };
   var setTxt = function(id, t){ var el = document.getElementById(id); if(el) el.textContent = t; };
   setTxt('saude-kpi-total',         total.toLocaleString('pt-BR'));
   setTxt('saude-kpi-verde',         v.toLocaleString('pt-BR'));
-  setTxt('saude-kpi-verde-pct',     pct(v) + ' do total');
+  setTxt('saude-kpi-verde-pct',     pct(v) + ' dos analisados');
   setTxt('saude-kpi-amarelo',       a.toLocaleString('pt-BR'));
-  setTxt('saude-kpi-amarelo-pct',   pct(a) + ' do total');
+  setTxt('saude-kpi-amarelo-pct',   pct(a) + ' dos analisados');
   setTxt('saude-kpi-vermelho',      r.toLocaleString('pt-BR'));
-  setTxt('saude-kpi-vermelho-pct',  pct(r) + ' do total');
+  setTxt('saude-kpi-vermelho-pct',  pct(r) + ' dos analisados');
+  // Subtítulo do total mostrando quebra
+  setTxt('saude-kpi-total-sub', totalComVendas > 0 && semVendas.length > 0
+    ? (totalComVendas.toLocaleString('pt-BR')+' analisados · '+semVendas.length.toLocaleString('pt-BR')+' sem vendas')
+    : (semVendas.length > 0 ? 'todos sem vendas no período' : 'no período filtrado'));
 }
 
 /* ─ Tabela ───────────────────────────────────────────────────────── */
@@ -3635,28 +3716,33 @@ function saudeRenderTabela() {
   });
 
   var stCfg = {
-    verde:    { ico:'🟢', cor:'var(--green)', bg:'rgba(110,231,183,.15)', lbl:'Saudável' },
-    amarelo:  { ico:'🟡', cor:'#F59E0B',      bg:'rgba(245,158,11,.15)', lbl:'Atenção' },
-    vermelho: { ico:'🔴', cor:'var(--red)',   bg:'rgba(244,63,94,.15)',  lbl:'Crítico' }
+    verde:        { ico:'🟢', cor:'var(--green)', bg:'rgba(110,231,183,.15)', lbl:'Saudável' },
+    amarelo:      { ico:'🟡', cor:'#F59E0B',      bg:'rgba(245,158,11,.15)', lbl:'Atenção' },
+    vermelho:     { ico:'🔴', cor:'var(--red)',   bg:'rgba(244,63,94,.15)',  lbl:'Crítico' },
+    'sem-vendas': { ico:'⚪', cor:'var(--muted2)', bg:'rgba(100,116,139,.10)', lbl:'Sem vendas' }
   };
   var curvaCfg = {
-    A: { cor:'var(--green)',   bg:'rgba(110,231,183,.12)' },
-    B: { cor:'#60A5FA',        bg:'rgba(96,165,250,.12)' },
-    C: { cor:'var(--muted2)',  bg:'rgba(100,116,139,.12)' }
+    A:   { cor:'var(--green)',   bg:'rgba(110,231,183,.12)' },
+    B:   { cor:'#60A5FA',        bg:'rgba(96,165,250,.12)' },
+    C:   { cor:'var(--muted2)',  bg:'rgba(100,116,139,.12)' },
+    '—': { cor:'var(--muted2)',  bg:'rgba(100,116,139,.06)' }
   };
 
   var mostrarVar = !!(document.getElementById('saude-mostrar-variacoes')||{}).checked;
 
   tbody.innerHTML = filtrados.slice(0, 300).map(function(p){
-    var st = stCfg[p.statusSaude];
+    var st = stCfg[p.statusSaude] || stCfg.vermelho;
     var cv = curvaCfg[p.curva] || curvaCfg.C;
-    var margemPct = (p.margemReal*100).toFixed(1)+'%';
-    var canalLabel = (p.canalLabel || p.canalTop) +
-      (p.canalTopPct>0 ? ' <span style="color:var(--muted2)">'+(p.canalTopPct*100).toFixed(0)+'%</span>' : '');
+    var semVendas = !!p.semVendasNoPeriodo;
+    var margemPct = semVendas ? '—' : (p.margemReal*100).toFixed(1)+'%';
+    var canalLabel = semVendas
+      ? '<span style="color:var(--muted2);font-style:italic">Sem vendas no período</span>'
+      : (p.canalLabel || p.canalTop) +
+        (p.canalTopPct>0 ? ' <span style="color:var(--muted2)">'+(p.canalTopPct*100).toFixed(0)+'%</span>' : '');
 
     // Preço sugerido: mostrar APENAS para produtos críticos e em atenção
     var precoSugCell = '<span style="color:var(--muted2);font-size:11px">—</span>';
-    if((p.statusSaude === 'vermelho' || p.statusSaude === 'amarelo')) {
+    if(!semVendas && (p.statusSaude === 'vermelho' || p.statusSaude === 'amarelo')) {
       if(p.precoSugerido > 0) {
         var ajusteColor = p.ajustePct > 0 ? 'var(--green)' : 'var(--red)';
         var ajusteIco   = p.ajustePct > 0 ? '↑' : '↓';
@@ -3669,22 +3755,40 @@ function saudeRenderTabela() {
       }
     }
 
-    var aberto = _saudeSkusExpandidos.has(p.sku);
-    var btnInfo = '<button onclick="saudeToggleBreakdown(\''+_saudeEsc(p.sku).replace(/'/g,"\\'")+'\', this)" '+
-      'style="background:'+(aberto?'rgba(110,231,183,.18)':'transparent')+';border:1px solid '+(aberto?'rgba(110,231,183,.4)':'var(--border2)')+';color:'+(aberto?'var(--accent)':'var(--muted2)')+';width:24px;height:24px;border-radius:5px;cursor:pointer;font-size:11px;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:all .15s" '+
-      'title="'+(aberto?'Ocultar':'Ver')+' breakdown de custos">'+
-      (aberto?'▾':'ℹ︎')+
-    '</button>';
+    var aberto = !semVendas && _saudeSkusExpandidos.has(p.sku);
+    var btnInfo = semVendas
+      ? '<span style="color:var(--muted2);font-size:10px">—</span>'
+      : '<button onclick="saudeToggleBreakdown(\''+_saudeEsc(p.sku).replace(/'/g,"\\'")+'\', this)" '+
+        'style="background:'+(aberto?'rgba(110,231,183,.18)':'transparent')+';border:1px solid '+(aberto?'rgba(110,231,183,.4)':'var(--border2)')+';color:'+(aberto?'var(--accent)':'var(--muted2)')+';width:24px;height:24px;border-radius:5px;cursor:pointer;font-size:11px;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:all .15s" '+
+        'title="'+(aberto?'Ocultar':'Ver')+' breakdown de custos">'+
+        (aberto?'▾':'ℹ︎')+
+      '</button>';
 
-    var linhaPai = '<tr'+(aberto?' style="background:rgba(110,231,183,.04)"':'')+'>'+
+    // Estilo da linha: produtos sem vendas ficam mais sutis
+    var linhaStyle = semVendas
+      ? ' style="opacity:.6"'
+      : (aberto ? ' style="background:rgba(110,231,183,.04)"' : '');
+
+    // Células numéricas: mostram "—" pra produtos sem vendas
+    var celPreco = semVendas
+      ? '<span style="color:var(--muted2)">—</span>'
+      : 'R$ '+(p.precoMedio||0).toFixed(2).replace('.',',');
+    var celCusto = semVendas
+      ? '<span style="color:var(--muted2)">—</span>'
+      : 'R$ '+(p.custoEstimado||0).toFixed(2).replace('.',',');
+    var celMargem = semVendas
+      ? '<span style="color:var(--muted2);font-weight:400">—</span>'
+      : margemPct;
+
+    var linhaPai = '<tr'+linhaStyle+'>'+
       '<td style="text-align:center;padding:4px 0">'+btnInfo+'</td>'+
       '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted2)">'+_saudeEsc(p.sku)+'</td>'+
       '<td style="font-size:12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_saudeEsc(p.nome)+'">'+_saudeEsc(p.nome)+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+cv.bg+';color:'+cv.cor+'">'+p.curva+'</span></td>'+
-      '<td style="text-align:right;font-family:var(--fmono);font-size:12px">R$ '+(p.precoMedio||0).toFixed(2).replace('.',',')+'</td>'+
-      '<td style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--muted2)">R$ '+(p.custoEstimado||0).toFixed(2).replace('.',',')+'</td>'+
+      '<td style="text-align:right;font-family:var(--fmono);font-size:12px">'+celPreco+'</td>'+
+      '<td style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--muted2)">'+celCusto+'</td>'+
       '<td style="font-size:11px;color:var(--muted2)" title="'+_saudeEsc(p.regrasInfo||'')+'">'+canalLabel+'</td>'+
-      '<td style="text-align:right;font-family:var(--fdisplay);font-size:13px;font-weight:700;color:'+st.cor+'">'+margemPct+'</td>'+
+      '<td style="text-align:right;font-family:var(--fdisplay);font-size:13px;font-weight:700;color:'+st.cor+'">'+celMargem+'</td>'+
       '<td style="text-align:right">'+precoSugCell+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:5px;background:'+st.bg+';color:'+st.cor+';font-weight:600">'+st.ico+' '+st.lbl+'</span></td>'+
     '</tr>';
@@ -3719,10 +3823,16 @@ function saudeRenderTabela() {
     var totalCadastro = '';
     try {
       if(typeof estoqueData !== 'undefined' && estoqueData && estoqueData.length > 0) {
-        totalCadastro = ' · ' + estoqueData.length.toLocaleString('pt-BR') + ' SKUs cadastrados no estoque (esta análise mostra apenas os vendidos no período)';
+        totalCadastro = ' · base: ' + estoqueData.length.toLocaleString('pt-BR') + ' SKUs cadastrados';
       }
     } catch(e){}
-    info.textContent = filtrados.length.toLocaleString('pt-BR') + ' produtos · exibindo ' + Math.min(300, filtrados.length).toLocaleString('pt-BR') +
+    var semVendasFiltrados = filtrados.filter(function(p){ return p.semVendasNoPeriodo; }).length;
+    var comVendasFiltrados = filtrados.length - semVendasFiltrados;
+    var infoExtra = semVendasFiltrados > 0
+      ? ' (' + comVendasFiltrados.toLocaleString('pt-BR') + ' com vendas + ' + semVendasFiltrados.toLocaleString('pt-BR') + ' sem vendas)'
+      : '';
+    info.textContent = filtrados.length.toLocaleString('pt-BR') + ' produtos' + infoExtra +
+      ' · exibindo ' + Math.min(300, filtrados.length).toLocaleString('pt-BR') +
       (filtrados.length > 300 ? ' (limitado a 300 — refine a busca)' : '') + totalCadastro;
   }
 }
@@ -3823,7 +3933,8 @@ function saudeSetRegime(reg, btn) {
 
 /* ─ Gráficos e rankings ──────────────────────────────────────────── */
 function saudeRenderGraficos() {
-  var lista = _saudeProdutosFiltrados();
+  // Rankings só consideram produtos COM vendas (sem-vendas não tem margem)
+  var lista = _saudeProdutosFiltrados().filter(function(p){ return !p.semVendasNoPeriodo; });
 
   // Top 10 mais saudáveis (margem desc)
   try {
