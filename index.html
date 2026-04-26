@@ -1465,19 +1465,12 @@ body.light body::before { opacity: 0; }
   <div id="page-financeiro" class="page">
     <main class="main">
 
-      <!-- Filtro de datas independente do Financeiro -->
-      <!-- Filtro local Financeiro — sincronizado com filtro global (read-only) -->
-      <div class="fbar" style="margin-bottom:20px;opacity:.85">
-        <span class="flbl" style="color:var(--accent)">⚙ Período (sincronizado com filtro global)</span>
-        <div class="fsep"></div>
-        <div class="fdates">
-          <span class="flbl">De</span>
-          <input type="date" class="fdate" id="fin-from" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
-          <span class="farrow">→</span>
-          <span class="flbl">Até</span>
-          <input type="date" class="fdate" id="fin-to" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
-        </div>
-        <div class="finfo" id="fin-info">Todos os registros</div>
+      <!-- Filtro local removido — agora único filtro global no header.
+           Inputs mantidos ocultos apenas para compatibilidade com JS legado. -->
+      <div style="display:none">
+        <input type="date" id="fin-from" readonly>
+        <input type="date" id="fin-to"   readonly>
+        <span id="fin-info"></span>
       </div>
 
       <div class="slabel">visão geral financeira</div>
@@ -1791,18 +1784,12 @@ body.light body::before { opacity: 0; }
   <div id="page-marketing" class="page">
     <main class="main">
 
-      <!-- Filtro local Marketing — sincronizado com filtro global (read-only) -->
-      <div class="fbar" style="margin-bottom:20px;opacity:.85">
-        <span class="flbl" style="color:var(--accent)">⚙ Período (sincronizado com filtro global)</span>
-        <div class="fsep"></div>
-        <div class="fdates">
-          <span class="flbl">De</span>
-          <input type="date" class="fdate" id="mkt-from" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
-          <span class="farrow">→</span>
-          <span class="flbl">Até</span>
-          <input type="date" class="fdate" id="mkt-to" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
-        </div>
-        <div class="finfo" id="mkt-info">—</div>
+      <!-- Filtro local removido — agora único filtro global no header.
+           Inputs mantidos ocultos apenas para compatibilidade com JS legado. -->
+      <div style="display:none">
+        <input type="date" id="mkt-from" readonly>
+        <input type="date" id="mkt-to"   readonly>
+        <span id="mkt-info"></span>
       </div>
 
       <!-- Investimento por canal (input manual) — EXPANDIDO -->
@@ -4423,21 +4410,35 @@ async function salvarResumo() {
 
   var cnt  = d.aprov.length + d.trans.length + d.entr.length;
   var rate = parseFloat((document.getElementById('tax-rate')||{}).value)||6;
-  // Custo de Mídia: SEMPRE da soma dos indicadores do menu Marketing (_mktDataIA.investimento.total).
-  // Se Marketing não foi configurado, cai pro % manual digitado em Financeiro (fin-mkt-pct).
+  // Custo de Mídia: SOMA DIRETA dos inputs do menu Marketing (mais robusto
+  // que depender de _mktDataIA estar populado). Funciona mesmo se o usuário
+  // ainda não abriu o menu Marketing — basta ter preenchido os campos.
   var mkt = 0;
   var mktFonte = 'nenhuma';
-  if(window._mktDataIA && window._mktDataIA.investimento && window._mktDataIA.investimento.total > 0) {
+  var _camposMkt = ['mkt-inv-shopee', 'mkt-inv-ml', 'mkt-inv-tiktok', 'mkt-inv-shein',
+                    'mkt-inv-dafiti', 'mkt-inv-meta', 'mkt-inv-google', 'mkt-inv-outros'];
+  var somaDireta = 0;
+  _camposMkt.forEach(function(id){
+    var v = parseFloat((document.getElementById(id)||{}).value) || 0;
+    somaDireta += v;
+  });
+  if(somaDireta > 0) {
+    mkt = somaDireta;
+    mktFonte = 'inputs-marketing (soma direta)';
+  } else if(window._mktDataIA && window._mktDataIA.investimento && window._mktDataIA.investimento.total > 0) {
+    // Fallback 1: _mktDataIA já calculado anteriormente
     mkt = window._mktDataIA.investimento.total;
-    mktFonte = 'menu-marketing';
+    mktFonte = '_mktDataIA';
   } else {
+    // Fallback 2: % manual digitado em Financeiro
     var mktPctManual = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
     if(mktPctManual > 0) {
       mkt = d.total * (mktPctManual/100);
-      mktFonte = 'fin-mkt-pct (fallback)';
+      mktFonte = 'fin-mkt-pct';
     }
   }
-  console.log('[Roizen] Salvando resumo — Mídia: R$'+mkt.toFixed(2)+' (fonte: '+mktFonte+')');
+  var pctMidiaCalc = d.total > 0 ? (mkt / d.total * 100) : 0;
+  console.log('[Roizen] Salvando resumo — Mídia: R$'+mkt.toFixed(2)+' ('+pctMidiaCalc.toFixed(2)+'% do GMV) · fonte: '+mktFonte);
 
   // Snapshot AGREGADO — preserva tudo necessário para reconstruir gráficos e KPIs
   // Não salva os arrays brutos aprov/trans/entr (substituídos por contagens + agregados)
