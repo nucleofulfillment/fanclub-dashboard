@@ -58,6 +58,51 @@ body, .kpi, .val, [class*="kpi"], table, .stat, .num,
 }
 .val { font-weight: 600 !important; letter-spacing: -.01em; }
 
+/* ─ Scrollbar customizada (combina com tema escuro) ──────────────────
+   Substitui a scrollbar padrão do navegador. Aplica em:
+   - body (scroll da página inteira)
+   - elementos internos com overflow (cards, tabelas, listas)
+   - dropdowns e menus
+   Funciona em Chrome/Edge/Safari (webkit) e Firefox (scrollbar-color). */
+
+/* Firefox */
+* { scrollbar-width: thin; scrollbar-color: #2A3340 transparent; }
+*:hover { scrollbar-color: #3A4452 transparent; }
+
+/* Webkit (Chrome/Edge/Safari) */
+::-webkit-scrollbar {
+  width: 8px; height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2A3340;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background .2s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3A4452;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-thumb:active {
+  background: rgba(110,231,183,.4);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* Scrollbar levemente mais visível em containers com fundo escuro definido */
+.card::-webkit-scrollbar-thumb,
+[class*="overflow"]::-webkit-scrollbar-thumb {
+  background: #303A48;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
 body {
   font-family: var(--fhead);
   background: var(--bg);
