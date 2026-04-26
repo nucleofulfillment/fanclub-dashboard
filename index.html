@@ -1223,7 +1223,7 @@ body.light body::before { opacity: 0; }
 
   <!-- Fila de Envios + SLA + Impostos — ABAIXO dos KPIs -->
   <div class="slabel">operações</div>
-  <div id="ops-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:22px" class="fu">
+  <div id="ops-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px" class="fu">
 
     <!-- Fila de envios -->
     <div class="card" style="background:linear-gradient(135deg,var(--s1),rgba(251,146,60,.05));border-color:rgba(251,146,60,.2)">
@@ -1248,27 +1248,6 @@ body.light body::before { opacity: 0; }
         <div><div class="ct">⏱️ SLA de Envio</div><div class="cs">% enviados dentro do prazo</div></div>
       </div>
       <div id="sla-list" style="display:flex;flex-direction:column;gap:8px"></div>
-    </div>
-
-    <!-- Impostos -->
-    <div class="card">
-      <div class="ch" style="margin-bottom:12px">
-        <div><div class="ct">🧾 Impostos</div><div class="cs">Estimativa sobre o GMV</div></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">Alíquota</span>
-        <div style="display:flex;align-items:center;gap:4px;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:4px 10px">
-          <input type="number" id="tax-rate" value="6" min="0" max="100" step="0.5"
-            oninput="updateTaxIndicator()"
-            style="width:44px;background:transparent;border:none;outline:none;font-family:var(--fdisplay);font-size:18px;font-weight:700;color:var(--amber);text-align:center;color-scheme:dark">
-          <span style="font-family:var(--fmono);font-size:13px;color:var(--amber)">%</span>
-        </div>
-      </div>
-      <div style="border-top:1px solid var(--border);padding-top:12px">
-        <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Estimativa no período</div>
-        <div style="font-family:var(--fdisplay);font-size:24px;font-weight:700;color:var(--red);letter-spacing:-1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="tax-val">—</div>
-        <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:4px" id="tax-base">sobre GMV —</div>
-      </div>
     </div>
 
   </div>
@@ -1416,20 +1395,10 @@ body.light body::before { opacity: 0; }
           <div class="val" id="fin-gmv" style="font-size:18px">—</div>
           <div class="sub" id="fin-gmv-sub">—</div>
         </div>
-        <div class="kpi" style="--cc:#818CF8">
-          <div class="ico">📦</div><div class="lbl">Pedidos</div>
-          <div class="val" id="fin-ped" style="font-size:22px">—</div>
-          <div class="sub">no período selecionado</div>
-        </div>
-        <div class="kpi" style="--cc:#FB923C">
-          <div class="ico">🎯</div><div class="lbl">Ticket Médio</div>
-          <div class="val" id="fin-tkt" style="font-size:18px">—</div>
-          <div class="sub">por pedido</div>
-        </div>
         <div class="kpi" style="--cc:#34D399">
           <div class="ico">🚚</div><div class="lbl">Frete Total</div>
           <div class="val" id="fin-frt" style="font-size:18px">—</div>
-          <div class="sub">cobrado dos clientes</div>
+          <div class="sub" id="fin-frt-sub" style="font-size:9px;color:var(--muted2)">informativo · só LP entra como dedução</div>
         </div>
         <!-- Mídia / ADS — auto do Marketing ou input manual -->
         <div class="kpi" style="--cc:#F472B6" id="fin-mkt-card">
@@ -1447,6 +1416,21 @@ body.light body::before { opacity: 0; }
               <span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">% sobre GMV</span>
             </div>
           </details>
+        </div>
+        <!-- Impostos com alíquota editável aqui (migrado do Dashboard) -->
+        <div class="kpi" style="--cc:#F43F5E">
+          <div class="ico">🧾</div><div class="lbl">Impostos</div>
+          <div class="val" id="fin-tax" style="font-size:18px">—</div>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:6px">
+            <span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">Alíquota</span>
+            <input type="number" id="tax-rate" value="6" min="0" max="100" step="0.5"
+              oninput="updateTaxIndicator(); atualizarResultado();"
+              style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
+                     padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
+                     color:var(--amber);outline:none;color-scheme:dark;text-align:center">
+            <span style="font-family:var(--fmono);font-size:11px;color:var(--amber)">%</span>
+          </div>
+          <div class="sub" id="fin-tax-rate" style="margin-top:3px">sobre GMV total</div>
         </div>
       </div>
 
@@ -1466,11 +1450,12 @@ body.light body::before { opacity: 0; }
           <div class="sub" id="fin-taxafix-sub">R$ —/pedido médio</div>
           <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:var(--accent)" title="Taxa fixa por pedido conforme canal: Shopee R$4-26, ML R$6,75, Shein R$5, etc." id="fin-taxafix-tooltip-icon">ℹ︎ R$ por pedido</div>
         </div>
-        <!-- Estimativa Impostos -->
-        <div class="kpi" style="--cc:#F43F5E">
-          <div class="ico">🧾</div><div class="lbl">Impostos</div>
-          <div class="val" id="fin-tax" style="font-size:18px">—</div>
-          <div class="sub" id="fin-tax-rate">alíquota —%</div>
+        <!-- Frete Loja Própria (CALCULADO real dos pedidos) -->
+        <div class="kpi" style="--cc:#34D399" id="fin-frete-lp-card">
+          <div class="ico">🚚</div><div class="lbl">Frete <span style="font-size:9px;color:var(--muted2)">(LP)</span></div>
+          <div class="val" id="fin-frete-lp" style="font-size:18px;color:#F43F5E">R$ 0,00</div>
+          <div class="sub" id="fin-frete-lp-sub" style="font-size:9px">só LP entra como dedução</div>
+          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:var(--accent)" title="Frete pago pela loja em pedidos da Loja Própria — soma o frete real de cada pedido com canal='Loja Própria' (marketplaces absorvem)">ℹ︎ valor real dos pedidos LP</div>
         </div>
         <!-- Plataforma % editável -->
         <div class="kpi" style="--cc:#94A3B8">
@@ -1486,9 +1471,9 @@ body.light body::before { opacity: 0; }
           <div class="val" id="fin-plataforma" style="font-size:14px;color:var(--red)">R$ 0,00</div>
           <div class="sub">% do GMV</div>
         </div>
-        <!-- Taxa Pagamento % editável -->
-        <div class="kpi" style="--cc:#94A3B8">
-          <div class="ico">💳</div><div class="lbl">Taxa Pagto</div>
+        <!-- Taxa Pagamento % — só sobre GMV LP -->
+        <div class="kpi" style="--cc:#94A3B8" title="Taxa de gateway/adquirente — aplicada APENAS sobre GMV de Loja Própria (marketplaces já descontam dentro da comissão)">
+          <div class="ico">💳</div><div class="lbl">Taxa Pgto <span style="font-size:9px;color:var(--muted2)">(LP)</span></div>
           <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
             <input type="number" id="fin-taxa-pgto-pct" value="0" min="0" max="100" step="0.1"
               oninput="atualizarResultado()"
@@ -1498,7 +1483,21 @@ body.light body::before { opacity: 0; }
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
           </div>
           <div class="val" id="fin-taxa-pgto" style="font-size:14px;color:var(--red)">R$ 0,00</div>
-          <div class="sub">% do GMV</div>
+          <div class="sub">% do GMV LP</div>
+        </div>
+        <!-- Taxa Fixa Pagamento R$/pedido — só pedidos LP -->
+        <div class="kpi" style="--cc:#94A3B8" title="Taxa fixa R$ por pedido cobrada pelo gateway/adquirente — aplicada APENAS em pedidos de Loja Própria">
+          <div class="ico">💵</div><div class="lbl">Taxa Fixa Pgto <span style="font-size:9px;color:var(--muted2)">(LP)</span></div>
+          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
+            <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="fin-taxa-fixa-pgto-rs" value="0" min="0" step="0.01"
+              oninput="atualizarResultado()"
+              style="width:60px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
+                     padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
+                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
+          </div>
+          <div class="val" id="fin-taxa-fixa-pgto" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="sub" id="fin-taxa-fixa-pgto-sub">R$ × pedidos LP</div>
         </div>
         <!-- Perdas % editável -->
         <div class="kpi" style="--cc:#94A3B8">
@@ -1515,8 +1514,8 @@ body.light body::before { opacity: 0; }
           <div class="sub">% do GMV</div>
         </div>
         <!-- Financeiro Loja Própria % editável -->
-        <div class="kpi" style="--cc:#94A3B8" title="Aplicado APENAS sobre GMV de Loja Própria (marketplaces fazem retenção própria)">
-          <div class="ico">🏦</div><div class="lbl">Financeiro <span style="font-size:9px;color:var(--muted2)">(Loja Própria)</span></div>
+        <div class="kpi" style="--cc:#94A3B8" title="Custo financeiro de antecipação/parcelamento — aplicado APENAS sobre GMV de Loja Própria (marketplaces fazem retenção própria)">
+          <div class="ico">🏦</div><div class="lbl">Financeiro <span style="font-size:9px;color:var(--muted2)">(LP)</span></div>
           <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
             <input type="number" id="fin-financeiro-pct" value="0" min="0" max="100" step="0.1"
               oninput="atualizarResultado()"
@@ -1551,7 +1550,7 @@ body.light body::before { opacity: 0; }
               <span class="lbl" style="display:inline;margin-left:6px">Resultado Líquido</span>
               <span id="fin-resultado-status" style="display:inline-block;margin-left:8px;font-family:var(--fmono);font-size:10px;padding:2px 8px;border-radius:4px"></span>
             </div>
-            <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-align:right" id="fin-resultado-formula">GMV − Comissões − Taxa Fixa − Plataforma − Taxa Pgto − Perdas − Financeiro − Mídia − Impostos − Custo Fixo</div>
+            <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-align:right" id="fin-resultado-formula">GMV − Comissões − Taxa Fixa MKT − Frete LP − Plataforma − Taxa Pgto LP − Taxa Fixa Pgto − Perdas − Financ. LP − Mídia − Impostos − Custo Fixo</div>
           </div>
           <div class="val" id="fin-resultado" style="font-size:26px;letter-spacing:-0.5px;margin-top:4px">—</div>
           <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px" id="fin-resultado-pct">— do GMV</div>
@@ -1826,17 +1825,17 @@ body.light body::before { opacity: 0; }
           </div>
           <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Plataforma %</label>
-            <input type="number" id="saude-plataforma" value="2" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+            <input type="number" id="saude-plataforma" value="2" min="0" max="100" step="0.1" oninput="saudeRecalcular(); _saudeSyncGlobal('plataformaPct', this.value);"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Taxa pagamento %</label>
-            <input type="number" id="saude-taxa-pgto" value="1.5" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+            <input type="number" id="saude-taxa-pgto" value="1.5" min="0" max="100" step="0.1" oninput="saudeRecalcular(); _saudeSyncGlobal('taxaPgtoPct', this.value);"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Perdas %</label>
-            <input type="number" id="saude-perdas" value="1" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+            <input type="number" id="saude-perdas" value="1" min="0" max="100" step="0.1" oninput="saudeRecalcular(); _saudeSyncGlobal('perdasPct', this.value);"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
@@ -1851,7 +1850,7 @@ body.light body::before { opacity: 0; }
           </div>
           <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px" title="Aplicado apenas para canal Loja Própria — marketplaces fazem retenção própria">Financeiro % <span style="color:var(--muted2);font-size:9px">(só Loja Própria)</span></label>
-            <input type="number" id="saude-financeiro" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+            <input type="number" id="saude-financeiro" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular(); _saudeSyncGlobal('financeiroPct', this.value);"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
@@ -2499,19 +2498,19 @@ body.light body::before { opacity: 0; }
               </div>
               <div title="Aplica apenas para Loja Própria — marketplaces fazem retenção própria">
                 <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Financeiro % <span style="color:var(--accent);font-size:9px">(só Loja Própria)</span></label>
-                <input type="number" id="prec-fin" value="0" min="0" max="100" step="0.1" oninput="calcPreco()"
+                <input type="number" id="prec-fin" value="0" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('financeiroPct', this.value);"
                   style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
               </div>
               <!-- ADS Loja Própria removido — usar campo % ADS no bloco do canal -->
               <input type="hidden" id="prec-ads" value="0">
               <div>
                 <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Plataforma %</label>
-                <input type="number" id="prec-plat" value="0" min="0" max="100" step="0.1" oninput="calcPreco()"
+                <input type="number" id="prec-plat" value="0" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('plataformaPct', this.value);"
                   style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
               </div>
               <div>
                 <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Perdas %</label>
-                <input type="number" id="prec-perdas" value="2" min="0" max="100" step="0.1" oninput="calcPreco()"
+                <input type="number" id="prec-perdas" value="2" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('perdasPct', this.value);"
                   style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
               </div>
               <div>
@@ -4168,6 +4167,15 @@ function saudeSalvarParams() {
   try {
     var params = _saudeGetParams();
     localStorage.setItem(_saudeKey(), JSON.stringify(params));
+    // Sincronizar 4 campos compartilhados com Financeiro/Precificação
+    if(typeof paramsGlobaisSet === 'function') {
+      paramsGlobaisSet({
+        plataformaPct: params.plataforma,
+        taxaPgtoPct:   params.taxaPgto,
+        perdasPct:     params.perdas,
+        financeiroPct: params.financeiro
+      });
+    }
     alert('✅ Parâmetros salvos para esta empresa.');
   } catch(e) {
     alert('❌ Erro ao salvar: ' + e.message);
@@ -4177,20 +4185,21 @@ function saudeSalvarParams() {
 function _saudeRestaurarParams() {
   try {
     var raw = localStorage.getItem(_saudeKey());
-    if(!raw) return;
-    var p = JSON.parse(raw);
+    var p = raw ? JSON.parse(raw) : {};
     var setVal = function(id, v){ var el = document.getElementById(id); if(el && v !== undefined && v !== null) el.value = v; };
     setVal('saude-rt-faixa', p.faixa);
     setVal('saude-comissao', p.comissao);
-    setVal('saude-plataforma', p.plataforma);
-    setVal('saude-taxa-pgto', p.taxaPgto);
-    setVal('saude-perdas', p.perdas);
     setVal('saude-custo-fixo', p.custoFixo);
     setVal('saude-frete', p.frete);
-    setVal('saude-financeiro', p.financeiro);
     setVal('saude-margem-desejada', p.margemDesejada);
     setVal('saude-limite-verde', p.limiteVerde);
     setVal('saude-limite-amarelo', p.limiteAmarelo);
+    // 4 campos COMPARTILHADOS — preferência: globais > específico do Saúde
+    var g = (typeof paramsGlobaisGet === 'function') ? paramsGlobaisGet() : {};
+    setVal('saude-plataforma', g.plataformaPct !== undefined ? g.plataformaPct : p.plataforma);
+    setVal('saude-taxa-pgto',  g.taxaPgtoPct   !== undefined ? g.taxaPgtoPct   : p.taxaPgto);
+    setVal('saude-perdas',     g.perdasPct     !== undefined ? g.perdasPct     : p.perdas);
+    setVal('saude-financeiro', g.financeiroPct !== undefined ? g.financeiroPct : p.financeiro);
     if(p.regime) {
       var btn = document.getElementById('saude-rt-' + p.regime);
       if(btn) saudeSetRegime(p.regime, btn);
@@ -4202,6 +4211,19 @@ function _saudeRestaurarParams() {
 function renderSaude() {
   _saudeRestaurarParams();
   saudeRecalcular();
+}
+
+/* ─ Sincronizar campo individual com params globais (debounced) ───── */
+var _saudeSyncTimeout = null;
+function _saudeSyncGlobal(key, val) {
+  clearTimeout(_saudeSyncTimeout);
+  _saudeSyncTimeout = setTimeout(function(){
+    if(typeof paramsGlobaisSet === 'function') {
+      var patch = {};
+      patch[key] = parseFloat(val) || 0;
+      paramsGlobaisSet(patch);
+    }
+  }, 500);
 }
 
 
@@ -6623,6 +6645,17 @@ function calcPrecoMinimo() {
 
 
 function renderPrecificacao() {
+  // Restaurar params globais (sincronizados com Financeiro/Saúde)
+  try {
+    if(typeof paramsGlobaisGet === 'function') {
+      var g = paramsGlobaisGet();
+      var setVal = function(id, v){ var el = document.getElementById(id); if(el && v !== undefined && v !== null && v !== '') el.value = v; };
+      if(g.plataformaPct !== undefined) setVal('prec-plat',    g.plataformaPct);
+      if(g.perdasPct     !== undefined) setVal('prec-perdas',  g.perdasPct);
+      if(g.financeiroPct !== undefined) setVal('prec-fin',     g.financeiroPct);
+    }
+  } catch(e){ console.warn('[Prec] erro ao restaurar globais:', e); }
+
   // Inicializar estado ativo dos botões
   selecionarCanal('Shopee');
   selecionarRegime('simples');
@@ -6634,6 +6667,19 @@ function renderPrecificacao() {
     if(ct && cb && cb.value) ct.value = cb.value;
   }catch(e){}
   calcPrecoMinimo();
+}
+
+/* ─ Sincronizar campo da Precificação com params globais ─────────── */
+var _precSyncTimeout = null;
+function _precSyncGlobal(key, val) {
+  clearTimeout(_precSyncTimeout);
+  _precSyncTimeout = setTimeout(function(){
+    if(typeof paramsGlobaisSet === 'function') {
+      var patch = {};
+      patch[key] = parseFloat(val) || 0;
+      paramsGlobaisSet(patch);
+    }
+  }, 500);
 }
 
 
@@ -8942,24 +8988,28 @@ function syncFinanceiroKPIs(d) {
   var impostos  = d.total * (rate/100);
 
   // ═══════════════════════════════════════════════════════════════════
-  // CÁLCULO PEDIDO A PEDIDO: comissões + taxa fixa por canal real
+  // CÁLCULO PEDIDO A PEDIDO: comissões + taxa fixa + frete por canal
   // ═══════════════════════════════════════════════════════════════════
   var todosPedidos = (d.aprov||[]).concat(d.trans||[]).concat(d.entr||[]);
   var totalComissao = 0;
   var totalTaxaFixa = 0;
-  var quebraPorCanal = {};  // { 'Shopee': {pedidos, gmv, comissao, taxaFixa}, ... }
+  var quebraPorCanal = {};
   var gmvLojaPropria = 0;
+  var pedidosLojaPropria = 0;
+  var freteLojaPropria = 0;
+  var freteTotalGeral = 0;
 
   todosPedidos.forEach(function(p){
     var canal = p.canal || 'Outros';
     var valor = parseFloat(p.valor) || 0;
+    var fretePed = parseFloat(p.frete) || 0;
     if(valor <= 0) return;
 
     if(!quebraPorCanal[canal]) quebraPorCanal[canal] = {pedidos:0, gmv:0, comissao:0, taxaFixa:0};
     quebraPorCanal[canal].pedidos++;
     quebraPorCanal[canal].gmv += valor;
 
-    // Aplicar regras REAIS por canal (mesma lógica da tela Precificação / Saúde)
+    // Comissão e taxa fixa SÓ pra canais marketplace (Loja Própria não tem)
     var info = (typeof PREC_CANAIS !== 'undefined' && PREC_CANAIS[canal]) ? PREC_CANAIS[canal] : null;
     var comC, taxaC;
     if(canal === 'Shopee' && typeof calcComissaoShopee === 'function') {
@@ -8978,24 +9028,33 @@ function syncFinanceiroKPIs(d) {
     totalComissao += comR;
     totalTaxaFixa += taxaC;
 
-    if(canal === 'Loja Própria') gmvLojaPropria += valor;
+    freteTotalGeral += fretePed;
+    if(canal === 'Loja Própria') {
+      gmvLojaPropria += valor;
+      pedidosLojaPropria++;
+      freteLojaPropria += fretePed;
+    }
   });
 
   var pctComissaoMedio = d.total > 0 ? (totalComissao / d.total * 100) : 0;
   var taxaFixaMediaPedido = cnt > 0 ? (totalTaxaFixa / cnt) : 0;
 
   // ═══════════════════════════════════════════════════════════════════
-  // PARÂMETROS EDITÁVEIS (% sobre GMV)
+  // PARÂMETROS EDITÁVEIS
+  // Plataforma → 100% GMV
+  // Perdas → 100% GMV
+  // Taxa Pgto %, Taxa Fixa Pgto R$, Financeiro % → APENAS sobre LP
   // ═══════════════════════════════════════════════════════════════════
-  var pctPlataforma = parseFloat((document.getElementById('fin-plataforma-pct')||{}).value) || 0;
-  var pctTaxaPgto   = parseFloat((document.getElementById('fin-taxa-pgto-pct')||{}).value) || 0;
-  var pctPerdas     = parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0;
-  var pctFinanceiro = parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0;
-  var custoPlataforma = d.total * (pctPlataforma / 100);
-  var custoTaxaPgto   = d.total * (pctTaxaPgto / 100);
-  var custoPerdas     = d.total * (pctPerdas / 100);
-  // Financeiro aplica APENAS sobre GMV de Loja Própria
-  var custoFinanceiro = gmvLojaPropria * (pctFinanceiro / 100);
+  var pctPlataforma   = parseFloat((document.getElementById('fin-plataforma-pct')||{}).value) || 0;
+  var pctTaxaPgto     = parseFloat((document.getElementById('fin-taxa-pgto-pct')||{}).value) || 0;
+  var rsTaxaFixaPgto  = parseFloat((document.getElementById('fin-taxa-fixa-pgto-rs')||{}).value) || 0;
+  var pctPerdas       = parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0;
+  var pctFinanceiro   = parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0;
+  var custoPlataforma   = d.total * (pctPlataforma / 100);
+  var custoTaxaPgto     = gmvLojaPropria * (pctTaxaPgto / 100);   // só LP
+  var custoTaxaFixaPgto = pedidosLojaPropria * rsTaxaFixaPgto;     // R$ × pedidos LP
+  var custoPerdas       = d.total * (pctPerdas / 100);
+  var custoFinanceiro   = gmvLojaPropria * (pctFinanceiro / 100); // só LP
 
   // ═══════════════════════════════════════════════════════════════════
   // MÍDIA: prioriza override manual, senão puxa do Marketing
@@ -9019,7 +9078,8 @@ function syncFinanceiroKPIs(d) {
   // ═══════════════════════════════════════════════════════════════════
   var resultado = d.total
                   - totalComissao - totalTaxaFixa
-                  - custoPlataforma - custoTaxaPgto - custoPerdas - custoFinanceiro
+                  - freteLojaPropria
+                  - custoPlataforma - custoTaxaPgto - custoTaxaFixaPgto - custoPerdas - custoFinanceiro
                   - custoMkt - impostos - custoFixo;
   var pctResultado = d.total > 0 ? (resultado / d.total * 100) : 0;
 
@@ -9041,13 +9101,17 @@ function syncFinanceiroKPIs(d) {
   console.log('[Roizen] Financeiro KPI:',
     'GMV='+d.total.toFixed(2),
     'pedidos='+cnt,
+    'pedidosLP='+pedidosLojaPropria,
+    'gmvLP='+gmvLojaPropria.toFixed(2),
     'dias='+diasPeriodo,
     'comissao='+totalComissao.toFixed(2)+' ('+pctComissaoMedio.toFixed(2)+'%)',
-    'taxaFixa='+totalTaxaFixa.toFixed(2),
+    'taxaFixaMKT='+totalTaxaFixa.toFixed(2),
+    'freteLP='+freteLojaPropria.toFixed(2)+' (total geral='+freteTotalGeral.toFixed(2)+')',
     'plat='+custoPlataforma.toFixed(2),
-    'taxaPgto='+custoTaxaPgto.toFixed(2),
+    'taxaPgto='+custoTaxaPgto.toFixed(2)+' (LP)',
+    'taxaFixaPgto='+custoTaxaFixaPgto.toFixed(2),
     'perdas='+custoPerdas.toFixed(2),
-    'financLP='+custoFinanceiro.toFixed(2)+' (gmvLP='+gmvLojaPropria.toFixed(2)+')',
+    'financLP='+custoFinanceiro.toFixed(2),
     'mkt='+custoMkt.toFixed(2),
     'imp='+impostos.toFixed(2),
     'fixo='+custoFixo.toFixed(2),
@@ -9062,9 +9126,8 @@ function syncFinanceiroKPIs(d) {
   // Fileira 1
   setT('fin-gmv', fMKPI(d.total));
   setT('fin-gmv-sub', fMKPI(d.entr.reduce(function(s,p){return s+p.valor;},0))+' entregues');
-  setT('fin-ped', cnt.toLocaleString('pt-BR'));
-  setT('fin-tkt', fMKPI(cnt>0?d.total/cnt:0));
   setT('fin-frt', fMKPI(d.frete));
+  setT('fin-frt-sub', 'total geral · informativo (só LP entra como dedução)');
   setT('fin-mkt', fMKPI(custoMkt));
   setT('fin-mkt-sub', mktFonte);
   // Avisar visualmente quando mídia está zerada
@@ -9110,11 +9173,21 @@ function syncFinanceiroKPIs(d) {
 
   // Impostos
   setT('fin-tax', fMKPI(impostos));
-  setT('fin-tax-rate', 'alíquota '+rate+'%');
+  setT('fin-tax-rate', 'sobre GMV total · '+rate+'%');
+
+  // Frete LP (calculado real)
+  setT('fin-frete-lp', fMKPI(freteLojaPropria));
+  setT('fin-frete-lp-sub', pedidosLojaPropria > 0
+    ? pedidosLojaPropria+' pedidos LP · R$ '+(pedidosLojaPropria > 0 ? (freteLojaPropria/pedidosLojaPropria).toFixed(2).replace('.',','):'0,00')+'/pedido médio'
+    : 'sem pedidos de Loja Própria no período');
 
   // Parâmetros editáveis (R$ aplicado)
   setT('fin-plataforma', fMKPI(custoPlataforma));
   setT('fin-taxa-pgto',  fMKPI(custoTaxaPgto));
+  setT('fin-taxa-fixa-pgto', fMKPI(custoTaxaFixaPgto));
+  setT('fin-taxa-fixa-pgto-sub', rsTaxaFixaPgto > 0 && pedidosLojaPropria > 0
+    ? 'R$ '+rsTaxaFixaPgto.toFixed(2).replace('.',',')+' × '+pedidosLojaPropria+' pedidos LP'
+    : 'R$ × pedidos LP');
   setT('fin-perdas',     fMKPI(custoPerdas));
   setT('fin-financeiro', fMKPI(custoFinanceiro));
 
@@ -9143,9 +9216,11 @@ function syncFinanceiroKPIs(d) {
   var detTxt =
     'GMV '+fM(d.total) +
     ' − Comissão '+fM(totalComissao)+' ('+pctComissaoMedio.toFixed(1)+'%)'+
-    ' − Taxa Fixa '+fM(totalTaxaFixa)+
+    ' − Taxa Fixa MKT '+fM(totalTaxaFixa)+
+    ' − Frete LP '+fM(freteLojaPropria)+
     ' − Plataforma '+fM(custoPlataforma)+' ('+pctPlataforma.toFixed(1)+'%)'+
-    ' − Taxa Pgto '+fM(custoTaxaPgto)+' ('+pctTaxaPgto.toFixed(1)+'%)'+
+    ' − Taxa Pgto LP '+fM(custoTaxaPgto)+' ('+pctTaxaPgto.toFixed(1)+'%)'+
+    (rsTaxaFixaPgto > 0 ? ' − Taxa Fixa Pgto '+fM(custoTaxaFixaPgto)+' (R$'+rsTaxaFixaPgto.toFixed(2).replace('.',',')+'×'+pedidosLojaPropria+'ped)' : '')+
     ' − Perdas '+fM(custoPerdas)+' ('+pctPerdas.toFixed(1)+'%)'+
     ' − Financ. LP '+fM(custoFinanceiro)+' ('+pctFinanceiro.toFixed(1)+'%)'+
     ' − Mídia '+fM(custoMkt)+
@@ -9165,7 +9240,33 @@ function atualizarResultado() {
   finSalvarParams();
 }
 
-/* ─ Persistência dos parâmetros do Financeiro (por empresa) ──────── */
+/* ─ Persistência compartilhada de parâmetros gerenciais ──────────────
+   Chave única `fc_params_globais_v1_<empresa>` lida e escrita por
+   Financeiro, Saúde do Estoque e Precificação. Mexer em qualquer um
+   sincroniza nos outros (Opção A — fonte única). ─────────────────── */
+function _paramsGlobaisKey() {
+  var emp = (typeof veltroGetEmpresaAtual === 'function') ? (veltroGetEmpresaAtual() || 'default') : 'default';
+  return 'fc_params_globais_v1_' + emp;
+}
+
+function paramsGlobaisGet() {
+  try {
+    var raw = localStorage.getItem(_paramsGlobaisKey());
+    return raw ? JSON.parse(raw) : {};
+  } catch(e){ return {}; }
+}
+
+function paramsGlobaisSet(patch) {
+  try {
+    var atual = paramsGlobaisGet();
+    Object.keys(patch).forEach(function(k){
+      if(patch[k] !== undefined && patch[k] !== null && patch[k] !== '') atual[k] = patch[k];
+    });
+    localStorage.setItem(_paramsGlobaisKey(), JSON.stringify(atual));
+  } catch(e){ console.warn('[Params] erro ao salvar:', e); }
+}
+
+/* ─ Compat: chave antiga _finKey continua para custo fixo / mkt-pct ─ */
 function _finKey() {
   var emp = (typeof veltroGetEmpresaAtual === 'function') ? (veltroGetEmpresaAtual() || 'default') : 'default';
   return 'fc_fin_params_v1_' + emp;
@@ -9177,31 +9278,43 @@ function finSalvarParams() {
   clearTimeout(_finSalvarTimeout);
   _finSalvarTimeout = setTimeout(function(){
     try {
-      var params = {
+      // Salva no localStorage local (custo fixo, mkt-pct, alíquota — específicos do Financeiro)
+      var localParams = {
         custoFixo:     (document.getElementById('fin-custo-fixo')||{}).value || '',
         mktPct:        (document.getElementById('fin-mkt-pct')||{}).value || '',
-        plataformaPct: (document.getElementById('fin-plataforma-pct')||{}).value || '',
-        taxaPgtoPct:   (document.getElementById('fin-taxa-pgto-pct')||{}).value || '',
-        perdasPct:     (document.getElementById('fin-perdas-pct')||{}).value || '',
-        financeiroPct: (document.getElementById('fin-financeiro-pct')||{}).value || ''
+        taxRate:       (document.getElementById('tax-rate')||{}).value || ''
       };
-      localStorage.setItem(_finKey(), JSON.stringify(params));
+      localStorage.setItem(_finKey(), JSON.stringify(localParams));
+
+      // Salva nos parâmetros GLOBAIS (compartilhados com Saúde e Precificação)
+      paramsGlobaisSet({
+        plataformaPct: parseFloat((document.getElementById('fin-plataforma-pct')||{}).value) || 0,
+        taxaPgtoPct:   parseFloat((document.getElementById('fin-taxa-pgto-pct')||{}).value) || 0,
+        taxaFixaPgto:  parseFloat((document.getElementById('fin-taxa-fixa-pgto-rs')||{}).value) || 0,
+        perdasPct:     parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0,
+        financeiroPct: parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0
+      });
     } catch(e){ console.warn('[Fin] erro ao salvar params:', e); }
   }, 500);
 }
 
 function finRestaurarParams() {
   try {
+    // Restaura locais (custo fixo, mkt, alíquota)
     var raw = localStorage.getItem(_finKey());
-    if(!raw) return;
-    var p = JSON.parse(raw);
+    var local = raw ? JSON.parse(raw) : {};
     var setVal = function(id, v){ var el = document.getElementById(id); if(el && v !== undefined && v !== null && v !== '') el.value = v; };
-    setVal('fin-custo-fixo',     p.custoFixo);
-    setVal('fin-mkt-pct',        p.mktPct);
-    setVal('fin-plataforma-pct', p.plataformaPct);
-    setVal('fin-taxa-pgto-pct',  p.taxaPgtoPct);
-    setVal('fin-perdas-pct',     p.perdasPct);
-    setVal('fin-financeiro-pct', p.financeiroPct);
+    setVal('fin-custo-fixo', local.custoFixo);
+    setVal('fin-mkt-pct',    local.mktPct);
+    setVal('tax-rate',       local.taxRate);
+
+    // Restaura globais (compartilhados)
+    var g = paramsGlobaisGet();
+    setVal('fin-plataforma-pct',    g.plataformaPct);
+    setVal('fin-taxa-pgto-pct',     g.taxaPgtoPct);
+    setVal('fin-taxa-fixa-pgto-rs', g.taxaFixaPgto);
+    setVal('fin-perdas-pct',        g.perdasPct);
+    setVal('fin-financeiro-pct',    g.financeiroPct);
     console.log('[Fin] Parâmetros restaurados');
   } catch(e){ console.warn('[Fin] erro ao restaurar params:', e); }
 }
