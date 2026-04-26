@@ -1736,8 +1736,8 @@ body.light body::before { opacity: 0; }
         <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:8px">Custos operacionais (% sobre venda)</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px" title="Aplicada APENAS quando o canal não tem regra específica mapeada. Canais como Shopee, ML, Shein usam suas próprias regras (ver bloco 'Regras por canal' abaixo).">Comissão genérica % <span style="color:var(--muted2);font-size:9px">(fallback)</span></label>
-            <input type="number" id="saude-comissao" value="12" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px" title="Soma um % ADICIONAL de comissão sobre TODOS os canais. Útil pra simular custos extras (intermediários, sub-vendedores, custos não previstos).">Comissão extra % <span style="color:var(--muted2);font-size:9px">(adicional)</span></label>
+            <input type="number" id="saude-comissao" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
@@ -1774,18 +1774,6 @@ body.light body::before { opacity: 0; }
             <label style="font-family:var(--fmono);font-size:10px;color:var(--accent);display:block;margin-bottom:4px;font-weight:600">🎯 Margem desejada %</label>
             <input type="number" id="saude-margem-desejada" value="10" min="0" max="100" step="0.5" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid rgba(110,231,183,.3);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--accent);outline:none;color-scheme:dark;font-weight:600">
-          </div>
-        </div>
-
-        <div style="margin-top:14px;padding:10px 12px;background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.15);border-radius:7px">
-          <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:4px">📊 Modo Simulação Ativo · Regras Reais por Canal</div>
-          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted2);line-height:1.6">
-            <strong>Custo:</strong> estimado por Curva ABC — A → 40% do preço (margem 60%) · B → 50% (margem 50%) · C → 60% (margem 40%).
-            Curva A reflete produtos mais eficientes (escala/barganha) e Curva C produtos menos eficientes.<br>
-            <strong>Comissão e taxas:</strong> regras REAIS da tela Precificação são aplicadas conforme o canal selecionado no filtro
-            (Shopee 14-20% + R$4-26 conforme faixa · ML 19% + R$6,75 · Shein 20% + R$5 · Dafiti 25% + R$299 mensal · Loja Própria 0%).
-            Quando "Todos os canais" → calcula <strong>média ponderada</strong> pelo share de vendas de cada canal.<br>
-            <span style="color:var(--muted2);font-size:10px">Passe o mouse na coluna "Canal Top" para ver qual regra foi aplicada em cada produto.</span>
           </div>
         </div>
 
@@ -1968,6 +1956,19 @@ body.light body::before { opacity: 0; }
           <div id="saude-rank-categorias" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
         </div>
 
+      </div>
+
+      <!-- ── Modo Simulação (no final, contexto sobre como os dados são calculados) ── -->
+      <div style="margin-top:8px;margin-bottom:14px;padding:10px 12px;background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.15);border-radius:7px">
+        <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:4px">📊 Modo Simulação Ativo · Regras Reais por Canal</div>
+        <div style="font-family:var(--fmono);font-size:11px;color:var(--muted2);line-height:1.6">
+          <strong>Custo:</strong> estimado por Curva ABC — A → 40% do preço (margem 60%) · B → 50% (margem 50%) · C → 60% (margem 40%).
+          Curva A reflete produtos mais eficientes (escala/barganha) e Curva C produtos menos eficientes.<br>
+          <strong>Comissão e taxas:</strong> regras REAIS da tela Precificação são aplicadas conforme o canal selecionado no filtro
+          (Shopee 14-20% + R$4-26 conforme faixa · ML 19% + R$6,75 · Shein 20% + R$5 · Dafiti 25% + R$299 mensal · Loja Própria 0%).
+          Quando "Todos os canais" → calcula <strong>média ponderada</strong> pelo share de vendas de cada canal.<br>
+          <span style="color:var(--muted2);font-size:10px">Passe o mouse na coluna "Canal Top" para ver qual regra foi aplicada em cada produto.</span>
+        </div>
       </div>
 
     </main>
@@ -3419,7 +3420,7 @@ function _saudeCalcularMargem(produto, params) {
         taxaFixaRS  += taxaC * share;
       });
     } else {
-      comCanalPct = (params.comissao || 12) / 100;
+      comCanalPct = (params.comissao || 0) / 100;
       taxaFixaRS = 0;
     }
     canalLabel = 'Mix ponderado';
@@ -3439,8 +3440,20 @@ function _saudeCalcularMargem(produto, params) {
     }
   } else {
     // Canal não mapeado: usa comissão geral dos parâmetros
-    comCanalPct = (params.comissao || 12) / 100;
+    comCanalPct = (params.comissao || 0) / 100;
     taxaFixaRS = 0;
+  }
+
+  // AJUSTE MANUAL DE COMISSÃO: o campo "Comissão extra %" SOMA em qualquer canal.
+  // Útil pra simular custos adicionais (intermediários, custos comerciais, etc.)
+  // que não estão na regra padrão do canal. Funciona pra TODOS os canais.
+  var ajusteComissaoExtra = (params.comissao || 0) / 100;
+  if(canal !== '__media__' || totalGmv === 0) {
+    // Já foi aplicado na linha "comCanalPct = (params.comissao..." quando canal não mapeado
+    // Para canais mapeados (com canalInfo) e mix ponderado, somamos aqui:
+    if(canalInfo || canal === '__media__') {
+      comCanalPct += ajusteComissaoExtra;
+    }
   }
 
   // Custos % do preço (parâmetros gerais)
@@ -7500,7 +7513,9 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         var limpaBR = function(v){
           return parseFloat(String(v||'').replace(/[^\d,.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0;
         };
-        dataRows.forEach(function(r) {
+        // Diagnóstico: capturar primeiras 3 linhas da aba para log
+        var amostraLog = [];
+        dataRows.forEach(function(r, idxRow) {
           if(!r || r.length < 2) return;
           var sku  = String(r[colSku] ||r[0]||'').trim();
           var nome = String(r[colNome]||r[1]||'').trim();
@@ -7510,6 +7525,26 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           var gmvProduto = (colGmv >= 0 && r[colGmv] !== undefined) ? limpaBR(r[colGmv]) : 0;
           // Preço médio direto (coluna E "Valor Médio/Un")
           var precoMedioPlanilha = (colPrecoMedio >= 0 && r[colPrecoMedio] !== undefined) ? limpaBR(r[colPrecoMedio]) : 0;
+
+          // SANITY CHECKS — proteger contra valores absurdos vindos da planilha
+          // Preço unitário de produto físico realista: R$ 0,01 a R$ 100.000
+          if(precoMedioPlanilha > 100000) {
+            console.warn('[FanClub Produtos] ⚠ Preço absurdo descartado: SKU='+sku+' valor='+precoMedioPlanilha+' (raw: '+r[colPrecoMedio]+')');
+            precoMedioPlanilha = 0;
+          }
+          // GMV de um produto num mês: R$ 0,01 a R$ 10 milhões
+          if(gmvProduto > 10000000) {
+            console.warn('[FanClub Produtos] ⚠ GMV absurdo descartado: SKU='+sku+' valor='+gmvProduto+' (raw: '+r[colGmv]+')');
+            gmvProduto = 0;
+          }
+
+          // Capturar amostra das primeiras linhas (raw + parseado) para diagnóstico
+          if(idxRow < 3 && nome && nome.length >= 2) {
+            amostraLog.push({
+              raw: { col0: r[0], col1: r[1], col2: r[colQtd], col3: r[colGmv], col4: r[colPrecoMedio] },
+              parsed: { sku: sku, nome: nome.substring(0,30), qtd: qtd, gmv: gmvProduto, precoMedio: precoMedioPlanilha }
+            });
+          }
 
           if(!nome || nome.length < 2) return;
           if(qtd <= 0 || qtd > 1000000) return;
@@ -7560,6 +7595,13 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           abasEncontradas.push(aba);
           abasOk++;
           console.log('[FanClub Produtos] ✅ "'+aba+'": '+linhasValidas+' itens (cols sku=0 nome=1 qtd=2 gmv=3 precoMedio=4)');
+          // Diagnóstico: mostrar primeiras linhas raw vs parseadas
+          if(amostraLog.length > 0) {
+            console.log('[FanClub Produtos]    Amostra das 3 primeiras linhas:');
+            amostraLog.forEach(function(a, i){
+              console.log('       linha['+i+'] RAW:', a.raw, '→ PARSED:', a.parsed);
+            });
+          }
           // Marcar mês como processado para não recarregar outras variações
           mesesJaCarregados.add(mesKey);
           // Top 3 para verificar dados
