@@ -7730,9 +7730,31 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
 
         var dataRows = rows.slice(startRow);
         var linhasValidas = 0;
-        // Helper: limpar formato BR "R$ 1.234,56" → 1234.56
+        // Helper robusto: detecta automaticamente formato BR ("1.234,56") vs US/numérico ("1234.56")
+        // Bug anterior: regex \.(?=\d{3}) removia ponto seguido de 3+ dígitos, transformando
+        // "1289.015241" (decimal real com 6 casas) em "1289015241" (1.2 bi). Solução: usar
+        // heurística clara baseada na presença de vírgula e na quantidade de pontos.
         var limpaBR = function(v){
-          return parseFloat(String(v||'').replace(/[^\d,.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0;
+          if(v === null || v === undefined || v === '') return 0;
+          // Número JS puro: usa direto (gviz frequentemente retorna c.v como número)
+          if(typeof v === 'number') return isFinite(v) ? v : 0;
+          var s = String(v).replace(/[^\d,.\-]/g, '');
+          if(!s) return 0;
+          var hasComma = s.indexOf(',') >= 0;
+          var hasDot   = s.indexOf('.') >= 0;
+          if(hasComma && hasDot) {
+            // BR completo "1.234,56" → ponto=milhar, vírgula=decimal
+            s = s.replace(/\./g, '').replace(',', '.');
+          } else if(hasComma) {
+            // Só vírgula "12,34" → BR sem milhar
+            s = s.replace(',', '.');
+          } else if(hasDot) {
+            // Só ponto: se múltiplos = BR formato milhar; se 1 = decimal (US/numérico)
+            var pontos = s.match(/\./g) || [];
+            if(pontos.length > 1) s = s.replace(/\./g, '');
+            // 1 ponto → mantém (é decimal real)
+          }
+          return parseFloat(s) || 0;
         };
         // Diagnóstico: capturar primeiras 3 linhas da aba para log
         var amostraLog = [];
