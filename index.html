@@ -8622,39 +8622,51 @@ function getMarcaProduto(sku) {
    garantindo que filtros parciais (ex: 7 dias) não inflem o resultado.
    Para SKUs sem custo real, estima pelo preço médio × % da curva ABC.
    Retorna: {total, skusReais, skusEstimados, taxa, gmvBase} ──────── */
-/* ─ Detecta se o filtro de período abrange UM OU MAIS MESES FECHADOS.
-   Mês fechado = from começa no dia 1 e to termina no último dia do mês.
-   Exemplo OK: 01/04/2026 → 30/04/2026  (Abril fechado)
-   Exemplo OK: 01/03/2026 → 30/04/2026  (Março + Abril fechados)
-   Exemplo NÃO OK: 10/04 → 20/04, 26/04 → 26/04, vazio
-   Sem filtro (from e to vazios) = "Tudo" → considera fechado (todos os meses).
-   Retorna {ok, motivo, mesesLabel}. ────────────────────────────── */
+/* ─ Detecta se o filtro de período abrange UM OU MAIS MESES VÁLIDOS.
+   Mês válido =
+     - from começa no dia 1 do mês
+     - to termina no último dia do mês  OU  to é a data de hoje no mês corrente
+   Exemplos OK:
+     - 01/04/2026 → 30/04/2026  (Abril fechado)
+     - 01/04/2026 → 26/04/2026  com hoje=26/04/2026 (Abril em andamento)
+     - 01/03/2026 → 30/04/2026  (Mar + Abr fechados)
+   Exemplos NÃO OK: 10/04 → 20/04, 26/04 → 26/04
+   Sem filtro (from e to vazios) = "Tudo" → considera válido (todos os meses).
+   Retorna {ok, motivo, mesesLabel, emAndamento}. ────────────────────── */
 function _finFiltroEhMesFechado() {
   var from = (document.getElementById('f-from')||{}).value || '';
   var to   = (document.getElementById('f-to')||{}).value   || '';
-  // Sem filtro → considera tudo (todos os meses fechados)
+  // Sem filtro → considera tudo (todos os meses)
   if(!from && !to) {
-    return { ok: true, motivo: 'todos os meses', mesesLabel: 'todos os meses' };
+    return { ok: true, motivo: 'todos os meses', mesesLabel: 'todos os meses', emAndamento: false };
   }
   // Só uma das datas → não é fechado
   if(!from || !to) {
-    return { ok: false, motivo: 'preencha ambas as datas (de/até)', mesesLabel: '' };
+    return { ok: false, motivo: 'preencha ambas as datas (de/até)', mesesLabel: '', emAndamento: false };
   }
   try {
     var d1 = new Date(from + 'T00:00');
     var d2 = new Date(to   + 'T00:00');
     if(isNaN(d1.getTime()) || isNaN(d2.getTime())) {
-      return { ok: false, motivo: 'datas inválidas', mesesLabel: '' };
+      return { ok: false, motivo: 'datas inválidas', mesesLabel: '', emAndamento: false };
     }
     // from precisa ser dia 1
     if(d1.getDate() !== 1) {
-      return { ok: false, motivo: 'período começa no meio do mês', mesesLabel: '' };
+      return { ok: false, motivo: 'período começa no meio do mês', mesesLabel: '', emAndamento: false };
     }
-    // to precisa ser o ÚLTIMO dia do mês de d2
+    // to precisa ser:
+    //   (a) último dia do mês de d2 (mês fechado), OU
+    //   (b) hoje, no mesmo mês/ano de hoje (mês corrente em andamento)
     var ultimoDiaTo = new Date(d2.getFullYear(), d2.getMonth() + 1, 0).getDate();
-    if(d2.getDate() !== ultimoDiaTo) {
-      return { ok: false, motivo: 'período termina no meio do mês', mesesLabel: '' };
+    var hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    var mesmoMesHoje = (d2.getFullYear() === hoje.getFullYear() && d2.getMonth() === hoje.getMonth());
+    var toEhUltimoDia = (d2.getDate() === ultimoDiaTo);
+    var toEhHoje = mesmoMesHoje && (d2.getDate() === hoje.getDate());
+    if(!toEhUltimoDia && !toEhHoje) {
+      return { ok: false, motivo: 'período termina no meio do mês', mesesLabel: '', emAndamento: false };
     }
+    var emAndamento = toEhHoje && !toEhUltimoDia;
     // Calcular meses cobertos
     var meses = [];
     var nomeMes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -8667,9 +8679,12 @@ function _finFiltroEhMesFechado() {
     var label = meses.length === 1 ? meses[0]
               : meses.length <= 3 ? meses.join(', ')
               : (meses.length+' meses ('+meses[0]+' a '+meses[meses.length-1]+')');
-    return { ok: true, motivo: '', mesesLabel: label };
+    if(emAndamento) {
+      label += ' (em andamento · '+d2.getDate()+'/'+ultimoDiaTo+' dias)';
+    }
+    return { ok: true, motivo: '', mesesLabel: label, emAndamento: emAndamento };
   } catch(e) {
-    return { ok: false, motivo: 'erro ao validar período', mesesLabel: '' };
+    return { ok: false, motivo: 'erro ao validar período', mesesLabel: '', emAndamento: false };
   }
 }
 
