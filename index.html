@@ -1736,7 +1736,7 @@ body.light body::before { opacity: 0; }
         <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:8px">Custos operacionais (% sobre venda)</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Comissão média %</label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px" title="Aplicada APENAS quando o canal não tem regra específica mapeada. Canais como Shopee, ML, Shein usam suas próprias regras (ver bloco 'Regras por canal' abaixo).">Comissão genérica % <span style="color:var(--muted2);font-size:9px">(fallback)</span></label>
             <input type="number" id="saude-comissao" value="12" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
@@ -1772,7 +1772,7 @@ body.light body::before { opacity: 0; }
           </div>
           <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--accent);display:block;margin-bottom:4px;font-weight:600">🎯 Margem desejada %</label>
-            <input type="number" id="saude-margem-desejada" value="30" min="0" max="100" step="0.5" oninput="saudeRecalcular()"
+            <input type="number" id="saude-margem-desejada" value="10" min="0" max="100" step="0.5" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid rgba(110,231,183,.3);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--accent);outline:none;color-scheme:dark;font-weight:600">
           </div>
         </div>
@@ -1786,6 +1786,40 @@ body.light body::before { opacity: 0; }
             (Shopee 14-20% + R$4-26 conforme faixa · ML 19% + R$6,75 · Shein 20% + R$5 · Dafiti 25% + R$299 mensal · Loja Própria 0%).
             Quando "Todos os canais" → calcula <strong>média ponderada</strong> pelo share de vendas de cada canal.<br>
             <span style="color:var(--muted2);font-size:10px">Passe o mouse na coluna "Canal Top" para ver qual regra foi aplicada em cada produto.</span>
+          </div>
+        </div>
+
+        <!-- ── Bloco de Regras por Canal (transparência) ──────────── -->
+        <div style="margin-top:12px;padding:12px;background:var(--s2);border:1px solid var(--border2);border-radius:7px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px">📋 Regras Aplicadas por Canal</div>
+            <span style="font-family:var(--fmono);font-size:9px;color:var(--muted2)">Fonte: tela Precificação · Sincronizado automaticamente</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
+              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#EE4D2D;margin-bottom:3px">🛒 Shopee</div>
+              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">14-20% comissão (faixa)<br>+ R$4-26 taxa fixa</div>
+            </div>
+            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
+              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#FFD700;margin-bottom:3px">🛍️ Mercado Livre</div>
+              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">19% comissão<br>+ R$6,75 taxa fixa</div>
+            </div>
+            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
+              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#FF6B9D;margin-bottom:3px">👗 Shein</div>
+              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">20% comissão<br>+ R$5,00 taxa fixa</div>
+            </div>
+            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
+              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#FF6900;margin-bottom:3px">👟 Dafiti</div>
+              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">25% comissão<br>+ R$299/mês diluída</div>
+            </div>
+            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
+              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#69C9D0;margin-bottom:3px">🎵 TikTok Shop</div>
+              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">12% comissão<br>+ R$4,00 taxa fixa</div>
+            </div>
+            <div style="padding:8px;background:var(--s);border:1px solid var(--border);border-radius:5px">
+              <div style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;font-weight:700;color:#6EE7B7;margin-bottom:3px">🏪 Loja Própria</div>
+              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">0% comissão<br>Aplica Financeiro %</div>
+            </div>
           </div>
         </div>
       </div>
@@ -3106,7 +3140,7 @@ function _saudeGetParams() {
     custoFixo: num('saude-custo-fixo', 0),
     frete:     num('saude-frete', 0),
     financeiro:num('saude-financeiro', 0),
-    margemDesejada: num('saude-margem-desejada', 30)
+    margemDesejada: num('saude-margem-desejada', 10)
   };
 }
 
@@ -3207,10 +3241,20 @@ function _saudeColetarProdutos() {
       var qtdCanal = qtdPeriodo * shareCanalQtd;
       var gmvCanal = gmvPeriodo * shareCanalGmv;
 
-      // Preço médio: do GMV/qtd da planilha (não muda com canal porque é o mesmo SKU)
-      var precoMedio = (gmvPeriodo > 0 && qtdPeriodo > 0)
-        ? (gmvPeriodo / qtdPeriodo)
-        : (totalQtdPedidos > 0 ? totalGmvPedidos / totalQtdPedidos : 0);
+      // Preço médio: ORDEM DE PRIORIDADE
+      // 1. Coluna E da planilha (Valor Médio/Un) — fonte mais direta e confiável
+      // 2. GMV/qtd da planilha — derivado do total
+      // 3. Ticket médio global dos pedidos — último recurso
+      var precoMedio = 0;
+      if(p.precoMedioPlanilha && p.precoMedioPlanilha > 0) {
+        precoMedio = p.precoMedioPlanilha;
+      } else if(gmvPeriodo > 0 && qtdPeriodo > 0) {
+        precoMedio = gmvPeriodo / qtdPeriodo;
+      } else if(p.qtd > 0 && p.gmv > 0) {
+        precoMedio = p.gmv / p.qtd;
+      } else if(totalQtdPedidos > 0) {
+        precoMedio = totalGmvPedidos / totalQtdPedidos;
+      }
 
       // Canal e regras:
       // - Se canal específico: usa regras desse canal
@@ -3372,7 +3416,7 @@ function _saudeCalcularMargem(produto, params) {
   // Equação: preço − custo − preço × pctProp − taxaFixa = preço × margemDesejada
   // ⇒ preço × (1 − pctProp − margemDesejada) = custo + taxaFixa + extraDafiti
   // ⇒ preço = (custo + taxaFixa + extra) / (1 − pctProp − margemDesejada)
-  var margemAlvo = (params.margemDesejada || 30) / 100;
+  var margemAlvo = (params.margemDesejada || 10) / 100;
   var precoSugerido = 0;
   var denom = 1 - pctDeducoesProporcionais - margemAlvo;
   if(denom > 0.01) {
@@ -7373,6 +7417,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         if(header) {
           var foundHeader = false;
           var colGmv = -1;  // valor total vendido (coluna D na planilha do usuário)
+          var colPrecoMedio = -1;  // valor médio/unitário (coluna E na planilha do usuário)
           header.forEach(function(h, ci) {
             var s = String(h||'').toLowerCase().trim()
               .normalize('NFD').replace(/[\u0300-\u036f]/g,''); // remover acentos
@@ -7385,6 +7430,15 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
             else if(s.includes('nome')||s.includes('produto')||s.includes('descricao')||
                     s.includes('descr')||s==='titulo'||s==='artigo') {
               colNome=ci; foundHeader=true;
+            }
+            // Coluna E — Valor Médio/Unitário (testar ANTES de qtd para não confundir)
+            else if(s.includes('valor medio')||s.includes('valor med')||
+                    s.includes('preco medio')||s.includes('preco med')||
+                    s.includes('vlr medio')||s.includes('vlr med')||
+                    s.includes('medio') || s.includes('media')||
+                    s.includes('preco unit')||s.includes('valor unit')||
+                    s==='unitario'||s==='preco') {
+              colPrecoMedio=ci; foundHeader=true;
             }
             // Coluna C — quantidade
             else if(s==='qtd'||s==='quantidade'||s==='quant'||s==='qty'||
@@ -7399,8 +7453,8 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
             }
           });
           if(foundHeader) startRow = 1;
-          console.log('[FanClub Produtos] Colunas detectadas: sku='+colSku+' nome='+colNome+' qtd='+colQtd+' gmv='+colGmv+' startRow='+startRow);
-          console.log('[FanClub Produtos] Header:', header.slice(0,5).join(' | '));
+          console.log('[FanClub Produtos] Colunas detectadas: sku='+colSku+' nome='+colNome+' qtd='+colQtd+' gmv='+colGmv+' precoMedio='+colPrecoMedio+' startRow='+startRow);
+          console.log('[FanClub Produtos] Header:', header.slice(0,6).join(' | '));
           // Se header não detectado, logar primeira linha para diagnóstico
           if(!foundHeader && rows[0]) {
             console.log('[FanClub Produtos] Header não detectado — usando padrão A=SKU B=Nome C=Qtd');
@@ -7416,12 +7470,16 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           var nome = String(r[colNome]||r[1]||'').trim();
           var qtdRaw = r[colQtd] !== undefined ? r[colQtd] : r[2];
           var qtd  = parseFloat(qtdRaw)||0;
-          // GMV (Vlr Total Vendido) — limpa formatação BR "R$ 1.234,56"
+          // Helper: limpar formato BR "R$ 1.234,56" → 1234.56
+          var limpaBR = function(v){
+            return parseFloat(String(v||'').replace(/[^\d,.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0;
+          };
+          // GMV (Vlr Total Vendido)
           var gmvProduto = 0;
-          if(colGmv >= 0 && r[colGmv] !== undefined) {
-            var gmvRaw = String(r[colGmv]||'').replace(/[^\d,.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');
-            gmvProduto = parseFloat(gmvRaw)||0;
-          }
+          if(colGmv >= 0 && r[colGmv] !== undefined) gmvProduto = limpaBR(r[colGmv]);
+          // Preço médio direto da planilha (coluna E "Valor Médio/Un")
+          var precoMedioPlanilha = 0;
+          if(colPrecoMedio >= 0 && r[colPrecoMedio] !== undefined) precoMedioPlanilha = limpaBR(r[colPrecoMedio]);
 
           if(!nome || nome.length < 2) return;
           if(qtd <= 0 || qtd > 1000000) return;
@@ -7434,12 +7492,21 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           var nomeBase = nome.replace(/\s*[-–]\s*\d{2,4}\s*$/, '').replace(/\s+\d{2,4}\s*$/, '').trim() || nome;
           if(!skuBase) skuBase = nomeBase.substring(0,20);
 
-          if(!novoMap[skuBase]) novoMap[skuBase] = {nome: nomeBase, sku: skuBase, cod: skuBase, gmv:0, qtd: 0, tamanhos: {}, por_mes: {}, gmv_por_mes: {}};
+          // Se GMV não veio mas preço médio veio: derivar GMV
+          if(gmvProduto === 0 && precoMedioPlanilha > 0 && qtd > 0) {
+            gmvProduto = precoMedioPlanilha * qtd;
+          }
+
+          if(!novoMap[skuBase]) novoMap[skuBase] = {nome: nomeBase, sku: skuBase, cod: skuBase, gmv:0, qtd: 0, tamanhos: {}, por_mes: {}, gmv_por_mes: {}, precoMedioPlanilha: 0};
           novoMap[skuBase].qtd += qtd;
           novoMap[skuBase].gmv += gmvProduto;
           novoMap[skuBase].por_mes[mesKey] = (novoMap[skuBase].por_mes[mesKey]||0) + qtd;
           if(!novoMap[skuBase].gmv_por_mes) novoMap[skuBase].gmv_por_mes = {};
           novoMap[skuBase].gmv_por_mes[mesKey] = (novoMap[skuBase].gmv_por_mes[mesKey]||0) + gmvProduto;
+          // Preço médio direto: pega o maior (= preço atual ou mais recente)
+          if(precoMedioPlanilha > 0 && precoMedioPlanilha > (novoMap[skuBase].precoMedioPlanilha||0)) {
+            novoMap[skuBase].precoMedioPlanilha = precoMedioPlanilha;
+          }
 
           // Tamanhos: extrair de SKU ou nome
           var tamM = sku.match(/-(\d{2,3})$/) || nome.match(/[-\s](\d{2,3})\s*$/);
