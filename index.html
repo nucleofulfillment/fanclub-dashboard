@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Veltro — Analytics</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -35,13 +35,28 @@
   --blue:     #60A5FA;
   --fhead:    'Syne', sans-serif;
   --fmono:    'JetBrains Mono', monospace;
-  --fdisplay: 'Clash Display', 'Syne', sans-serif;
+  --fdisplay: 'Inter', 'Syne', sans-serif;
   --r:        14px;
   --glow:     0 0 40px rgba(110,231,183,0.07);
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
+
+/* ─ Tipografia: melhor leitura de números ──────────────────────────
+   Aplicamos:
+   - tabular-nums: todos os dígitos têm a mesma largura (alinha colunas e facilita comparação)
+   - font-feature-settings: 'tnum' 1, 'lnum' 1 — números proporcionais e tabulares
+   - Inter (fdisplay) para KPIs grandes — leitura mais limpa que Clash/Syne
+   - Peso padrão reduzido de 800/900 para 600/700 (menos "negrito carregado")
+*/
+body, .kpi, .val, [class*="kpi"], table, .stat, .num,
+[style*="font-family:var(--fdisplay)"], [style*="font-family: var(--fdisplay)"],
+[style*="font-family:var(--fmono)"], [style*="font-family: var(--fmono)"] {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+.val { font-weight: 600 !important; letter-spacing: -.01em; }
 
 body {
   font-family: var(--fhead);
@@ -68,7 +83,7 @@ body::before {
   padding:0 32px; height:60px;
   display:flex; align-items:center; justify-content:space-between;
 }
-.logo { display:flex; align-items:center; gap:10px; font-size:17px; font-weight:800; letter-spacing:-.4px; }
+.logo { display:flex; align-items:center; gap:10px; font-size:17px; font-weight:700; letter-spacing:-.4px; }
 .logo-dot { width:8px; height:8px; background:var(--accent); border-radius:50%; box-shadow:0 0 12px var(--accent); animation:blink 2s infinite; }
 @keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.5)}}
 .logo-sub { color:var(--muted); font-weight:400; }
@@ -837,7 +852,7 @@ body.light body::before { opacity: 0; }
       <path d="M7 14 L12 9 L17 14 L12 19Z" fill="#6EE7B7" opacity=".9"/>
       <path d="M13 14 L18 9 L23 14 L18 19Z" fill="#6EE7B7" opacity=".5"/>
     </svg>
-    <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;letter-spacing:-1px;color:var(--text)">Veltro</div>
+    <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:700;letter-spacing:-1px;color:var(--text)">Veltro</div>
     <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:4px">Inteligência para quem vende em múltiplos canais</div>
   </div>
   <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:380px">
@@ -879,7 +894,7 @@ body.light body::before { opacity: 0; }
         <path d="M7 14 L12 9 L17 14 L12 19Z" fill="#6EE7B7" opacity=".9"/>
         <path d="M13 14 L18 9 L23 14 L18 19Z" fill="#6EE7B7" opacity=".5"/>
       </svg>
-      <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--text)">
+      <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--text)">
         Olá, <span id="onb-nome-empresa" style="color:var(--accent)">empresa</span>! 👋
       </div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:6px">
@@ -995,7 +1010,7 @@ body.light body::before { opacity: 0; }
       <path d="M7 14 L12 9 L17 14 L12 19Z" fill="#6EE7B7" opacity=".9"/>
       <path d="M13 14 L18 9 L23 14 L18 19Z" fill="#6EE7B7" opacity=".5"/>
     </svg>
-    <span style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-.5px;color:var(--text)">Veltro</span>
+    <span style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.5px;color:var(--text)">Veltro</span>
   </div>
   <div class="hdr-right">
     <span class="hdr-time" id="hdr-time">—</span>
@@ -1204,7 +1219,7 @@ body.light body::before { opacity: 0; }
       </div>
       <div style="display:flex;align-items:flex-start;gap:12px">
         <div style="flex:1;min-width:0">
-          <div style="font-family:var(--fdisplay);font-size:56px;font-weight:900;color:var(--amber);line-height:1;letter-spacing:-2px" id="alert-n">0</div>
+          <div style="font-family:var(--fdisplay);font-size:56px;font-weight:700;color:var(--amber);line-height:1;letter-spacing:-2px" id="alert-n">0</div>
           <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:4px">status Aprovado</div>
         </div>
         <div style="width:80px;flex-shrink:0">
@@ -2342,7 +2357,7 @@ body.light body::before { opacity: 0; }
             <span style="font-family:var(--fdisplay);font-size:18px;font-weight:700;color:var(--muted)">R$</span>
             <input type="number" id="prec-custo-top" placeholder="12,50" min="0" step="0.01"
               oninput="document.getElementById('prec-custo').value=this.value;calcPreco()"
-              style="flex:1;background:transparent;border:none;border-bottom:2px solid var(--amber);outline:none;font-family:var(--fdisplay);font-size:32px;font-weight:900;color:var(--amber);padding:4px 0;color-scheme:dark">
+              style="flex:1;background:transparent;border:none;border-bottom:2px solid var(--amber);outline:none;font-family:var(--fdisplay);font-size:32px;font-weight:700;color:var(--amber);padding:4px 0;color-scheme:dark">
           </div>
           <div id="prec-custo-sub" style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:6px">Custo unitário do produto</div>
         </div>
@@ -2352,7 +2367,7 @@ body.light body::before { opacity: 0; }
             <span style="font-family:var(--fdisplay);font-size:20px;font-weight:700;color:var(--muted)">R$</span>
             <input type="number" id="prec-preco-top" placeholder="0,00" min="0" step="0.01"
               oninput="document.getElementById('prec-preco').value=this.value;calcPreco()"
-              style="flex:1;background:transparent;border:none;border-bottom:2px solid var(--accent);outline:none;font-family:var(--fdisplay);font-size:40px;font-weight:900;color:var(--accent);padding:4px 0;color-scheme:dark">
+              style="flex:1;background:transparent;border:none;border-bottom:2px solid var(--accent);outline:none;font-family:var(--fdisplay);font-size:40px;font-weight:700;color:var(--accent);padding:4px 0;color-scheme:dark">
           </div>
           <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:6px">Preço cobrado ao cliente</div>
         </div>
@@ -2361,7 +2376,7 @@ body.light body::before { opacity: 0; }
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
             <input type="number" id="prec-meta-margem-top" value="20" min="0" max="100" step="1"
               oninput="try{document.getElementById('prec-meta-margem').value=this.value;}catch(e){}calcPrecoMinimo();renderPrecosMinimosPorCanal();"
-              style="width:80px;background:var(--s2);border:1px solid rgba(129,140,248,.4);border-radius:8px;outline:none;font-family:var(--fdisplay);font-size:36px;font-weight:900;color:#818CF8;text-align:center;padding:4px 8px;color-scheme:dark">
+              style="width:80px;background:var(--s2);border:1px solid rgba(129,140,248,.4);border-radius:8px;outline:none;font-family:var(--fdisplay);font-size:36px;font-weight:700;color:#818CF8;text-align:center;padding:4px 8px;color-scheme:dark">
             <span style="font-family:var(--fdisplay);font-size:28px;font-weight:700;color:#818CF8">%</span>
           </div>
           <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);line-height:1.5">Impacta o preço mínimo<br>sugerido por canal abaixo</div>
@@ -2584,7 +2599,7 @@ body.light body::before { opacity: 0; }
             <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">⑥ Resultado</div>
             <div style="text-align:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:14px">
               <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-bottom:4px">LUCRO LÍQUIDO</div>
-              <div id="prec-lucro" style="font-family:var(--fdisplay);font-size:52px;font-weight:900;letter-spacing:-2px;color:var(--green)">—</div>
+              <div id="prec-lucro" style="font-family:var(--fdisplay);font-size:52px;font-weight:700;letter-spacing:-2px;color:var(--green)">—</div>
               <div id="prec-margem" style="font-family:var(--fmono);font-size:16px;color:var(--muted);margin-top:4px">— de margem</div>
             </div>
             <!-- Breakdown de custos -->
@@ -4815,7 +4830,7 @@ function renderAll(d){
         // GMV
         '<div>'+
           '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">GMV<\/div>'+
-          '<div style="font-family:var(--fdisplay);font-size:15px;font-weight:800;color:var(--text)">'+fMF(info.gmv)+'<\/div>'+
+          '<div style="font-family:var(--fdisplay);font-size:15px;font-weight:700;color:var(--text)">'+fMF(info.gmv)+'<\/div>'+
         '<\/div>'+
 
         // Comissão
@@ -4828,7 +4843,7 @@ function renderAll(d){
         // Líquido — destaque
         '<div style="background:rgba(110,231,183,.06);border-radius:8px;padding:8px">'+
           '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Líquido<\/div>'+
-          '<div style="font-family:var(--fdisplay);font-size:16px;font-weight:800;color:var(--green)">'+fMF(liq)+'<\/div>'+
+          '<div style="font-family:var(--fdisplay);font-size:16px;font-weight:700;color:var(--green)">'+fMF(liq)+'<\/div>'+
         '<\/div>'+
 
         // Rodapé: prazo, data e participação
@@ -7082,7 +7097,7 @@ function renderPrecosMinimosPorCanal() {
   var metaAtual = parseFloat((document.getElementById('prec-meta-margem-top')||{}).value)||20;
   var margCard = '<div style="background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.3);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;align-items:center">'+
     '<div style="font-family:var(--fmono);font-size:9px;color:#818CF8;margin-bottom:2px">MARGEM ALVO</div>'+
-    '<div style="font-family:var(--fdisplay);font-size:22px;font-weight:900;color:#818CF8">'+metaAtual+'%</div>'+
+    '<div style="font-family:var(--fdisplay);font-size:22px;font-weight:700;color:#818CF8">'+metaAtual+'%</div>'+
   '</div>';
 
   el.innerHTML = margCard + Object.keys(PREC_CANAIS).map(function(c) {
@@ -7815,7 +7830,7 @@ function renderGMVCanalLista(canais) {
       // GMV
       '<div>'+
         '<div style="font-family:var(--fmono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">GMV</div>'+
-        '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:800;color:var(--text);line-height:1.2">'+fMF(item.gmv)+'</div>'+
+        '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--text);line-height:1.2">'+fMF(item.gmv)+'</div>'+
       '</div>'+
       // Pedidos (se disponível)
       (item.qtd > 0 ? '<div>'+
@@ -7824,7 +7839,7 @@ function renderGMVCanalLista(canais) {
       '</div>' : '')+
       // Participação
       '<div style="background:'+cor+'18;border-radius:6px;padding:3px 6px">'+
-        '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:800;color:'+cor+'">'+pct+'%</div>'+
+        '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:'+cor+'">'+pct+'%</div>'+
       '</div>'+
     '</div>';
   }).join('') +
@@ -7840,14 +7855,14 @@ function renderGMVCanalLista(canais) {
     '</div>'+
     '<div>'+
       '<div style="font-family:var(--fmono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">GMV</div>'+
-      '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:800;color:var(--accent);line-height:1.2">'+fMF(totalGMV)+'</div>'+
+      '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--accent);line-height:1.2">'+fMF(totalGMV)+'</div>'+
     '</div>'+
     (totalPed > 0 ? '<div>'+
       '<div style="font-family:var(--fmono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Pedidos</div>'+
       '<div style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:var(--text)">'+totalPed.toLocaleString('pt-BR')+'</div>'+
     '</div>' : '')+
     '<div style="background:rgba(110,231,183,.15);border-radius:6px;padding:3px 6px">'+
-      '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:800;color:var(--accent)">100%</div>'+
+      '<div style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--accent)">100%</div>'+
     '</div>'+
   '</div>';
 }
