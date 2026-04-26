@@ -317,6 +317,72 @@ body.light body::before { opacity: 0; }
 
 /* Tooltip no modo recolhido */
 .nav-item { position: relative; }
+
+/* ─────────────────────────────────────────────────────────────────
+   INDICADOR DE INTEGRAÇÃO — itens conectados pelo filtro global
+   Dashboard → Financeiro → Marketing compartilham o mesmo filtro.
+   - .sync-dot: bolinha pulsante ao lado do texto do menu
+   - .nav-item[data-sync] ::before: linha gradient lateral animada
+   ───────────────────────────────────────────────────────────────── */
+.nav-item[data-sync="filtro-global"] {
+  /* Reservar espaço pra borda lateral animada à esquerda */
+}
+.nav-item[data-sync="filtro-global"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(110, 231, 183, .9) 25%,
+    rgba(96, 165, 250, .9) 50%,
+    rgba(244, 114, 182, .9) 75%,
+    transparent 100%);
+  background-size: 100% 300%;
+  background-position: 0% 0%;
+  animation: syncFlow 4.5s linear infinite;
+  border-radius: 0 2px 2px 0;
+  opacity: .7;
+  pointer-events: none;
+}
+.nav-item[data-sync="filtro-global"]:hover::before,
+.nav-item[data-sync="filtro-global"].active::before {
+  opacity: 1;
+  width: 4px;
+}
+@keyframes syncFlow {
+  0%   { background-position: 0%   0%; }
+  100% { background-position: 0% 300%; }
+}
+
+/* Bolinha pulsante ao lado do texto */
+.sync-dot {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(110, 231, 183, .6);
+  animation: syncPulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes syncPulse {
+  0%, 100% { opacity: .4; transform: translateY(-50%) scale(.85); }
+  50%      { opacity: 1;  transform: translateY(-50%) scale(1.15); }
+}
+/* Esconder bolinha no modo recolhido (já há tooltip + a borda lateral fica visível) */
+.sidebar.collapsed .sync-dot { display: none; }
+
+/* Respeitar usuários com preferência de movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  .nav-item[data-sync="filtro-global"]::before,
+  .sync-dot { animation: none; }
+}
 .sidebar.collapsed .nav-item::after {
   content: attr(data-label);
   position: absolute; left: calc(100% + 10px); top: 50%;
@@ -1027,17 +1093,19 @@ body.light body::before { opacity: 0; }
 
   <div class="sidebar-section">
     <div class="sidebar-label">Principal</div>
-    <div class="nav-item active" onclick="showPage('dashboard',this)" data-page="dashboard" data-label="Dashboard">
+    <div class="nav-item active" onclick="showPage('dashboard',this)" data-page="dashboard" data-label="Dashboard" data-sync="filtro-global">
       <span class="nav-icon">📊</span>
       <span>Dashboard</span>
+      <span class="sync-dot" title="Sincronizado com filtro global"></span>
     </div>
   </div>
 
   <div class="sidebar-section">
     <div class="sidebar-label">Análises</div>
-    <div class="nav-item" onclick="showPage('financeiro',this)" data-page="financeiro" data-label="Financeiro">
+    <div class="nav-item" onclick="showPage('financeiro',this)" data-page="financeiro" data-label="Financeiro" data-sync="filtro-global">
       <span class="nav-icon">💰</span>
       <span>Financeiro & Vendas</span>
+      <span class="sync-dot" title="Sincronizado com filtro global"></span>
     </div>
     <div class="nav-item" onclick="showPage('pedidos',this)" data-page="pedidos" data-label="Pedidos">
       <span class="nav-icon">📋</span>
@@ -1047,9 +1115,10 @@ body.light body::before { opacity: 0; }
       <span class="nav-icon">📦</span>
       <span>Estoque</span>
     </div>
-    <div class="nav-item" onclick="showPage('marketing',this)" data-page="marketing" data-label="Marketing">
+    <div class="nav-item" onclick="showPage('marketing',this)" data-page="marketing" data-label="Marketing" data-sync="filtro-global">
       <span class="nav-icon">📣</span>
       <span>Marketing</span>
+      <span class="sync-dot" title="Sincronizado com filtro global"></span>
     </div>
     <div class="nav-item" onclick="showPage('fluxocaixa',this)" data-page="fluxocaixa" data-label="Fluxo de Caixa">
       <span class="nav-icon">💵</span>
@@ -1092,13 +1161,11 @@ body.light body::before { opacity: 0; }
 <!-- App content -->
 <div class="app-content">
 
-  <!-- PAGE: DASHBOARD -->
-  <div id="page-dashboard" class="page active">
-    <main class="main">
-
-
-  <!-- Filter bar -->
-  <div class="fbar fu d1">
+  <!-- ╔══════════════════════════════════════════════════════╗ -->
+  <!-- ║ FILTRO GLOBAL — aplica em Dashboard, Financeiro,    ║ -->
+  <!-- ║ Marketing e Resumos. Inputs locais são read-only.   ║ -->
+  <!-- ╚══════════════════════════════════════════════════════╝ -->
+  <div class="fbar fu d1" id="filtro-global" style="margin-bottom:14px">
     <span class="flbl">Período</span>
     <div class="fpresets">
       <button class="ftab" onclick="setPreset('hoje',this)">Hoje</button>
@@ -1106,14 +1173,15 @@ body.light body::before { opacity: 0; }
       <button class="ftab" onclick="setPreset('30d',this)">30 dias</button>
       <button class="ftab" onclick="setPreset('mes',this)">Este mês</button>
       <button class="ftab on" onclick="setPreset('tudo',this)">Tudo</button>
+      <button class="ftab" id="preset-custom" style="display:none" onclick="event.preventDefault()" title="Período personalizado ativo">Personalizado</button>
     </div>
     <div class="fsep"></div>
     <div class="fdates">
       <span class="flbl">De</span>
-      <input type="date" class="fdate" id="f-from">
+      <input type="date" class="fdate" id="f-from" oninput="marcarPersonalizado()">
       <span class="farrow">→</span>
       <span class="flbl">Até</span>
-      <input type="date" class="fdate" id="f-to">
+      <input type="date" class="fdate" id="f-to" oninput="marcarPersonalizado()">
       <button class="fbtn" onclick="applyFilter()">Filtrar</button>
     </div>
     <div class="fsep"></div>
@@ -1129,6 +1197,13 @@ body.light body::before { opacity: 0; }
     </select>
     <div class="finfo" id="f-info">Todos os registros</div>
   </div>
+
+  <!-- PAGE: DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <main class="main">
+
+
+  <!-- Filter bar antiga (mantida vazia para preservar referências; não exibe nada) -->
 
   <!-- KPIs -->
   <div class="slabel">indicadores principais</div>
@@ -1352,23 +1427,16 @@ body.light body::before { opacity: 0; }
     <main class="main">
 
       <!-- Filtro de datas independente do Financeiro -->
-      <div class="fbar" style="margin-bottom:20px">
-        <span class="flbl">Período</span>
-        <div class="fpresets">
-          <button class="ftab" onclick="setPresetFin('hoje',this)">Hoje</button>
-          <button class="ftab" onclick="setPresetFin('7d',this)">7 dias</button>
-          <button class="ftab" onclick="setPresetFin('30d',this)">30 dias</button>
-          <button class="ftab" onclick="setPresetFin('mes',this)">Este mês</button>
-          <button class="ftab on" onclick="setPresetFin('tudo',this)">Tudo</button>
-        </div>
+      <!-- Filtro local Financeiro — sincronizado com filtro global (read-only) -->
+      <div class="fbar" style="margin-bottom:20px;opacity:.85">
+        <span class="flbl" style="color:var(--accent)">⚙ Período (sincronizado com filtro global)</span>
         <div class="fsep"></div>
         <div class="fdates">
           <span class="flbl">De</span>
-          <input type="date" class="fdate" id="fin-from">
+          <input type="date" class="fdate" id="fin-from" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
           <span class="farrow">→</span>
           <span class="flbl">Até</span>
-          <input type="date" class="fdate" id="fin-to">
-          <button class="fbtn" onclick="applyFilterFin()">Filtrar</button>
+          <input type="date" class="fdate" id="fin-to" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
         </div>
         <div class="finfo" id="fin-info">Todos os registros</div>
       </div>
@@ -1684,23 +1752,16 @@ body.light body::before { opacity: 0; }
   <div id="page-marketing" class="page">
     <main class="main">
 
-      <!-- Filtro de período -->
-      <div class="fbar" style="margin-bottom:20px">
-        <span class="flbl">Período</span>
-        <div class="fpresets">
-          <button class="ftab" onclick="setPresetMkt('7d',this)">7 dias</button>
-          <button class="ftab" onclick="setPresetMkt('30d',this)">30 dias</button>
-          <button class="ftab on" onclick="setPresetMkt('mes',this)">Este mês</button>
-          <button class="ftab" onclick="setPresetMkt('tudo',this)">Tudo</button>
-        </div>
+      <!-- Filtro local Marketing — sincronizado com filtro global (read-only) -->
+      <div class="fbar" style="margin-bottom:20px;opacity:.85">
+        <span class="flbl" style="color:var(--accent)">⚙ Período (sincronizado com filtro global)</span>
         <div class="fsep"></div>
         <div class="fdates">
           <span class="flbl">De</span>
-          <input type="date" class="fdate" id="mkt-from">
+          <input type="date" class="fdate" id="mkt-from" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
           <span class="farrow">→</span>
           <span class="flbl">Até</span>
-          <input type="date" class="fdate" id="mkt-to">
-          <button class="fbtn" onclick="calcMarketing()">Calcular</button>
+          <input type="date" class="fdate" id="mkt-to" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
         </div>
         <div class="finfo" id="mkt-info">—</div>
       </div>
@@ -2732,8 +2793,18 @@ function getPedidos() {
 }
 
 function setPreset(p,btn){
-  document.querySelectorAll('.ftab').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
+  document.querySelectorAll('#filtro-global .ftab').forEach(b=>b.classList.remove('on'));
+  // Esconder o botão Personalizado quando um preset oficial é escolhido
+  try { var pc = document.getElementById('preset-custom'); if(pc) pc.style.display = 'none'; } catch(e){}
+  // Marcar o botão clicado (ou o correspondente se foi chamado sem btn — via redirect de setPresetFin/Mkt)
+  if(btn) btn.classList.add('on');
+  else {
+    // Achar o botão pelo onclick — fallback para chamadas programáticas
+    var alvo = Array.from(document.querySelectorAll('#filtro-global .ftab')).find(function(b){
+      return (b.getAttribute('onclick')||'').indexOf("'"+p+"'") !== -1;
+    });
+    if(alvo) alvo.classList.add('on');
+  }
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth(); // 0-based
@@ -2770,12 +2841,78 @@ function setPreset(p,btn){
   applyFilter();
 }
 
+/* ─ Estado "Personalizado" do filtro de período ─────────────────
+   Desmarca os botões padrão e ativa o botão "Personalizado" quando
+   o usuário edita as datas manualmente — apenas visual, não muda lógica. */
+function marcarPersonalizado() {
+  try {
+    document.querySelectorAll('#filtro-global .ftab').forEach(function(b){ b.classList.remove('on'); });
+    var pc = document.getElementById('preset-custom');
+    if(pc) {
+      pc.style.display = '';
+      pc.classList.add('on');
+    }
+  } catch(e){}
+}
+
+/* Detectar se o filtro atual bate com algum preset oficial e marcar o botão certo.
+   Se não bater com nenhum, ativa "Personalizado". Chamado após applyFilter(). */
+function _atualizarBotaoPresetAtivo() {
+  try {
+    var from = (document.getElementById('f-from')||{}).value || '';
+    var to   = (document.getElementById('f-to')  ||{}).value || '';
+    var t = td();
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth();
+
+    // Calcular cada preset
+    var d7 = new Date(now); d7.setDate(d7.getDate()-6);
+    var d30 = new Date(now); d30.setDate(d30.getDate()-29);
+    var presets = {
+      'hoje': {from: t, to: t},
+      '7d':   {from: d7.toISOString().split('T')[0],  to: t},
+      '30d':  {from: d30.toISOString().split('T')[0], to: t},
+      'mes':  {from: y+'-'+String(m+1).padStart(2,'0')+'-01', to: t},
+      'tudo': {from: '', to: ''}
+    };
+
+    var match = null;
+    Object.keys(presets).forEach(function(k){
+      var p = presets[k];
+      if(p.from === from && p.to === to) match = k;
+    });
+
+    document.querySelectorAll('#filtro-global .ftab').forEach(function(b){ b.classList.remove('on'); });
+    var pc = document.getElementById('preset-custom');
+    if(match) {
+      // Bate com um preset — marcar o botão correspondente, esconder Personalizado
+      var alvo = Array.from(document.querySelectorAll('#filtro-global .fpresets .ftab')).find(function(b){
+        return (b.getAttribute('onclick')||'').indexOf("'"+match+"'") !== -1;
+      });
+      if(alvo) alvo.classList.add('on');
+      if(pc) pc.style.display = 'none';
+    } else {
+      // Não bate — ativar Personalizado
+      if(pc) {
+        pc.style.display = '';
+        pc.classList.add('on');
+      }
+    }
+  } catch(e){}
+}
+
 function applyFilter(){
   var from = document.getElementById('f-from').value; // "YYYY-MM-DD" ou ""
   var to   = document.getElementById('f-to').value;   // "YYYY-MM-DD" ou ""
   var canalFilter = (document.getElementById('f-canal')||{}).value || '';
   // Salvar filtro atual globalmente para uso em makeCharts (período anterior)
-  window._filtroAtual = {from: from, to: to};
+  window._filtroAtual = {from: from, to: to, canal: canalFilter};
+
+  // ATUALIZAR o botão de preset ativo (ou Personalizado se não bater com nenhum)
+  _atualizarBotaoPresetAtivo();
+
+  // SINCRONIZAR filtros locais (read-only) e disparar recálculo nos menus afetados
+  sincronizarFiltrosLocais(from, to);
 
   var pedidos = getPedidos();
 
@@ -2791,11 +2928,48 @@ function applyFilter(){
 
   var fi   = document.getElementById('f-info');
   var pill = document.getElementById('pill-per');
-  if(!from&&!to){ fi.textContent=filtered.length+' registros · período completo'; pill.textContent='Período completo'; }
-  else { var f=from?fD(from):'...'; var t2=to?fD(to):'hoje'; fi.textContent=filtered.length+' registros · '+f+' → '+t2; pill.textContent=f+' – '+t2; }
+  if(!from&&!to){
+    fi.textContent = filtered.length + ' registros · período completo' + (canalFilter ? ' · canal: '+canalFilter : '');
+    if(pill) pill.textContent = 'Período completo';
+  } else {
+    var f=from?fD(from):'...'; var t2=to?fD(to):'hoje';
+    fi.textContent = filtered.length + ' registros · ' + f + ' → ' + t2 + (canalFilter ? ' · canal: '+canalFilter : '');
+    if(pill) pill.textContent = f+' – '+t2;
+  }
 
   if(filtered.length===0){ renderEmpty(); return; }
   renderAll(processarDados(filtered));
+
+  // Após renderAll atualizar Financeiro e Marketing também (usam o mesmo dataset filtrado)
+  // Não dispara se a página atual é Pedidos/Estoque/Precificação/etc — eles não dependem.
+  try { if(typeof syncFinanceiroKPIs === 'function' && window._lastProcessedData) syncFinanceiroKPIs(window._lastProcessedData); } catch(e){}
+  try { if(typeof calcMarketing === 'function') calcMarketing(); } catch(e){}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SINCRONIZAÇÃO DE FILTROS LOCAIS (READ-ONLY)
+   Os inputs em Financeiro e Marketing são apenas display — eles
+   refletem o filtro global. Esta função propaga o valor.
+═══════════════════════════════════════════════════════════════ */
+function sincronizarFiltrosLocais(from, to) {
+  var ids = ['fin-from', 'mkt-from'];  // inputs "from" locais
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = from || '';
+  });
+  var idsTo = ['fin-to', 'mkt-to'];
+  idsTo.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = to || '';
+  });
+  // Atualizar texto informativo dos filtros locais
+  var infoTxt;
+  if(!from && !to) infoTxt = 'Todos os registros';
+  else infoTxt = (from?fD(from):'...') + ' → ' + (to?fD(to):'hoje');
+  ['fin-info', 'mkt-info'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.textContent = infoTxt;
+  });
 }
 
 /* ─ image error handler ─ */
@@ -3673,6 +3847,17 @@ function showPage(pageId, navEl) {
   if(navEl) navEl.classList.add('active');
   // Close sidebar on mobile
   if(window.innerWidth <= 900) closeSidebar();
+
+  // FILTRO GLOBAL: visível apenas em Dashboard, Financeiro e Marketing
+  // (são os 3 menus que processam pedidos por período)
+  try {
+    var fg = document.getElementById('filtro-global');
+    if(fg) {
+      var pgsComFiltro = ['dashboard', 'financeiro', 'marketing'];
+      fg.style.display = pgsComFiltro.indexOf(pageId) !== -1 ? '' : 'none';
+    }
+  } catch(e){}
+
   // If estoque page, render estoque content
   if(pageId === 'estoque') renderEstoque();
   // If pedidos page, render pedidos
@@ -3682,25 +3867,13 @@ function showPage(pageId, navEl) {
   if(pageId === 'resumos') renderResumos();
   if(pageId === 'precificacao') renderPrecificacao();
   if(pageId === 'fluxocaixa') renderFluxoCaixaPage();
-  // If financeiro page, initialize filter
+  // If financeiro page, sincroniza filtros locais e recalcula com filtro global atual
   if(pageId === 'financeiro') {
-    // Garantir que filtro de data está preenchido ao abrir
     try {
-      var ffrom = document.getElementById('fin-f-from');
-      var fto   = document.getElementById('fin-f-to');
-      if(ffrom && !ffrom.value) {
-        var now = new Date();
-        ffrom.value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';
-      }
-      if(fto && !fto.value) {
-        fto.value = new Date().toISOString().split('T')[0];
-      }
-    } catch(e) {}
-    // Inicializar datas do financeiro se vazias
-    try{
-      var ft = document.getElementById('fin-to');
-      if(ft && !ft.value) ft.value = td();
-    }catch(e){}
+      var ffrom = document.getElementById('f-from')||{value:''};
+      var fto   = document.getElementById('f-to')||{value:''};
+      sincronizarFiltrosLocais(ffrom.value, fto.value);
+    } catch(e){}
     applyFilterFin();
   }
 }
@@ -3829,17 +4002,8 @@ var MKT_CANAL_MAP = {
 };
 
 function setPresetMkt(p, btn) {
-  document.querySelectorAll('#page-marketing .ftab').forEach(function(b){ b.classList.remove('on'); });
-  if(btn) btn.classList.add('on');
-  var now = new Date(), t = td();
-  var from = null, to = t;
-  if(p==='7d')  { var d=new Date(now);d.setDate(d.getDate()-6); from=d.toISOString().split('T')[0]; }
-  else if(p==='30d') { var d=new Date(now);d.setDate(d.getDate()-29);from=d.toISOString().split('T')[0]; }
-  else if(p==='mes') { from=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01'; }
-  else { from=null; to=null; }
-  try{document.getElementById('mkt-from').value=from||'';}catch(e){}
-  try{document.getElementById('mkt-to').value=to||'';}catch(e){}
-  calcMarketing();
+  // Compat: o filtro de Marketing virou global. Redireciona para setPreset do header.
+  if(typeof setPreset === 'function') setPreset(p, null);
 }
 
 function calcMarketing() {
@@ -3871,14 +4035,17 @@ function calcMarketing() {
   };
 
   // ── Filtrar pedidos pelo período ──────────────────────────
-  var from = (document.getElementById('mkt-from')||{}).value||'';
-  var to   = (document.getElementById('mkt-to')||{}).value||'';
+  // FONTE DA VERDADE: filtro global (f-from/f-to/f-canal)
+  var from = (document.getElementById('f-from')||{}).value||'';
+  var to   = (document.getElementById('f-to')||{}).value||'';
+  var canalFilter = (document.getElementById('f-canal')||{}).value||'';
   var pedidos = getPedidos();
   var filtrado = pedidos.filter(function(p) {
     if(!p.data||p.data.length<10) return false;
     var d = p.data.slice(0,10);
     if(from && d < from) return false;
     if(to   && d > to)   return false;
+    if(canalFilter && p.canal !== canalFilter) return false;
     return true;
   });
 
@@ -3906,6 +4073,7 @@ function calcMarketing() {
   try{document.getElementById('mkt-cpc').textContent=cpcGlobal>0?fMKPI(cpcGlobal):'—';}catch(e){}
 
   var periodTxt = from && to ? fD(from)+' → '+fD(to) : (from?fD(from)+' → hoje':'Período completo');
+  if(canalFilter) periodTxt += ' · canal: '+canalFilter;
   try{document.getElementById('mkt-info').textContent=periodTxt;}catch(e){}
 
   // ── Tabela com ROAS INDIVIDUAL por canal ─────────────────
@@ -6742,25 +6910,17 @@ function renderEstoque() {
    independentemente do filtro do Dashboard principal.
 ═══════════════════════════════════════════════════════════════ */
 function setPresetFin(p, btn) {
-  document.querySelectorAll('#page-financeiro .ftab').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  const now = new Date();
-  const y = now.getFullYear(), m = now.getMonth(), t = td();
-  let from = null, to = t;
-  if(p==='hoje') { from = t; }
-  else if(p==='7d')  { const d=new Date(now);d.setDate(d.getDate()-6); from=d.toISOString().split('T')[0]; }
-  else if(p==='30d') { const d=new Date(now);d.setDate(d.getDate()-29);from=d.toISOString().split('T')[0]; }
-  else if(p==='mes') { from=y+'-'+String(m+1).padStart(2,'0')+'-01'; to=t; }
-  else               { from=null; to=null; }
-  try{document.getElementById('fin-from').value=from||'';}catch(e){}
-  try{document.getElementById('fin-to').value=to||'';}catch(e){}
-  applyFilterFin();
+  // Compat: o filtro do Financeiro virou global. Redireciona para setPreset do header.
+  if(typeof setPreset === 'function') setPreset(p, null);
 }
 
 function applyFilterFin() {
-  var from = ''; var to = '';
-  try{from=document.getElementById('fin-from').value||'';}catch(e){}
-  try{to=document.getElementById('fin-to').value||'';}catch(e){}
+  // FONTE DA VERDADE: filtro global (f-from/f-to/f-canal)
+  // Os inputs locais (fin-from/fin-to) são read-only e refletem o global
+  var from = ''; var to = ''; var canalFilter = '';
+  try{ from = document.getElementById('f-from').value || ''; } catch(e){}
+  try{ to   = document.getElementById('f-to').value   || ''; } catch(e){}
+  try{ canalFilter = (document.getElementById('f-canal')||{}).value || ''; } catch(e){}
 
   var pedidos = getPedidos();
   var filtered = pedidos.filter(function(p) {
@@ -6768,6 +6928,7 @@ function applyFilterFin() {
     var d = p.data.slice(0,10);
     if(from && d < from) return false;
     if(to   && d > to)   return false;
+    if(canalFilter && p.canal !== canalFilter) return false;
     return true;
   });
 
@@ -6775,7 +6936,9 @@ function applyFilterFin() {
   try {
     var f = from ? fD(from) : '...';
     var t2 = to ? fD(to) : 'hoje';
-    document.getElementById('fin-info').textContent = filtered.length.toLocaleString('pt-BR') + ' registros' + (from||to ? ' · '+f+' → '+t2 : ' · período completo');
+    var infoTxt = filtered.length.toLocaleString('pt-BR') + ' registros' + (from||to ? ' · '+f+' → '+t2 : ' · período completo');
+    if(canalFilter) infoTxt += ' · canal: '+canalFilter;
+    document.getElementById('fin-info').textContent = infoTxt;
   } catch(e) {}
 
   if(filtered.length === 0) { syncFinanceiroKPIs(null); return; }
