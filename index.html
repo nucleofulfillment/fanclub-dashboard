@@ -1405,29 +1405,29 @@ body.light body::before { opacity: 0; }
           <div class="val" id="fin-frt" style="font-size:18px">—</div>
           <div class="sub" id="fin-frt-sub" style="font-size:9px;color:var(--muted2)">informativo · só LP entra como dedução</div>
         </div>
-        <!-- Comissão MKT (calculado) — azul (igual Dashboard d3) -->
-        <div class="kpi" style="--cc:#818CF8" id="fin-com-card">
+        <!-- Comissão MKT (calculado) — amarelo -->
+        <div class="kpi" style="--cc:#FBBF24" id="fin-com-card">
           <div class="ico">🏪</div><div class="lbl">Comissão MKT</div>
           <div class="val" id="fin-com" style="font-size:18px">R$ 0,00</div>
           <div class="sub" id="fin-com-sub">% médio: —</div>
-          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:#818CF8" title="Calculado pedido a pedido com regras reais por canal" id="fin-com-tooltip-icon">ℹ︎ regras reais por canal</div>
+          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:#FBBF24" title="Calculado pedido a pedido com regras reais por canal" id="fin-com-tooltip-icon">ℹ︎ regras reais por canal</div>
         </div>
-        <!-- Taxa Fixa MKT (calculado) — azul -->
-        <div class="kpi" style="--cc:#818CF8" id="fin-taxafix-card">
+        <!-- Taxa Fixa MKT (calculado) — roxo -->
+        <div class="kpi" style="--cc:#A78BFA" id="fin-taxafix-card">
           <div class="ico">📌</div><div class="lbl">Taxa Fixa MKT</div>
           <div class="val" id="fin-taxafix" style="font-size:18px">R$ 0,00</div>
           <div class="sub" id="fin-taxafix-sub">R$ —/pedido médio</div>
-          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:#818CF8" title="Taxa fixa por pedido conforme canal" id="fin-taxafix-tooltip-icon">ℹ︎ R$ por pedido</div>
+          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:#A78BFA" title="Taxa fixa por pedido conforme canal" id="fin-taxafix-tooltip-icon">ℹ︎ R$ por pedido</div>
         </div>
-        <!-- Frete LP (calculado real) — verde-água -->
-        <div class="kpi" style="--cc:#34D399" id="fin-frete-lp-card">
+        <!-- Frete LP (calculado real) — rosa -->
+        <div class="kpi" style="--cc:#F472B6" id="fin-frete-lp-card">
           <div class="ico">🚚</div><div class="lbl">Frete <span style="font-size:9px;color:var(--muted2)">(LP)</span></div>
           <div class="val" id="fin-frete-lp" style="font-size:18px">R$ 0,00</div>
           <div class="sub" id="fin-frete-lp-sub" style="font-size:9px">só LP entra como dedução</div>
-          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:#34D399" title="Frete real dos pedidos com canal Loja Própria">ℹ︎ valor real dos pedidos LP</div>
+          <div style="margin-top:3px;font-family:var(--fmono);font-size:9px;color:#F472B6" title="Frete real dos pedidos com canal Loja Própria">ℹ︎ valor real dos pedidos LP</div>
         </div>
-        <!-- Mídia/ADS — rosa (igual Dashboard d1) -->
-        <div class="kpi" style="--cc:#F472B6" id="fin-mkt-card">
+        <!-- Mídia/ADS — vermelho -->
+        <div class="kpi" style="--cc:#F43F5E" id="fin-mkt-card">
           <div class="ico">📢</div><div class="lbl">Mídia / ADS</div>
           <div class="val" id="fin-mkt" style="font-size:18px">R$ 0,00</div>
           <div class="sub" id="fin-mkt-sub" style="font-size:9px">aguardando dados de Marketing</div>
@@ -1443,8 +1443,8 @@ body.light body::before { opacity: 0; }
             </div>
           </details>
         </div>
-        <!-- Impostos — vermelho (com alíquota editável embutida) -->
-        <div class="kpi" style="--cc:#F43F5E">
+        <!-- Impostos — laranja (com alíquota editável embutida) -->
+        <div class="kpi" style="--cc:#FB923C">
           <div class="ico">🧾</div><div class="lbl">Impostos</div>
           <div class="val" id="fin-tax" style="font-size:18px">—</div>
           <div style="display:flex;align-items:center;gap:4px;margin-top:6px">
@@ -1466,8 +1466,8 @@ body.light body::before { opacity: 0; }
            ═══════════════════════════════════════════════════════════ -->
       <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px">⚙️ parâmetros editáveis</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:8px" id="fin-kpis-row2">
-        <!-- Custo do Produto (NOVO) — laranja para destacar como item importante -->
-        <div class="kpi" style="--cc:#FB923C" title="Custo médio do produto (CMV) sobre o GMV — entrada manual neste momento. Futuramente pode vir automático da planilha de produtos.">
+        <!-- Custo do Produto (NOVO) -->
+        <div class="kpi" style="--cc:#94A3B8" title="Custo médio do produto (CMV) sobre o GMV — entrada manual neste momento. Futuramente pode vir automático da planilha de produtos.">
           <div class="ico">📦</div><div class="lbl">Custo Produto</div>
           <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
             <input type="number" id="fin-cmv-pct" value="0" min="0" max="100" step="0.1"
@@ -1477,7 +1477,7 @@ body.light body::before { opacity: 0; }
                      color:var(--text);outline:none;color-scheme:dark;text-align:center">
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
           </div>
-          <div class="val" id="fin-cmv" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="val" id="fin-cmv" style="font-size:17px;color:var(--text)">R$ 0,00</div>
           <div class="sub" style="font-size:9px">CMV % do GMV (manual)</div>
         </div>
         <!-- Plataforma % editável (sobre GMV total) -->
@@ -1491,7 +1491,7 @@ body.light body::before { opacity: 0; }
                      color:var(--text);outline:none;color-scheme:dark;text-align:center">
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
           </div>
-          <div class="val" id="fin-plataforma" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="val" id="fin-plataforma" style="font-size:17px;color:var(--text)">R$ 0,00</div>
           <div class="sub" style="font-size:9px">% do GMV total</div>
         </div>
         <!-- Taxa Pgto LP % (engloba antecipação/financeiro) -->
@@ -1505,7 +1505,7 @@ body.light body::before { opacity: 0; }
                      color:var(--text);outline:none;color-scheme:dark;text-align:center">
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
           </div>
-          <div class="val" id="fin-taxa-pgto" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="val" id="fin-taxa-pgto" style="font-size:17px;color:var(--text)">R$ 0,00</div>
           <div class="sub" style="font-size:9px">% sobre GMV LP · inclui antecipação</div>
         </div>
         <!-- Taxa Fixa Pgto R$ por pedido LP -->
@@ -1519,7 +1519,7 @@ body.light body::before { opacity: 0; }
                      padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
                      color:var(--text);outline:none;color-scheme:dark;text-align:center">
           </div>
-          <div class="val" id="fin-taxa-fixa-pgto" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="val" id="fin-taxa-fixa-pgto" style="font-size:17px;color:var(--text)">R$ 0,00</div>
           <div class="sub" id="fin-taxa-fixa-pgto-sub" style="font-size:9px">R$ × pedidos LP</div>
         </div>
         <!-- Perdas % editável -->
@@ -1533,7 +1533,7 @@ body.light body::before { opacity: 0; }
                      color:var(--text);outline:none;color-scheme:dark;text-align:center">
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
           </div>
-          <div class="val" id="fin-perdas" style="font-size:14px;color:var(--red)">R$ 0,00</div>
+          <div class="val" id="fin-perdas" style="font-size:17px;color:var(--text)">R$ 0,00</div>
           <div class="sub" style="font-size:9px">% do GMV</div>
         </div>
         <!-- Custo Fixo (R$ mensal) -->
@@ -1545,7 +1545,7 @@ body.light body::before { opacity: 0; }
               style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:5px;padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;color:var(--text);outline:none;color-scheme:dark;-moz-appearance:textfield"
               onwheel="this.blur()">
           </div>
-          <div class="val" id="fin-custo-fixo-aplicado" style="font-size:11px;color:var(--muted2)">— aplicado</div>
+          <div class="val" id="fin-custo-fixo-aplicado" style="font-size:13px;color:var(--text)">— aplicado</div>
           <div class="sub" style="font-size:9px">mensal / período</div>
         </div>
       </div>
@@ -1565,13 +1565,21 @@ body.light body::before { opacity: 0; }
               </div>
               <span id="fin-resultado-status" style="font-family:var(--fmono);font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600"></span>
             </div>
-            <button id="fin-resultado-toggle" type="button"
-              onclick="event.stopPropagation();finToggleBreakdown();"
-              style="background:rgba(110,231,183,.12);border:1px solid rgba(110,231,183,.3);color:var(--accent);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:var(--fmono);font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .15s"
-              title="Ver detalhamento dos custos">
-              <span id="fin-resultado-toggle-icon">+</span>
-              <span id="fin-resultado-toggle-label">Ver detalhamento</span>
-            </button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button id="fin-resultado-toggle" type="button"
+                onclick="event.stopPropagation();finToggleBreakdown();"
+                style="background:rgba(110,231,183,.12);border:1px solid rgba(110,231,183,.3);color:var(--accent);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:var(--fmono);font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .15s"
+                title="Ver detalhamento dos custos">
+                <span id="fin-resultado-toggle-icon">+</span>
+                <span id="fin-resultado-toggle-label">Ver detalhamento</span>
+              </button>
+              <button id="fin-resultado-export" type="button"
+                onclick="event.stopPropagation();finExportarExcel();"
+                style="background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.3);color:#22C55E;padding:6px 12px;border-radius:6px;cursor:pointer;font-family:var(--fmono);font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .15s"
+                title="Exportar detalhamento para Excel (CSV)">
+                📥 Exportar Excel
+              </button>
+            </div>
           </div>
           <!-- Breakdown expandido (escondido por padrão) -->
           <div id="fin-resultado-breakdown" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
@@ -9286,6 +9294,32 @@ function syncFinanceiroKPIs(d) {
     '</tbody></table>';
 
   setHTML('fin-resultado-breakdown-content', breakdownHTML);
+
+  // ── Armazenar snapshot dos dados pro export Excel ─────────────────
+  window._finBreakdownData = {
+    geradoEm: new Date().toLocaleString('pt-BR'),
+    periodoFrom: (document.getElementById('fin-from')||{}).value || '',
+    periodoTo:   (document.getElementById('fin-to')||{}).value || '',
+    diasPeriodo: diasPeriodo,
+    pedidos: cnt,
+    pedidosLP: pedidosLojaPropria,
+    gmvTotal: d.total,
+    gmvLP: gmvLojaPropria,
+    custoCMV: custoCMV, pctCMV: pctCMV,
+    totalComissao: totalComissao, pctComissaoMedio: pctComissaoMedio,
+    totalTaxaFixa: totalTaxaFixa, taxaFixaMediaPedido: taxaFixaMediaPedido,
+    freteLojaPropria: freteLojaPropria, freteTotalGeral: freteTotalGeral,
+    custoPlataforma: custoPlataforma, pctPlataforma: pctPlataforma,
+    custoTaxaPgto: custoTaxaPgto, pctTaxaPgto: pctTaxaPgto,
+    custoTaxaFixaPgto: custoTaxaFixaPgto, rsTaxaFixaPgto: rsTaxaFixaPgto,
+    custoPerdas: custoPerdas, pctPerdas: pctPerdas,
+    custoMkt: custoMkt, mktFonte: mktFonte,
+    impostos: impostos, taxRate: rate,
+    custoFixo: custoFixo, custoFixoMensal: custoFixoMensal,
+    resultado: resultado, pctResultado: pctResultado,
+    statusLabel: statusLabel,
+    quebraPorCanal: quebraPorCanal
+  };
 }
 
 /* ─ Atualizar resultado quando custo fixo muda ─ */
@@ -9312,6 +9346,99 @@ function finToggleBreakdown() {
     if(ico) ico.textContent = '−';
     if(lbl) lbl.textContent = 'Ocultar detalhamento';
   }
+}
+
+/* ─ Exportar detalhamento para Excel (CSV com BOM UTF-8) ─────────── */
+function finExportarExcel() {
+  var data = window._finBreakdownData;
+  if(!data) {
+    alert('⚠️ Dados ainda não disponíveis. Aguarde o carregamento ou recarregue a página.');
+    return;
+  }
+  // Sep = ponto-e-vírgula (padrão brasileiro do Excel)
+  var SEP = ';';
+  var rows = [];
+  var fmtBR = function(v){
+    if(v === null || v === undefined || isNaN(v)) return '';
+    return Number(v).toFixed(2).replace('.', ',');
+  };
+  var fmtPctBR = function(v){
+    if(v === null || v === undefined || isNaN(v)) return '';
+    return Number(v).toFixed(2).replace('.', ',') + '%';
+  };
+  var escCSV = function(s){
+    if(s === null || s === undefined) return '';
+    s = String(s);
+    if(s.indexOf(SEP) >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+  var addRow = function(arr){ rows.push(arr.map(escCSV).join(SEP)); };
+
+  // Cabeçalho
+  var empresa = '';
+  try { var emp = veltroGetEmpresaAtualObj(); empresa = (emp && emp.nome) ? emp.nome : (veltroGetEmpresaAtual() || ''); } catch(e){}
+  addRow(['DRE GERENCIAL — Roizen / Veltro']);
+  if(empresa) addRow(['Empresa:', empresa]);
+  addRow(['Gerado em:', data.geradoEm]);
+  if(data.periodoFrom && data.periodoTo) {
+    addRow(['Período:', data.periodoFrom + ' a ' + data.periodoTo, '(' + data.diasPeriodo + ' dias)']);
+  } else {
+    addRow(['Período:', 'todos os pedidos', '(' + data.diasPeriodo + ' dias)']);
+  }
+  addRow([]);
+
+  // Quadro principal: DRE
+  addRow(['DEMONSTRATIVO DE RESULTADO']);
+  addRow(['Linha', 'Valor (R$)', '% sobre GMV', 'Observação']);
+  var pctSobreGMV = function(v){
+    if(!data.gmvTotal || data.gmvTotal === 0) return '';
+    return ((Math.abs(v)/data.gmvTotal)*100).toFixed(2).replace('.',',') + '%';
+  };
+  addRow(['Receita Bruta (GMV)', fmtBR(data.gmvTotal), '100,00%', data.pedidos + ' pedidos']);
+  addRow(['(-) Custo do Produto (CMV)', '-' + fmtBR(data.custoCMV), pctSobreGMV(data.custoCMV), fmtPctBR(data.pctCMV) + ' manual']);
+  addRow(['(-) Comissão Marketplace', '-' + fmtBR(data.totalComissao), pctSobreGMV(data.totalComissao), fmtPctBR(data.pctComissaoMedio) + ' médio ponderado']);
+  addRow(['(-) Taxa Fixa Marketplace', '-' + fmtBR(data.totalTaxaFixa), pctSobreGMV(data.totalTaxaFixa), 'R$ ' + fmtBR(data.taxaFixaMediaPedido) + '/pedido médio']);
+  addRow(['(-) Frete (Loja Própria)', '-' + fmtBR(data.freteLojaPropria), pctSobreGMV(data.freteLojaPropria), data.pedidosLP + ' pedidos LP']);
+  addRow(['(-) Plataforma', '-' + fmtBR(data.custoPlataforma), pctSobreGMV(data.custoPlataforma), fmtPctBR(data.pctPlataforma) + ' sobre GMV total']);
+  addRow(['(-) Taxa Pgto (LP)', '-' + fmtBR(data.custoTaxaPgto), pctSobreGMV(data.custoTaxaPgto), fmtPctBR(data.pctTaxaPgto) + ' sobre GMV LP · inclui antecipação']);
+  if(data.rsTaxaFixaPgto > 0) {
+    addRow(['(-) Taxa Fixa Pgto (LP)', '-' + fmtBR(data.custoTaxaFixaPgto), pctSobreGMV(data.custoTaxaFixaPgto), 'R$ ' + fmtBR(data.rsTaxaFixaPgto) + ' x ' + data.pedidosLP + ' pedidos LP']);
+  }
+  addRow(['(-) Perdas', '-' + fmtBR(data.custoPerdas), pctSobreGMV(data.custoPerdas), fmtPctBR(data.pctPerdas) + ' sobre GMV']);
+  addRow(['(-) Mídia / ADS', '-' + fmtBR(data.custoMkt), pctSobreGMV(data.custoMkt), data.mktFonte]);
+  addRow(['(-) Impostos', '-' + fmtBR(data.impostos), pctSobreGMV(data.impostos), data.taxRate + '% sobre GMV']);
+  addRow(['(-) Custo Fixo', '-' + fmtBR(data.custoFixo), pctSobreGMV(data.custoFixo),
+    data.custoFixoMensal > 0 ? ('R$ ' + fmtBR(data.custoFixoMensal) + ' mensal · ' + data.diasPeriodo + 'd/30d') : 'sem custo fixo']);
+  addRow(['= RESULTADO LÍQUIDO', fmtBR(data.resultado), fmtPctBR(data.pctResultado), data.statusLabel]);
+  addRow([]);
+
+  // Quadro secundário: quebra por canal
+  addRow(['QUEBRA POR CANAL']);
+  addRow(['Canal', 'Pedidos', 'GMV (R$)', 'Comissão (R$)', '% Comissão', 'Taxa Fixa (R$)', 'R$ Taxa Fixa/Pedido']);
+  var canais = data.quebraPorCanal || {};
+  Object.keys(canais).sort(function(a,b){ return canais[b].gmv - canais[a].gmv; }).forEach(function(c){
+    var q = canais[c];
+    var pctC = q.gmv > 0 ? (q.comissao / q.gmv * 100) : 0;
+    var taxaPed = q.pedidos > 0 ? (q.taxaFixa / q.pedidos) : 0;
+    addRow([c, q.pedidos, fmtBR(q.gmv), fmtBR(q.comissao), fmtPctBR(pctC), fmtBR(q.taxaFixa), fmtBR(taxaPed)]);
+  });
+
+  // Gerar arquivo
+  var csv = '\uFEFF' + rows.join('\r\n');  // BOM UTF-8 + CRLF (compat. Windows/Excel)
+  var blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+  var url  = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  var hoje = new Date();
+  var stamp = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0') + '-' + String(hoje.getDate()).padStart(2,'0');
+  var nomeEmp = (empresa || 'empresa').toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+  a.download = 'dre-' + nomeEmp + '-' + stamp + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  console.log('[Fin] Exportado:', a.download);
 }
 
 /* ─ Persistência compartilhada de parâmetros gerenciais ──────────────
