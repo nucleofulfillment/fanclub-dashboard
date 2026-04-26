@@ -2310,6 +2310,30 @@ body.light body::before { opacity: 0; }
         </div>
       </div>
 
+      <!-- BUSCA OPCIONAL DE SKU: auto-preenche custo da planilha de Custo de Produtos.
+           Quem não usa, ignora. Quem usa, ganha 1 clique pra trazer custo real. -->
+      <div id="prec-busca-card" class="card" style="padding:14px 16px;margin-bottom:14px;display:none;
+           background:linear-gradient(90deg,rgba(251,191,36,.04),rgba(251,191,36,.01));
+           border:1px solid rgba(251,191,36,.18)">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:var(--fmono);font-size:10px;color:#FBBF24;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">🔎 Buscar SKU</span>
+          <span style="font-family:var(--fmono);font-size:9px;color:var(--muted2);white-space:nowrap">opcional · auto-preenche custo</span>
+          <div style="position:relative;flex:1;min-width:240px">
+            <input type="text" id="prec-busca-sku" placeholder="Digite código ou nome do produto..."
+              oninput="precBuscarSku(this.value)" onfocus="precBuscarSku(this.value)"
+              autocomplete="off"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;
+                     padding:7px 12px;font-family:var(--fmono);font-size:11px;color:var(--text);
+                     outline:none;color-scheme:dark;box-sizing:border-box">
+            <div id="prec-busca-resultados" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
+                 background:var(--s1);border:1px solid var(--border2);border-radius:8px;max-height:280px;
+                 overflow-y:auto;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.35)"></div>
+          </div>
+          <span id="prec-busca-info" style="font-family:var(--fmono);font-size:9px;color:var(--muted2);white-space:nowrap">—</span>
+          <button onclick="precLimparBusca()" id="prec-busca-clear" style="display:none;background:transparent;border:1px solid var(--border2);color:var(--muted);padding:5px 10px;border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer">✕ Limpar</button>
+        </div>
+      </div>
+
       <!-- DESTAQUE TOPO: Custo + Preço de Venda + Preço Sugerido -->
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
         <div class="card" style="background:rgba(251,146,60,.05);border-color:rgba(251,146,60,.2);padding:20px">
@@ -2320,7 +2344,7 @@ body.light body::before { opacity: 0; }
               oninput="document.getElementById('prec-custo').value=this.value;calcPreco()"
               style="flex:1;background:transparent;border:none;border-bottom:2px solid var(--amber);outline:none;font-family:var(--fdisplay);font-size:32px;font-weight:900;color:var(--amber);padding:4px 0;color-scheme:dark">
           </div>
-          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:6px">Custo unitário do produto</div>
+          <div id="prec-custo-sub" style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:6px">Custo unitário do produto</div>
         </div>
         <div class="card" style="background:linear-gradient(135deg,var(--s1),rgba(110,231,183,.08));border-color:rgba(110,231,183,.3);padding:20px">
           <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">💰 Preço de Venda</div>
@@ -5490,7 +5514,10 @@ function showPage(pageId, navEl) {
   // If marketing page, render marketing charts
   if(pageId === 'marketing') renderMarketing();
   if(pageId === 'resumos') renderResumos();
-  if(pageId === 'precificacao') renderPrecificacao();
+  if(pageId === 'precificacao') {
+    renderPrecificacao();
+    try { if(typeof precAtualizarVisibilidadeBusca === 'function') precAtualizarVisibilidadeBusca(); } catch(e){}
+  }
   if(pageId === 'fluxocaixa') renderFluxoCaixaPage();
   // If financeiro page, sincroniza filtros locais e recalcula com filtro global atual
   if(pageId === 'financeiro') {
@@ -8743,6 +8770,10 @@ async function loadCustoProdutos() {
         atualizarResultado();
       }
     } catch(e){}
+    // Atualizar visibilidade da busca de SKU na Precificação
+    try {
+      if(typeof precAtualizarVisibilidadeBusca === 'function') precAtualizarVisibilidadeBusca();
+    } catch(e){}
   } catch(e) {
     console.error('[Custo] Erro ao carregar planilha:', e);
   }
@@ -8914,6 +8945,189 @@ function calcCMVReal() {
   }
   return resultado;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRECIFICAÇÃO — Busca de SKU (opcional, auto-preenche custo real)
+   Usa custoRealMap + produtosVendidosMap pra listar SKUs disponíveis.
+   Quem não usa a busca: nada muda no comportamento da tela.
+═══════════════════════════════════════════════════════════════════ */
+function precBuscarSku(query) {
+  var resultsEl = document.getElementById('prec-busca-resultados');
+  if(!resultsEl) return;
+  var q = String(query||'').trim().toLowerCase();
+  if(q.length < 2) {
+    resultsEl.style.display = 'none';
+    resultsEl.innerHTML = '';
+    return;
+  }
+
+  // Fonte 1: SKUs com custo real (planilha de Custo de Produtos)
+  // Fonte 2: SKUs vendidos (produtosVendidosMap) — pra mostrar produtos sem custo cadastrado também
+  var combinados = {}; // skuBase → {sku, nome, custo, marca, vendeu}
+  try {
+    if(typeof custoRealMap === 'object' && custoRealMap) {
+      Object.keys(custoRealMap).forEach(function(skuBase){
+        var info = custoRealMap[skuBase];
+        if(!info) return;
+        // Tentar achar nome bonito no produtosVendidosMap
+        var nome = '';
+        if(typeof produtosVendidosMap === 'object' && produtosVendidosMap && produtosVendidosMap[skuBase]) {
+          nome = produtosVendidosMap[skuBase].nome || '';
+        }
+        combinados[skuBase] = { sku: skuBase, nome: nome, custo: info.custo, marca: info.marca || '', vendeu: !!nome };
+      });
+    }
+    if(typeof produtosVendidosMap === 'object' && produtosVendidosMap) {
+      Object.keys(produtosVendidosMap).forEach(function(skuBase){
+        if(combinados[skuBase]) {
+          // Já tem da planilha de custo — só atualizar nome se vazio
+          if(!combinados[skuBase].nome) combinados[skuBase].nome = produtosVendidosMap[skuBase].nome || skuBase;
+          combinados[skuBase].vendeu = true;
+        } else {
+          var p = produtosVendidosMap[skuBase];
+          var marca = (typeof getMarcaProduto === 'function') ? (getMarcaProduto(skuBase) || '') : '';
+          combinados[skuBase] = { sku: skuBase, nome: p.nome || skuBase, custo: 0, marca: marca, vendeu: true };
+        }
+      });
+    }
+  } catch(e) { console.warn('[Precificação] erro ao montar índice:', e); }
+
+  var lista = Object.values(combinados);
+  if(lista.length === 0) {
+    resultsEl.innerHTML = '<div style="padding:12px;font-family:var(--fmono);font-size:11px;color:var(--muted2);text-align:center">Nenhum SKU disponível. Conecte a planilha de Custo de Produtos.</div>';
+    resultsEl.style.display = 'block';
+    return;
+  }
+
+  // Filtrar pelo query (SKU ou nome)
+  var matches = lista.filter(function(p){
+    return String(p.sku||'').toLowerCase().indexOf(q) >= 0
+        || String(p.nome||'').toLowerCase().indexOf(q) >= 0
+        || String(p.marca||'').toLowerCase().indexOf(q) >= 0;
+  });
+  // Priorizar: tem custo > vendeu > resto. Limite 30.
+  matches.sort(function(a,b){
+    var sa = (a.custo>0 ? 2 : 0) + (a.vendeu ? 1 : 0);
+    var sb = (b.custo>0 ? 2 : 0) + (b.vendeu ? 1 : 0);
+    if(sa !== sb) return sb - sa;
+    return String(a.nome||a.sku).localeCompare(String(b.nome||b.sku),'pt-BR');
+  });
+  matches = matches.slice(0, 30);
+
+  if(matches.length === 0) {
+    resultsEl.innerHTML = '<div style="padding:12px;font-family:var(--fmono);font-size:11px;color:var(--muted2);text-align:center">Nenhum resultado para "'+_precEsc(q)+'"</div>';
+    resultsEl.style.display = 'block';
+    return;
+  }
+
+  resultsEl.innerHTML = matches.map(function(p){
+    var temCusto = p.custo > 0;
+    var ico = temCusto ? '🟢' : '🟡';
+    var custoTxt = temCusto ? 'R$ '+p.custo.toFixed(2).replace('.',',') : 'sem custo';
+    var custoColor = temCusto ? 'var(--green)' : '#F59E0B';
+    var marcaTag = p.marca
+      ? '<span style="font-size:9px;color:var(--muted);background:rgba(251,191,36,.10);padding:1px 6px;border-radius:3px;margin-left:6px">'+_precEsc(p.marca)+'</span>'
+      : '';
+    var nome = p.nome || p.sku;
+    if(nome.length > 60) nome = nome.substring(0,57) + '...';
+    return '<div onclick="precSelecionarSku(\''+_precEsc(p.sku).replace(/'/g,"\\'")+'\')" '+
+      'style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s" '+
+      'onmouseover="this.style.background=\'var(--s2)\'" onmouseout="this.style.background=\'transparent\'">'+
+      '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_precEsc(p.sku)+marcaTag+'</div>'+
+          '<div style="font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_precEsc(nome)+'</div>'+
+        '</div>'+
+        '<span style="font-family:var(--fmono);font-size:11px;font-weight:600;color:'+custoColor+';white-space:nowrap">'+ico+' '+custoTxt+'</span>'+
+      '</div></div>';
+  }).join('');
+  resultsEl.style.display = 'block';
+}
+
+function precSelecionarSku(sku) {
+  try {
+    var info = (typeof getCustoReal === 'function') ? getCustoReal(sku) : null;
+    var marca = (typeof getMarcaProduto === 'function') ? (getMarcaProduto(sku) || '') : '';
+
+    // Sempre fechar dropdown e atualizar campo de busca
+    var resEl = document.getElementById('prec-busca-resultados');
+    if(resEl) { resEl.style.display = 'none'; resEl.innerHTML = ''; }
+    var inpEl = document.getElementById('prec-busca-sku');
+    if(inpEl) inpEl.value = sku;
+    var clearBtn = document.getElementById('prec-busca-clear');
+    if(clearBtn) clearBtn.style.display = 'inline-block';
+
+    var infoEl = document.getElementById('prec-busca-info');
+
+    if(info && info.custo > 0) {
+      // Auto-preencher custo
+      var custo = Number(info.custo).toFixed(2);
+      var ct = document.getElementById('prec-custo-top');
+      var cb = document.getElementById('prec-custo');
+      if(ct) ct.value = custo;
+      if(cb) cb.value = custo;
+      // Indicador no card de custo
+      var subEl = document.getElementById('prec-custo-sub');
+      if(subEl) subEl.innerHTML = '🟢 custo real · '+(marca||'sem marca')+' · planilha de Custos';
+      // Recalcular preço sugerido
+      if(typeof calcPreco === 'function') calcPreco();
+      if(infoEl) infoEl.textContent = '🟢 custo aplicado: R$ '+custo.replace('.',',');
+    } else {
+      // SKU não tem custo real — só atualizar visual e avisar
+      var subEl2 = document.getElementById('prec-custo-sub');
+      if(subEl2) subEl2.innerHTML = '🟡 SKU sem custo cadastrado · preencha manualmente';
+      if(infoEl) infoEl.textContent = '⚠ sem custo cadastrado · digite manualmente';
+    }
+  } catch(e) { console.warn('[Precificação] erro ao selecionar SKU:', e); }
+}
+
+function precLimparBusca() {
+  try {
+    var inp = document.getElementById('prec-busca-sku');
+    if(inp) inp.value = '';
+    var res = document.getElementById('prec-busca-resultados');
+    if(res) { res.style.display = 'none'; res.innerHTML = ''; }
+    var infoEl = document.getElementById('prec-busca-info');
+    if(infoEl) infoEl.textContent = '—';
+    var clearBtn = document.getElementById('prec-busca-clear');
+    if(clearBtn) clearBtn.style.display = 'none';
+    // Resetar subtítulo do card de custo
+    var subEl = document.getElementById('prec-custo-sub');
+    if(subEl) subEl.innerHTML = 'Custo unitário do produto';
+  } catch(e){}
+}
+
+/* Mostra/esconde a faixa de busca conforme planilha de custo carregada */
+function precAtualizarVisibilidadeBusca() {
+  try {
+    var card = document.getElementById('prec-busca-card');
+    if(!card) return;
+    var disponivel = (typeof _custoStats !== 'undefined') && _custoStats.carregado &&
+                     ((_custoStats.totalSkus||0) > 0 || (_custoStats.comCusto||0) > 0);
+    card.style.display = disponivel ? 'block' : 'none';
+    var infoEl = document.getElementById('prec-busca-info');
+    if(infoEl && disponivel) {
+      infoEl.textContent = (_custoStats.comCusto||0)+' SKUs com custo real';
+    }
+  } catch(e){}
+}
+
+/* Helper de escape (Precificação) */
+function _precEsc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* Fechar dropdown ao clicar fora */
+document.addEventListener('click', function(ev){
+  try {
+    var card = document.getElementById('prec-busca-card');
+    if(!card || card.style.display === 'none') return;
+    if(!card.contains(ev.target)) {
+      var res = document.getElementById('prec-busca-resultados');
+      if(res) res.style.display = 'none';
+    }
+  } catch(e){}
+});
 
 /* ─ Funções de debug (acessíveis pelo console: window.debugCusto.X) ─── */
 window.debugCusto = {
