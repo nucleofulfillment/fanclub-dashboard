@@ -4376,6 +4376,22 @@ function applyFilter(){
     var saudePage = document.getElementById('page-saude');
     if(saudePage && saudePage.classList.contains('active') && typeof saudeRecalcular === 'function') saudeRecalcular();
   } catch(e){}
+
+  // ─── Recarregar planilha "Produtos Vendidos" em background com o filtro novo,
+  // depois reatualizar apenas o card "Produtos Vendidos" do Dashboard.
+  // Sem bloquear a renderização principal.
+  try {
+    if(typeof loadProdutosVendidos === 'function' && localStorage.getItem(PRODUTOS_VENDIDOS_KEY)) {
+      loadProdutosVendidos(from, to).then(function(){
+        try {
+          var processed = processarDados(filtered);
+          var qtd = calcQtdProdutosVendidos(processed);
+          var el = document.getElementById('k-qtd');
+          if(el) el.textContent = qtd.toLocaleString('pt-BR');
+        } catch(e){ console.warn('[Produtos Vendidos] erro ao reatualizar card:', e); }
+      }).catch(function(e){ console.warn('[Produtos Vendidos] reload falhou:', e); });
+    }
+  } catch(e){}
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -4435,6 +4451,67 @@ const SC={
   y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:11}}}
 };
 
+/* ─ Calcular total de unidades vendidas a partir de produtosVendidosMap,
+     respeitando o filtro de período atual. Fallback: d.qtd. ─────── */
+function calcQtdProdutosVendidos(d) {
+  try {
+    if(typeof produtosVendidosMap !== 'object' || !produtosVendidosMap) return d ? d.qtd : 0;
+    var skus = Object.values(produtosVendidosMap);
+    if(skus.length === 0) return d ? d.qtd : 0;
+
+    // Pegar o filtro de período atual (mesma lógica que loadProdutosVendidos usa)
+    var from = (document.getElementById('f-from')||{}).value || '';
+    var to   = (document.getElementById('f-to')||{}).value   || '';
+
+    // Sem filtro → soma todos os meses (qtd total já calculada)
+    if(!from && !to) {
+      return skus.reduce(function(s, p){ return s + (p.qtd || 0); }, 0);
+    }
+
+    // Com filtro → mapear from/to em mesKeys (formato "abr26", "mai26", ...)
+    var mesesSet = new Set();
+    var d1 = new Date(from + 'T00:00');
+    var d2 = new Date(to   + 'T00:00');
+    if(isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+      return skus.reduce(function(s, p){ return s + (p.qtd || 0); }, 0);
+    }
+    var cur = new Date(d1.getFullYear(), d1.getMonth(), 1);
+    var end = new Date(d2.getFullYear(), d2.getMonth(), 1);
+    while(cur <= end) {
+      var mm = String(cur.getMonth()+1).padStart(2,'0');
+      var yy = cur.getFullYear().toString().slice(-2);
+      var nomeMes = MESES_ABAS[mm];
+      if(nomeMes) {
+        // mesKey é gerado em loadProdutosVendidos como: 3 primeiras letras + 2 últimos dígitos do ano
+        // Ex: "abril26" → "abr" + "26" = "abr26"
+        var mesKey = nomeMes.toLowerCase().replace(/[^a-z]/g, '').substring(0,3) + yy;
+        mesesSet.add(mesKey);
+      }
+      cur.setMonth(cur.getMonth() + 1);
+    }
+
+    // Somar por_mes apenas dos meses do filtro
+    var totalPeriodo = 0;
+    skus.forEach(function(p){
+      if(p && p.por_mes) {
+        Object.keys(p.por_mes).forEach(function(mk){
+          if(mesesSet.has(mk)) totalPeriodo += (p.por_mes[mk] || 0);
+        });
+      }
+    });
+
+    // Se nenhum mês bateu (planilha não cobre o período), cair pra qtd total como fallback
+    if(totalPeriodo === 0) {
+      return skus.reduce(function(s, p){ return s + (p.qtd || 0); }, 0);
+    }
+
+    return totalPeriodo;
+  } catch(e) {
+    console.warn('[Produtos Vendidos] erro ao calcular qtd:', e);
+    return d ? d.qtd : 0;
+  }
+}
+
 /* ─ render all ─ */
 function renderAll(d){
   // KPIs
@@ -4442,7 +4519,10 @@ function renderAll(d){
   document.getElementById('k-gmv').textContent=fMKPI(d.total);
   document.getElementById('k-ped').textContent=cnt.toLocaleString('pt-BR');
   document.getElementById('k-tkt').textContent=fMKPI(cnt>0?d.total/cnt:0);
-  document.getElementById('k-qtd').textContent=d.qtd.toLocaleString('pt-BR');
+  // ─── Produtos Vendidos: usar fonte correta (planilha de Produtos Vendidos)
+  // em vez de pedidos.length (que duplica o card de Total Pedidos).
+  // Fallback para d.qtd quando produtosVendidosMap não está disponível.
+  document.getElementById('k-qtd').textContent=calcQtdProdutosVendidos(d).toLocaleString('pt-BR');
   document.getElementById('k-frt').textContent=fMKPI(d.frete);
   document.getElementById('s-apv').textContent=d.aprov.length;
   document.getElementById('s-trn').textContent=d.trans.length;
