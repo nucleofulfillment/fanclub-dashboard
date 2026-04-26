@@ -1765,14 +1765,20 @@ body.light body::before { opacity: 0; }
             <input type="number" id="saude-frete" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--accent);display:block;margin-bottom:4px;font-weight:600">🎯 Margem desejada %</label>
+            <input type="number" id="saude-margem-desejada" value="30" min="0" max="100" step="0.5" oninput="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid rgba(110,231,183,.3);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--accent);outline:none;color-scheme:dark;font-weight:600">
+          </div>
         </div>
 
         <div style="margin-top:14px;padding:10px 12px;background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.15);border-radius:7px">
           <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:4px">📊 Modo Simulação Ativo</div>
           <div style="font-family:var(--fmono);font-size:11px;color:var(--muted2);line-height:1.5">
             Como o custo real ainda não está disponível, o sistema estima o custo de cada produto
-            baseado na <strong>Curva ABC</strong>: Curva A → custo = 60% do preço (margem alvo 40%) ·
-            Curva B → custo = 50% (margem alvo 50%) · Curva C → custo = 40% (margem alvo 60%).
+            baseado na <strong>Curva ABC</strong>: Curva A → custo = 40% do preço (margem 60%) ·
+            Curva B → custo = 50% (margem 50%) · Curva C → custo = 60% (margem 40%).
+            Curva A reflete produtos mais eficientes (escala/barganha) e Curva C produtos menos eficientes.
             Quando os custos reais forem integrados, basta substituir <code>_custoSimulado()</code> por <code>_custoReal()</code>.
           </div>
         </div>
@@ -1785,12 +1791,23 @@ body.light body::before { opacity: 0; }
         <button class="ftab" onclick="saudeFiltroStatus('amarelo',this)" style="color:#F59E0B">🟡 Atenção</button>
         <button class="ftab" onclick="saudeFiltroStatus('vermelho',this)" style="color:var(--red)">🔴 Críticos</button>
         <div class="fsep"></div>
-        <select id="saude-filtro-curva" onchange="saudeRenderTabela()"
+        <select id="saude-filtro-curva" onchange="saudeAtualizarVisao()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
           <option value="todas">Todas as curvas</option>
           <option value="A">🅰️ Curva A</option>
           <option value="B">🅱️ Curva B</option>
           <option value="C">🅲 Curva C</option>
+        </select>
+        <select id="saude-filtro-canal" onchange="saudeAtualizarVisao()"
+          style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
+          <option value="todos">Todos os canais</option>
+          <option value="Shopee">Shopee</option>
+          <option value="Mercado Livre">Mercado Livre</option>
+          <option value="Shein">Shein</option>
+          <option value="TikTok Shop">TikTok Shop</option>
+          <option value="Dafiti">Dafiti</option>
+          <option value="Netshoes">Netshoes</option>
+          <option value="Loja Própria">Loja Própria</option>
         </select>
         <select id="saude-ordem" onchange="saudeRenderTabela()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
@@ -1800,6 +1817,10 @@ body.light body::before { opacity: 0; }
           <option value="qtd-desc">Quantidade vendida ↓</option>
           <option value="nome-asc">Nome A-Z</option>
         </select>
+        <label style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;color:var(--muted);cursor:pointer;user-select:none">
+          <input type="checkbox" id="saude-mostrar-variacoes" onchange="saudeRenderTabela()" style="margin:0;cursor:pointer">
+          Mostrar variações
+        </label>
         <input type="text" id="saude-busca" placeholder="Buscar SKU ou nome..."
           oninput="saudeRenderTabela()"
           style="margin-left:auto;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;width:220px">
@@ -1817,10 +1838,11 @@ body.light body::before { opacity: 0; }
               <th style="text-align:right">Custo Estimado</th>
               <th style="text-align:left">Canal Top</th>
               <th style="text-align:right">Margem Real</th>
+              <th style="text-align:right" title="Preço sugerido para atingir a margem desejada (mostrado para produtos críticos e em atenção)">💡 Preço Sugerido</th>
               <th style="text-align:center">Saúde</th>
             </tr></thead>
             <tbody id="saude-tbody">
-              <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
+              <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">
                 Carregando dados de produtos vendidos...
               </td></tr>
             </tbody>
@@ -3004,7 +3026,13 @@ var SAUDE_COMISSAO_CANAL = {
 };
 
 // Margem-alvo por curva (modo simulação)
-var SAUDE_MARGEM_ALVO = { A: 0.40, B: 0.50, C: 0.60 };
+// CUSTO ESTIMADO por curva (como % do preço de venda):
+// Curva A → produtos campeões, escala/barganha → custo MENOR (40%)
+// Curva B → meio termo → custo médio (50%)
+// Curva C → cauda longa, baixa eficiência → custo MAIOR (60%)
+var SAUDE_CUSTO_PCT = { A: 0.40, B: 0.50, C: 0.60 };
+// Margem-alvo implícita (= 1 - custo) — usada como referência da curva
+var SAUDE_MARGEM_ALVO = { A: 0.60, B: 0.50, C: 0.40 };
 
 // Faixas de status (margem real)
 var SAUDE_FAIXAS = { verde: 0.30, amarelo: 0.15 };  // ≥30% verde · 15-30% amarelo · <15% vermelho
@@ -3024,10 +3052,11 @@ function _saudeKey() {
 }
 
 /* ─ Cálculo do CUSTO do produto ──────────────────────────────────── */
-// Lógica SIMULADA (atual): usa Curva ABC + margem-alvo
+// Lógica SIMULADA (atual): custo = % do preço de venda baseado na curva ABC
 function _saudeCustoSimulado(produto) {
-  var alvo = SAUDE_MARGEM_ALVO[produto.curva] || SAUDE_MARGEM_ALVO.B;
-  return produto.precoMedio * (1 - alvo);
+  var pct = SAUDE_CUSTO_PCT[produto.curva];
+  if(pct === undefined) pct = SAUDE_CUSTO_PCT.B;
+  return produto.precoMedio * pct;
 }
 // Lógica REAL (futura): placeholder — substituir quando custo real estiver disponível
 function _saudeCustoReal(produto) {
@@ -3075,7 +3104,8 @@ function _saudeGetParams() {
     taxaPgto:  num('saude-taxa-pgto', 3),
     perdas:    num('saude-perdas', 2),
     custoFixo: num('saude-custo-fixo', 0),
-    frete:     num('saude-frete', 0)
+    frete:     num('saude-frete', 0),
+    margemDesejada: num('saude-margem-desejada', 30)
   };
 }
 
@@ -3188,7 +3218,8 @@ function _saudeColetarProdutos() {
         canalTop: canalTopAprox,
         canalTopGMV: topGMV,
         canalTopPct: canalTopPct,
-        porCanal: {}  // não temos canal por SKU
+        porCanal: {},  // não temos canal por SKU
+        tamanhos: p.tamanhos || {}  // variações de tamanho (qtd por tamanho)
       };
       try { produto.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(produto.nome) : 'Outros'; }
       catch(e){ produto.categoria = 'Outros'; }
@@ -3273,7 +3304,26 @@ function _saudeCalcularMargem(produto, params) {
   else if(margem >= SAUDE_FAIXAS.amarelo) status = 'amarelo';
   else status = 'vermelho';
 
-  return { margem: margem, status: status, custo: custo, deducoes: deducoes, lucro: lucro };
+  // PREÇO SUGERIDO para atingir margem desejada
+  // Fórmula: preço × (1 - %deduções - margem_desejada) = custo
+  //          preço = custo / (1 - %deduções - margem_desejada)
+  // Mesma lógica do menu Precificação.
+  var margemAlvo = (params.margemDesejada || 30) / 100;
+  var precoSugerido = 0;
+  var denom = 1 - pctDeducoes - margemAlvo;
+  if(denom > 0.01) {
+    precoSugerido = custo / denom;
+  } else {
+    // Margem desejada + deduções >= 100% → matemáticamente impossível
+    precoSugerido = -1;  // sinaliza inviável
+  }
+  // Quanto precisa subir o preço (em % e R$)
+  var ajustePct = preco > 0 && precoSugerido > 0 ? (precoSugerido / preco - 1) * 100 : 0;
+
+  return {
+    margem: margem, status: status, custo: custo, deducoes: deducoes, lucro: lucro,
+    precoSugerido: precoSugerido, ajustePct: ajustePct
+  };
 }
 
 /* ─ Função principal: recalcula tudo (chamada ao mudar filtro/parâmetro) ─ */
@@ -3282,10 +3332,12 @@ function saudeRecalcular() {
   var params   = _saudeGetParams();
   produtos.forEach(function(p){
     var calc = _saudeCalcularMargem(p, params);
-    p.custoEstimado = calc.custo;
-    p.deducoes      = calc.deducoes;
-    p.margemReal    = calc.margem;
-    p.statusSaude   = calc.status;
+    p.custoEstimado  = calc.custo;
+    p.deducoes       = calc.deducoes;
+    p.margemReal     = calc.margem;
+    p.statusSaude    = calc.status;
+    p.precoSugerido  = calc.precoSugerido;
+    p.ajustePct      = calc.ajustePct;
   });
   _saudeProdutos = produtos;
   saudeRenderKPIs();
@@ -3293,12 +3345,33 @@ function saudeRecalcular() {
   saudeRenderGraficos();
 }
 
+/* ─ Re-render leve: chamado pelos filtros canal/curva (sem recoletar) ─ */
+function saudeAtualizarVisao() {
+  saudeRenderKPIs();
+  saudeRenderTabela();
+  saudeRenderGraficos();
+}
+
+/* ─ Lista de produtos filtrada (canal/curva/status) ───────────────
+   Usada por KPIs, gráficos E tabela para garantir consistência
+   visual quando o usuário filtra por canal ou curva. */
+function _saudeProdutosFiltrados() {
+  var canalF  = (document.getElementById('saude-filtro-canal')||{}).value || 'todos';
+  var curvaF  = (document.getElementById('saude-filtro-curva')||{}).value || 'todas';
+  return _saudeProdutos.filter(function(p){
+    if(canalF !== 'todos' && p.canalTop !== canalF) return false;
+    if(curvaF !== 'todas' && p.curva !== curvaF) return false;
+    return true;
+  });
+}
+
 /* ─ KPIs do topo ─────────────────────────────────────────────────── */
 function saudeRenderKPIs() {
-  var total = _saudeProdutos.length;
-  var v = _saudeProdutos.filter(function(p){return p.statusSaude==='verde';}).length;
-  var a = _saudeProdutos.filter(function(p){return p.statusSaude==='amarelo';}).length;
-  var r = _saudeProdutos.filter(function(p){return p.statusSaude==='vermelho';}).length;
+  var lista = _saudeProdutosFiltrados();
+  var total = lista.length;
+  var v = lista.filter(function(p){return p.statusSaude==='verde';}).length;
+  var a = lista.filter(function(p){return p.statusSaude==='amarelo';}).length;
+  var r = lista.filter(function(p){return p.statusSaude==='vermelho';}).length;
   var pct = function(n){ return total>0 ? (n/total*100).toFixed(1)+'%' : '—'; };
   var setTxt = function(id, t){ var el = document.getElementById(id); if(el) el.textContent = t; };
   setTxt('saude-kpi-total',         total.toLocaleString('pt-BR'));
@@ -3317,7 +3390,7 @@ function saudeRenderTabela() {
   var info  = document.getElementById('saude-tabela-info');
 
   if(_saudeProdutos.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
     if(info) info.textContent = '—';
     return;
   }
@@ -3325,11 +3398,13 @@ function saudeRenderTabela() {
   var busca   = (document.getElementById('saude-busca')||{}).value || '';
   busca = busca.toLowerCase().trim();
   var curvaF  = (document.getElementById('saude-filtro-curva')||{}).value || 'todas';
+  var canalF  = (document.getElementById('saude-filtro-canal')||{}).value || 'todos';
   var ordem   = (document.getElementById('saude-ordem')||{}).value || 'gmv-desc';
 
   var filtrados = _saudeProdutos.filter(function(p){
     if(_saudeFiltroStatus !== 'todos' && p.statusSaude !== _saudeFiltroStatus) return false;
     if(curvaF !== 'todas' && p.curva !== curvaF) return false;
+    if(canalF !== 'todos' && p.canalTop !== canalF) return false;
     if(busca && !(String(p.sku).toLowerCase().includes(busca) || String(p.nome).toLowerCase().includes(busca))) return false;
     return true;
   });
@@ -3355,12 +3430,30 @@ function saudeRenderTabela() {
     C: { cor:'var(--muted2)',  bg:'rgba(100,116,139,.12)' }
   };
 
+  var mostrarVar = !!(document.getElementById('saude-mostrar-variacoes')||{}).checked;
+
   tbody.innerHTML = filtrados.slice(0, 300).map(function(p){
     var st = stCfg[p.statusSaude];
     var cv = curvaCfg[p.curva] || curvaCfg.C;
     var margemPct = (p.margemReal*100).toFixed(1)+'%';
     var canalLabel = p.canalTop + (p.canalTopPct>0 ? ' <span style="color:var(--muted2)">'+(p.canalTopPct*100).toFixed(0)+'%</span>' : '');
-    return '<tr>'+
+
+    // Preço sugerido: mostrar APENAS para produtos críticos e em atenção
+    var precoSugCell = '<span style="color:var(--muted2);font-size:11px">—</span>';
+    if((p.statusSaude === 'vermelho' || p.statusSaude === 'amarelo')) {
+      if(p.precoSugerido > 0) {
+        var ajusteColor = p.ajustePct > 0 ? 'var(--green)' : 'var(--red)';
+        var ajusteIco   = p.ajustePct > 0 ? '↑' : '↓';
+        precoSugCell = '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">'+
+          '<span style="font-family:var(--fdisplay);font-size:13px;font-weight:700;color:var(--accent)">R$ '+p.precoSugerido.toFixed(2).replace('.',',')+'</span>'+
+          '<span style="font-family:var(--fmono);font-size:9px;color:'+ajusteColor+'">'+ajusteIco+' '+Math.abs(p.ajustePct).toFixed(1)+'%</span>'+
+        '</div>';
+      } else if(p.precoSugerido === -1) {
+        precoSugCell = '<span title="Margem desejada + deduções somam 100% ou mais — inviável" style="color:var(--red);font-size:10px">⚠ inviável</span>';
+      }
+    }
+
+    var linhaPai = '<tr>'+
       '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted2)">'+_saudeEsc(p.sku)+'</td>'+
       '<td style="font-size:12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_saudeEsc(p.nome)+'">'+_saudeEsc(p.nome)+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+cv.bg+';color:'+cv.cor+'">'+p.curva+'</span></td>'+
@@ -3368,8 +3461,27 @@ function saudeRenderTabela() {
       '<td style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--muted2)">R$ '+(p.custoEstimado||0).toFixed(2).replace('.',',')+'</td>'+
       '<td style="font-size:11px;color:var(--muted2)">'+canalLabel+'</td>'+
       '<td style="text-align:right;font-family:var(--fdisplay);font-size:13px;font-weight:700;color:'+st.cor+'">'+margemPct+'</td>'+
+      '<td style="text-align:right">'+precoSugCell+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:5px;background:'+st.bg+';color:'+st.cor+';font-weight:600">'+st.ico+' '+st.lbl+'</span></td>'+
     '</tr>';
+
+    // Variações (tamanhos) — só se toggle ativo e produto tem tamanhos registrados
+    var linhasVar = '';
+    if(mostrarVar && p.tamanhos && Object.keys(p.tamanhos).length > 0) {
+      var totQtdVar = Object.values(p.tamanhos).reduce(function(s,n){return s+(n||0);},0);
+      Object.keys(p.tamanhos).sort(function(a,b){ return parseInt(a)-parseInt(b); }).forEach(function(t){
+        var qVar = p.tamanhos[t]||0;
+        var pctVar = totQtdVar > 0 ? (qVar/totQtdVar*100).toFixed(1) : '0';
+        linhasVar += '<tr style="background:rgba(0,0,0,.15)">'+
+          '<td style="font-family:var(--fmono);font-size:10px;color:var(--muted);padding-left:24px">↳ '+_saudeEsc(p.sku)+'-'+t+'</td>'+
+          '<td colspan="2" style="font-size:10px;color:var(--muted)">Tamanho '+_saudeEsc(t)+'</td>'+
+          '<td colspan="3" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:right">'+qVar+' un · '+pctVar+'% das vendas</td>'+
+          '<td colspan="3" style="text-align:right;font-family:var(--fmono);font-size:10px;color:var(--muted)">— mesmas margens do produto pai —</td>'+
+        '</tr>';
+      });
+    }
+
+    return linhaPai + linhasVar;
   }).join('');
 
   if(info) {
@@ -3407,14 +3519,15 @@ function saudeSetRegime(reg, btn) {
 
 /* ─ Gráficos e rankings ──────────────────────────────────────────── */
 function saudeRenderGraficos() {
+  var lista = _saudeProdutosFiltrados();
   // Donut de status
   try {
     var canvas = document.getElementById('saude-ch-status');
     if(canvas && typeof Chart !== 'undefined') {
       if(_saudeChart) { _saudeChart.destroy(); _saudeChart = null; }
-      var v = _saudeProdutos.filter(function(p){return p.statusSaude==='verde';}).length;
-      var a = _saudeProdutos.filter(function(p){return p.statusSaude==='amarelo';}).length;
-      var r = _saudeProdutos.filter(function(p){return p.statusSaude==='vermelho';}).length;
+      var v = lista.filter(function(p){return p.statusSaude==='verde';}).length;
+      var a = lista.filter(function(p){return p.statusSaude==='amarelo';}).length;
+      var r = lista.filter(function(p){return p.statusSaude==='vermelho';}).length;
       _saudeChart = new Chart(canvas, {
         type: 'doughnut',
         data: {
@@ -3441,7 +3554,7 @@ function saudeRenderGraficos() {
   try {
     var topEl = document.getElementById('saude-rank-top');
     if(topEl) {
-      var top = _saudeProdutos.slice().sort(function(a,b){ return b.margemReal - a.margemReal; }).slice(0,10);
+      var top = lista.slice().sort(function(a,b){ return b.margemReal - a.margemReal; }).slice(0,10);
       if(top.length === 0) {
         topEl.innerHTML = '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);text-align:center;padding:20px">Sem dados</div>';
       } else {
@@ -3467,7 +3580,7 @@ function saudeRenderGraficos() {
     var canEl = document.getElementById('saude-rank-canais');
     if(canEl) {
       var porCanal = {};
-      _saudeProdutos.forEach(function(p){
+      lista.forEach(function(p){
         var c = p.canalTop;
         if(!porCanal[c]) porCanal[c] = { somaPond:0, gmvTotal:0, qtd:0 };
         porCanal[c].somaPond += p.margemReal * p.gmv;
@@ -3505,7 +3618,7 @@ function saudeRenderGraficos() {
     var catEl = document.getElementById('saude-rank-categorias');
     if(catEl) {
       var porCat = {};
-      _saudeProdutos.forEach(function(p){
+      lista.forEach(function(p){
         var c = p.categoria || 'Outros';
         if(!porCat[c]) porCat[c] = { somaPond:0, gmvTotal:0, qtd:0 };
         porCat[c].somaPond += p.margemReal * p.gmv;
@@ -3563,6 +3676,7 @@ function _saudeRestaurarParams() {
     setVal('saude-perdas', p.perdas);
     setVal('saude-custo-fixo', p.custoFixo);
     setVal('saude-frete', p.frete);
+    setVal('saude-margem-desejada', p.margemDesejada);
     if(p.regime) {
       var btn = document.getElementById('saude-rt-' + p.regime);
       if(btn) saudeSetRegime(p.regime, btn);
