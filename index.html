@@ -2390,6 +2390,47 @@ body.light body::before { opacity: 0; }
         <!-- Cards gerados por renderPrecosMinimosPorCanal() -->
       </div>
 
+      <!-- prec-ads hidden: ADS Loja Própria removido da UI; mantido pra compat. -->
+      <input type="hidden" id="prec-ads" value="0">
+
+      <!-- LINHA 3 (NOVA): Custos Operacionais — movido pra cima pra dar destaque -->
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">⚙ Custos Operacionais (% sobre venda)</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Armazém (R$/pedido)</label>
+            <div style="display:flex;align-items:center;gap:3px">
+              <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+              <input type="number" id="prec-arm" value="0" min="0" step="0.5" oninput="calcPreco()"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+            </div>
+          </div>
+          <div title="Aplica apenas para Loja Própria — marketplaces fazem retenção própria">
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Financeiro % <span style="color:var(--accent);font-size:9px">(só LP)</span></label>
+            <input type="number" id="prec-fin" value="0" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('financeiroPct', this.value);"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Plataforma %</label>
+            <input type="number" id="prec-plat" value="0" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('plataformaPct', this.value);"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Perdas %</label>
+            <input type="number" id="prec-perdas" value="2" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('perdasPct', this.value);"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Custo Fixo %</label>
+            <div style="display:flex;align-items:center;gap:3px">
+              <input type="number" id="prec-fixo" value="0" min="0" max="100" step="0.1" oninput="calcPreco()"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+              <span style="font-family:var(--fmono);font-size:12px;color:var(--muted)">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="g3-charts">
 
         <!-- COLUNA ESQUERDA: Inputs -->
@@ -2544,46 +2585,6 @@ body.light body::before { opacity: 0; }
                 </div>
               </div>
               <div style="font-family:var(--fmono);font-size:10px;color:var(--muted)" id="prec-difal-info">DIFAL: —</div>
-            </div>
-          </div>
-
-          <!-- ETAPA 4: Custos operacionais -->
-          <div class="card">
-            <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">④ Custos Operacionais (% sobre venda)</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-              <div>
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Armazém (R$/pedido)</label>
-                <div style="display:flex;align-items:center;gap:3px">
-                  <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-                  <input type="number" id="prec-arm" value="0" min="0" step="0.5" oninput="calcPreco()"
-                    style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
-                </div>
-              </div>
-              <div title="Aplica apenas para Loja Própria — marketplaces fazem retenção própria">
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Financeiro % <span style="color:var(--accent);font-size:9px">(só Loja Própria)</span></label>
-                <input type="number" id="prec-fin" value="0" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('financeiroPct', this.value);"
-                  style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
-              </div>
-              <!-- ADS Loja Própria removido — usar campo % ADS no bloco do canal -->
-              <input type="hidden" id="prec-ads" value="0">
-              <div>
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Plataforma %</label>
-                <input type="number" id="prec-plat" value="0" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('plataformaPct', this.value);"
-                  style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
-              </div>
-              <div>
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Perdas %</label>
-                <input type="number" id="prec-perdas" value="2" min="0" max="100" step="0.1" oninput="calcPreco(); _precSyncGlobal('perdasPct', this.value);"
-                  style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
-              </div>
-              <div>
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Custo Fixo %</label>
-                <div style="display:flex;align-items:center;gap:3px">
-                  <input type="number" id="prec-fixo" value="0" min="0" max="100" step="0.1" oninput="calcPreco()"
-                    style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
-                  <span style="font-family:var(--fmono);font-size:12px;color:var(--muted)">%</span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -7129,11 +7130,17 @@ function renderPrecosMinimosPorCanal() {
       margemAtual = '<div style="font-family:var(--fmono);font-size:10px;color:'+(mg>=0?'var(--green)':'var(--red)')+'">'+mg.toFixed(1)+'%</div>';
     }
 
-    return '<div style="background:'+bg+';border:'+border+';border-radius:8px;padding:8px 10px;cursor:pointer" onclick="selecionarCanal(\''+c+'\')" title="'+( ci.taxaInfo||'')+'">'+
+    return '<div style="background:'+bg+';border:'+border+';border-radius:8px;padding:8px 10px;cursor:pointer;position:relative" onclick="selecionarCanal(\''+c+'\')" title="Clique pra selecionar este canal · use o ✓ pra aplicar o preço sugerido">'+
       '<div style="font-family:var(--fmono);font-size:9px;color:'+cor+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ci.nome.replace(/^./,'')+'</div>'+
       '<div style="font-family:var(--fdisplay);font-size:15px;font-weight:700;color:'+labelColor+'">'+label+'</div>'+
       '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted)">preço mínimo</div>'+
       margemAtual+
+      (precoMin !== null
+        ? '<button onclick="event.stopPropagation();precAplicarPrecoSugerido('+precoMin.toFixed(2)+', \''+c+'\')" '+
+          'title="Aplicar este preço como Preço de Venda" '+
+          'style="position:absolute;top:6px;right:6px;background:rgba(110,231,183,.12);border:1px solid rgba(110,231,183,.35);'+
+          'color:var(--accent);padding:1px 6px;border-radius:5px;font-family:var(--fmono);font-size:9px;cursor:pointer;font-weight:600">→ aplicar</button>'
+        : '')+
     '</div>';
   }).join('');
 }
@@ -8966,6 +8973,31 @@ function calcCMVReal() {
    Usa custoRealMap + produtosVendidosMap pra listar SKUs disponíveis.
    Quem não usa a busca: nada muda no comportamento da tela.
 ═══════════════════════════════════════════════════════════════════ */
+/* ─ Aplica o preço sugerido de um canal como Preço de Venda atual.
+   Útil pra simular: muda margem desejada → vê o preço mínimo → clica
+   "→ aplicar" → o lucro real recalcula com o novo preço. ──────────── */
+function precAplicarPrecoSugerido(preco, canal) {
+  try {
+    if(!preco || preco <= 0) return;
+    var v = Number(preco).toFixed(2);
+    var pt = document.getElementById('prec-preco-top');
+    var pb = document.getElementById('prec-preco');
+    if(pt) pt.value = v;
+    if(pb) pb.value = v;
+    // Selecionar o canal correspondente
+    if(canal && typeof selecionarCanal === 'function') selecionarCanal(canal);
+    // Recalcular lucro
+    if(typeof calcPreco === 'function') calcPreco();
+    // Feedback visual breve no campo de preço
+    if(pt) {
+      var origBorder = pt.style.borderBottomColor;
+      pt.style.transition = 'box-shadow .3s';
+      pt.style.boxShadow = '0 0 0 3px rgba(110,231,183,.3)';
+      setTimeout(function(){ pt.style.boxShadow = ''; }, 600);
+    }
+  } catch(e) { console.warn('[Precificação] erro ao aplicar preço sugerido:', e); }
+}
+
 function precBuscarSku(query) {
   var resultsEl = document.getElementById('prec-busca-resultados');
   if(!resultsEl) return;
