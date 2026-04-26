@@ -3079,48 +3079,153 @@ function _saudeGetParams() {
   };
 }
 
-/* ─ Captura produtos do período filtrado a partir do _lastProcessedData ──
-   _lastProcessedData.aprov + trans + entr são os pedidos do filtro global.
-   Agrupamos por SKU/produto para obter qtd e GMV por SKU no período. */
+/* ─ Captura produtos do período filtrado ──────────────────────────
+   FONTE PRIMÁRIA: produtosVendidosMap (planilha de Produtos Vendidos)
+   — tem SKU real, nome real, qtd, GMV e por_mes por SKU agregado.
+   Filtra os meses que estão dentro do período do filtro global.
+
+   FALLBACK: se a planilha de produtos não foi conectada, agrupa
+   pedidos brutos do _lastProcessedData (que pode ter campos genéricos
+   tipo produto='Produto' em algumas plataformas — funciona, mas com
+   menos detalhe).
+
+   Para canal top de cada SKU, cruza com pedidos brutos do período
+   para descobrir em qual canal o produto mais vendeu. */
 function _saudeColetarProdutos() {
   var d = window._lastProcessedData;
   if(!d) return [];
-  var todosPedidos = (d.aprov||[]).concat(d.trans||[]).concat(d.entr||[]);
-  if(todosPedidos.length === 0) return [];
 
-  // Agrupar por (produto, sku) — usar nome+sku como chave para casos sem SKU
-  var map = {};
-  todosPedidos.forEach(function(p){
-    var sku  = p.sku || p.produto || '—';
-    var nome = p.produto || p.nome || sku;
-    var chave = sku;
-    if(!map[chave]) {
-      map[chave] = { sku: sku, nome: nome, qtd: 0, gmv: 0, porCanal: {} };
+  // Datas do filtro
+  var from = (document.getElementById('f-from')||{}).value || '';
+  var to   = (document.getElementById('f-to')||{}).value   || '';
+
+  // === FONTE PRIMÁRIA: produtosVendidosMap ===
+  var temMap = (typeof produtosVendidosMap === 'object' && produtosVendidosMap && Object.keys(produtosVendidosMap).length > 0);
+
+  // Calcular meses do período (formato 3 letras + ano "abr26" OU só "abr")
+  var mesesPeriodoSet = null;
+  if(from || to) {
+    mesesPeriodoSet = new Set();
+    var dF = from ? new Date(from+'T00:00') : new Date();
+    var dT = to   ? new Date(to+'T00:00')   : new Date();
+    var cur = new Date(dF.getFullYear(), dF.getMonth(), 1);
+    var end = new Date(dT.getFullYear(), dT.getMonth(), 1);
+    var nomeMes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    while(cur <= end) {
+      mesesPeriodoSet.add(nomeMes[cur.getMonth()]);
+      cur.setMonth(cur.getMonth()+1);
     }
-    map[chave].qtd += 1;
-    map[chave].gmv += (p.valor || 0);
-    var canal = p.canal || '—';
-    if(!map[chave].porCanal[canal]) map[chave].porCanal[canal] = { qtd:0, gmv:0 };
-    map[chave].porCanal[canal].qtd += 1;
-    map[chave].porCanal[canal].gmv += (p.valor || 0);
+  }
+
+  // Calcular canal top por SKU base — cruzando com pedidos brutos
+  // (aprox: como pedidos não têm SKU, usamos o canal mais frequente como "canal top global")
+  var canaisGlobais = {};
+  var todosPedidos = (d.aprov||[]).concat(d.trans||[]).concat(d.entr||[]);
+  var totalGmvPedidos = 0;
+  todosPedidos.forEach(function(p){
+    var c = p.canal || '—';
+    if(!canaisGlobais[c]) canaisGlobais[c] = { qtd:0, gmv:0 };
+    canaisGlobais[c].qtd += 1;
+    canaisGlobais[c].gmv += (p.valor || 0);
+    totalGmvPedidos += (p.valor || 0);
   });
 
-  // Converter pra array, calcular preço médio, canal top, categoria
-  var arr = Object.values(map).map(function(p){
-    p.precoMedio = p.qtd > 0 ? p.gmv / p.qtd : 0;
-    // Canal top (maior GMV)
-    var topCanal = '—', topGMV = -1;
-    Object.keys(p.porCanal).forEach(function(c){
-      if(p.porCanal[c].gmv > topGMV) { topGMV = p.porCanal[c].gmv; topCanal = c; }
+  var arr = [];
+
+  if(temMap) {
+    // Iterar produtos da planilha
+    Object.values(produtosVendidosMap).forEach(function(p){
+      if(!p || !p.nome) return;
+
+      // Filtrar só meses do período (deduplicando 'abr' vs 'abr26')
+      var qtdPeriodo = 0;
+      var gmvPeriodo = 0;
+      if(p.por_mes && Object.keys(p.por_mes).length > 0) {
+        var qtdPorSigla = {}, gmvPorSigla = {};
+        Object.keys(p.por_mes).forEach(function(mesKey){
+          var sigla = mesKey.replace(/\d+$/, '');  // 'abr26' → 'abr'
+          var v = p.por_mes[mesKey] || 0;
+          if(qtdPorSigla[sigla] === undefined || v > qtdPorSigla[sigla]) qtdPorSigla[sigla] = v;
+          var g = (p.gmv_por_mes && p.gmv_por_mes[mesKey]) || 0;
+          if(gmvPorSigla[sigla] === undefined || g > gmvPorSigla[sigla]) gmvPorSigla[sigla] = g;
+        });
+        Object.keys(qtdPorSigla).forEach(function(sigla){
+          if(!mesesPeriodoSet || mesesPeriodoSet.has(sigla)) {
+            qtdPeriodo += qtdPorSigla[sigla] || 0;
+            gmvPeriodo += gmvPorSigla[sigla] || 0;
+          }
+        });
+      } else {
+        // Sem por_mes: usar totais
+        qtdPeriodo = p.qtd || 0;
+        gmvPeriodo = p.gmv || 0;
+      }
+      if(qtdPeriodo <= 0) return;  // pular produtos sem venda no período
+
+      // Preço médio: do GMV/qtd da planilha. Se GMV não veio, estimar pelo
+      // ticket médio dos pedidos brutos (totalGmvPedidos / totalQtdPedidos).
+      var precoMedio = 0;
+      if(gmvPeriodo > 0 && qtdPeriodo > 0) {
+        precoMedio = gmvPeriodo / qtdPeriodo;
+      } else if(todosPedidos.length > 0) {
+        precoMedio = totalGmvPedidos / todosPedidos.length;  // ticket médio global como aproximação
+      }
+
+      // Canal top: como produtosVendidosMap não tem canal por SKU, usamos o
+      // canal mais vendido GLOBALMENTE como aproximação. Documentado claramente.
+      var canalTopAprox = '—', topGMV = -1;
+      Object.keys(canaisGlobais).forEach(function(c){
+        if(canaisGlobais[c].gmv > topGMV) { topGMV = canaisGlobais[c].gmv; canalTopAprox = c; }
+      });
+      var canalTopPct = totalGmvPedidos > 0 ? topGMV / totalGmvPedidos : 0;
+
+      var produto = {
+        sku: p.sku || p.cod || '—',
+        nome: p.nome,
+        qtd: qtdPeriodo,
+        gmv: gmvPeriodo > 0 ? gmvPeriodo : (precoMedio * qtdPeriodo),
+        precoMedio: precoMedio,
+        canalTop: canalTopAprox,
+        canalTopGMV: topGMV,
+        canalTopPct: canalTopPct,
+        porCanal: {}  // não temos canal por SKU
+      };
+      try { produto.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(produto.nome) : 'Outros'; }
+      catch(e){ produto.categoria = 'Outros'; }
+      arr.push(produto);
     });
-    p.canalTop = topCanal;
-    p.canalTopGMV = topGMV;
-    p.canalTopPct = p.gmv > 0 ? topGMV / p.gmv : 0;
-    // Categoria (reusa detectarCategoria do menu Estoque, se disponível)
-    try { p.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(p.nome) : 'Outros'; }
-    catch(e){ p.categoria = 'Outros'; }
-    return p;
-  });
+  } else {
+    // === FALLBACK: agrupar pedidos brutos (modo antigo) ===
+    if(todosPedidos.length === 0) return [];
+    var map = {};
+    todosPedidos.forEach(function(p){
+      var sku  = p.sku || p.produto || '—';
+      var nome = p.produto || p.nome || sku;
+      var chave = sku;
+      if(!map[chave]) map[chave] = { sku: sku, nome: nome, qtd: 0, gmv: 0, porCanal: {} };
+      map[chave].qtd += 1;
+      map[chave].gmv += (p.valor || 0);
+      var canal = p.canal || '—';
+      if(!map[chave].porCanal[canal]) map[chave].porCanal[canal] = { qtd:0, gmv:0 };
+      map[chave].porCanal[canal].qtd += 1;
+      map[chave].porCanal[canal].gmv += (p.valor || 0);
+    });
+    arr = Object.values(map).map(function(p){
+      p.precoMedio = p.qtd > 0 ? p.gmv / p.qtd : 0;
+      var topCanal = '—', topGMV = -1;
+      Object.keys(p.porCanal).forEach(function(c){
+        if(p.porCanal[c].gmv > topGMV) { topGMV = p.porCanal[c].gmv; topCanal = c; }
+      });
+      p.canalTop = topCanal;
+      p.canalTopGMV = topGMV;
+      p.canalTopPct = p.gmv > 0 ? topGMV / p.gmv : 0;
+      try { p.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(p.nome) : 'Outros'; }
+      catch(e){ p.categoria = 'Outros'; }
+      return p;
+    });
+  }
+
+  console.log('[Saúde] Produtos coletados: '+arr.length+' (fonte: '+(temMap?'produtosVendidosMap':'pedidos brutos')+', período: '+from+' → '+to+')');
 
   // Classificar ABC por GMV
   arr = _saudeClassificarABC(arr);
@@ -7098,6 +7203,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         var header = rows[0];
         if(header) {
           var foundHeader = false;
+          var colGmv = -1;  // valor total vendido (coluna D na planilha do usuário)
           header.forEach(function(h, ci) {
             var s = String(h||'').toLowerCase().trim()
               .normalize('NFD').replace(/[\u0300-\u036f]/g,''); // remover acentos
@@ -7113,13 +7219,18 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
             }
             // Coluna C — quantidade
             else if(s==='qtd'||s==='quantidade'||s==='quant'||s==='qty'||
-                    s.includes('qtd')||s.includes('vendid')||s.includes('total')||
-                    s.includes('venda')||s.includes('unid')) {
+                    s.includes('qtd')||s.includes('vendid')||s.includes('total venda')) {
               colQtd=ci; foundHeader=true;
+            }
+            // Coluna D — Vlr Total Vendido (GMV por produto)
+            else if(s.includes('vlr total')||s.includes('valor total')||
+                    (s.includes('total') && s.includes('vend'))||
+                    s==='gmv'||s==='receita'||s.includes('faturamento')) {
+              colGmv=ci; foundHeader=true;
             }
           });
           if(foundHeader) startRow = 1;
-          console.log('[FanClub Produtos] Colunas detectadas: sku='+colSku+' nome='+colNome+' qtd='+colQtd+' startRow='+startRow);
+          console.log('[FanClub Produtos] Colunas detectadas: sku='+colSku+' nome='+colNome+' qtd='+colQtd+' gmv='+colGmv+' startRow='+startRow);
           console.log('[FanClub Produtos] Header:', header.slice(0,5).join(' | '));
           // Se header não detectado, logar primeira linha para diagnóstico
           if(!foundHeader && rows[0]) {
@@ -7136,6 +7247,12 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           var nome = String(r[colNome]||r[1]||'').trim();
           var qtdRaw = r[colQtd] !== undefined ? r[colQtd] : r[2];
           var qtd  = parseFloat(qtdRaw)||0;
+          // GMV (Vlr Total Vendido) — limpa formatação BR "R$ 1.234,56"
+          var gmvProduto = 0;
+          if(colGmv >= 0 && r[colGmv] !== undefined) {
+            var gmvRaw = String(r[colGmv]||'').replace(/[^\d,.\-]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');
+            gmvProduto = parseFloat(gmvRaw)||0;
+          }
 
           if(!nome || nome.length < 2) return;
           if(qtd <= 0 || qtd > 1000000) return;
@@ -7148,9 +7265,12 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           var nomeBase = nome.replace(/\s*[-–]\s*\d{2,4}\s*$/, '').replace(/\s+\d{2,4}\s*$/, '').trim() || nome;
           if(!skuBase) skuBase = nomeBase.substring(0,20);
 
-          if(!novoMap[skuBase]) novoMap[skuBase] = {nome: nomeBase, sku: skuBase, cod: skuBase, gmv:0, qtd: 0, tamanhos: {}, por_mes: {}};
+          if(!novoMap[skuBase]) novoMap[skuBase] = {nome: nomeBase, sku: skuBase, cod: skuBase, gmv:0, qtd: 0, tamanhos: {}, por_mes: {}, gmv_por_mes: {}};
           novoMap[skuBase].qtd += qtd;
+          novoMap[skuBase].gmv += gmvProduto;
           novoMap[skuBase].por_mes[mesKey] = (novoMap[skuBase].por_mes[mesKey]||0) + qtd;
+          if(!novoMap[skuBase].gmv_por_mes) novoMap[skuBase].gmv_por_mes = {};
+          novoMap[skuBase].gmv_por_mes[mesKey] = (novoMap[skuBase].gmv_por_mes[mesKey]||0) + gmvProduto;
 
           // Tamanhos: extrair de SKU ou nome
           var tamM = sku.match(/-(\d{2,3})$/) || nome.match(/[-\s](\d{2,3})\s*$/);
