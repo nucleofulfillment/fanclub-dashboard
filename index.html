@@ -8616,18 +8616,74 @@ function getMarcaProduto(sku) {
   return null;
 }
 
-/* ─ CMV REAL: soma custo × qtd vendida dos SKUs no período filtrado ──
-   Usa produtosVendidosMap (qtd por SKU/mês) × getCustoReal (custo por SKU).
+/* ─ CMV REAL: calcula taxa custo/GMV dos meses do período e aplica no GMV filtrado.
+   IMPORTANTE: produtosVendidosMap é agregado POR MÊS, não por dia.
+   Por isso usamos a TAXA (CMV_mês / GMV_mês) e aplicamos no GMV do filtro,
+   garantindo que filtros parciais (ex: 7 dias) não inflem o resultado.
    Para SKUs sem custo real, estima pelo preço médio × % da curva ABC.
-   Retorna: {total, skusReais, skusEstimados} ──────────────────────── */
+   Retorna: {total, skusReais, skusEstimados, taxa, gmvBase} ──────── */
+/* ─ Detecta se o filtro de período abrange UM OU MAIS MESES FECHADOS.
+   Mês fechado = from começa no dia 1 e to termina no último dia do mês.
+   Exemplo OK: 01/04/2026 → 30/04/2026  (Abril fechado)
+   Exemplo OK: 01/03/2026 → 30/04/2026  (Março + Abril fechados)
+   Exemplo NÃO OK: 10/04 → 20/04, 26/04 → 26/04, vazio
+   Sem filtro (from e to vazios) = "Tudo" → considera fechado (todos os meses).
+   Retorna {ok, motivo, mesesLabel}. ────────────────────────────── */
+function _finFiltroEhMesFechado() {
+  var from = (document.getElementById('f-from')||{}).value || '';
+  var to   = (document.getElementById('f-to')||{}).value   || '';
+  // Sem filtro → considera tudo (todos os meses fechados)
+  if(!from && !to) {
+    return { ok: true, motivo: 'todos os meses', mesesLabel: 'todos os meses' };
+  }
+  // Só uma das datas → não é fechado
+  if(!from || !to) {
+    return { ok: false, motivo: 'preencha ambas as datas (de/até)', mesesLabel: '' };
+  }
+  try {
+    var d1 = new Date(from + 'T00:00');
+    var d2 = new Date(to   + 'T00:00');
+    if(isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+      return { ok: false, motivo: 'datas inválidas', mesesLabel: '' };
+    }
+    // from precisa ser dia 1
+    if(d1.getDate() !== 1) {
+      return { ok: false, motivo: 'período começa no meio do mês', mesesLabel: '' };
+    }
+    // to precisa ser o ÚLTIMO dia do mês de d2
+    var ultimoDiaTo = new Date(d2.getFullYear(), d2.getMonth() + 1, 0).getDate();
+    if(d2.getDate() !== ultimoDiaTo) {
+      return { ok: false, motivo: 'período termina no meio do mês', mesesLabel: '' };
+    }
+    // Calcular meses cobertos
+    var meses = [];
+    var nomeMes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    var cur = new Date(d1.getFullYear(), d1.getMonth(), 1);
+    var end = new Date(d2.getFullYear(), d2.getMonth(), 1);
+    while(cur <= end) {
+      meses.push(nomeMes[cur.getMonth()]+'/'+cur.getFullYear().toString().slice(-2));
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    var label = meses.length === 1 ? meses[0]
+              : meses.length <= 3 ? meses.join(', ')
+              : (meses.length+' meses ('+meses[0]+' a '+meses[meses.length-1]+')');
+    return { ok: true, motivo: '', mesesLabel: label };
+  } catch(e) {
+    return { ok: false, motivo: 'erro ao validar período', mesesLabel: '' };
+  }
+}
+
 function calcCMVReal() {
+  // Caminho A: soma DIRETA de custo × qtd dos meses do filtro.
+  // Pré-condição: filtro deve ser mês(es) fechado(s) — validado por _finFiltroEhMesFechado.
+  // Quando essa pré-condição não é satisfeita, syncFinanceiroKPIs nem chega a invocar esta função.
   var resultado = { total: 0, skusReais: 0, skusEstimados: 0 };
   try {
     if(typeof produtosVendidosMap !== 'object' || !produtosVendidosMap) return resultado;
     var skus = Object.values(produtosVendidosMap);
     if(skus.length === 0) return resultado;
 
-    // Pegar filtro de período atual (mesma lógica de calcQtdProdutosVendidos)
+    // Pegar filtro de período atual e converter em mesKeys ("abr26", "mai26"...)
     var from = (document.getElementById('f-from')||{}).value || '';
     var to   = (document.getElementById('f-to')||{}).value   || '';
     var mesesSet = null;
@@ -8659,27 +8715,26 @@ function calcCMVReal() {
     skus.forEach(function(p){
       if(!p || !p.sku) return;
 
-      // Calcular qtd no período
+      // Qtd vendida nos meses do filtro
       var qtd = 0;
       if(mesesSet && p.por_mes) {
         Object.keys(p.por_mes).forEach(function(mk){
           if(mesesSet.has(mk)) qtd += (p.por_mes[mk] || 0);
         });
       } else if(!mesesSet) {
+        // Sem filtro = todos os meses
         qtd = p.qtd || 0;
       }
       if(qtd <= 0) return;
 
-      // Custo: tenta real, senão estima por preço médio × % curva
+      // Custo unitário: real (planilha) ou fallback (preço médio × % curva B)
       var info = (typeof getCustoReal === 'function') ? getCustoReal(p.sku) : null;
       var custoUnit = 0;
       if(info && info.custo > 0) {
         custoUnit = info.custo;
         resultado.skusReais++;
       } else {
-        // Fallback: precoMedio × pct curva (curva pode não estar definida nesse mapa)
-        var precoMed = p.gmv && p.qtd ? (p.gmv / p.qtd) : 0;
-        // Sem curva conhecida aqui, usa B como neutro
+        var precoMed = (p.gmv && p.qtd) ? (p.gmv / p.qtd) : 0;
         custoUnit = precoMed * SAUDE_FALLBACK.B;
         resultado.skusEstimados++;
       }
@@ -9575,15 +9630,40 @@ function syncFinanceiroKPIs(d) {
   var pctFinanceiro   = parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0;
 
   // ─── CMV: AUTO (calculado) vs MANUAL (% sobre GMV) ──────────────
-  // Modo Auto exige: planilha de custo carregada + toggle ativo
+  // Modo Auto exige: planilha de custo carregada + toggle ativo + filtro em mês(es) fechado(s)
+  var cmvFiltroInfo = (typeof _finFiltroEhMesFechado === 'function') ? _finFiltroEhMesFechado() : { ok: true, mesesLabel: '' };
   var cmvModoAuto = (function(){
     var t = document.getElementById('fin-cmv-toggle');
     if(!t) return false;
     if(typeof _custoStats === 'undefined' || !_custoStats.carregado) return false;
+    if(!cmvFiltroInfo.ok) return false;  // filtro parcial → bloqueia Auto
     return t.checked;
   })();
+  // Atualizar visual do toggle (habilitado/desabilitado conforme filtro)
+  try {
+    var togEl = document.getElementById('fin-cmv-toggle');
+    if(togEl) {
+      var podeAuto = (typeof _custoStats !== 'undefined') && _custoStats.carregado && cmvFiltroInfo.ok;
+      togEl.disabled = !podeAuto;
+      var labelEl = togEl.parentElement;
+      if(labelEl) {
+        labelEl.style.opacity = podeAuto ? '1' : '0.4';
+        labelEl.style.cursor = podeAuto ? 'pointer' : 'not-allowed';
+        // Tooltip dinâmico
+        if(!podeAuto) {
+          if(!_custoStats || !_custoStats.carregado) {
+            labelEl.title = 'Conecte a planilha de Custo de Produtos primeiro';
+          } else if(!cmvFiltroInfo.ok) {
+            labelEl.title = 'Auto disponível apenas para mês(es) fechado(s) — '+cmvFiltroInfo.motivo+'. Use os botões "Este mês" ou "Tudo" no topo.';
+          }
+        } else {
+          labelEl.title = 'Calcular CMV automaticamente do custo real × qtd vendida';
+        }
+      }
+    }
+  } catch(e){}
   var custoCMV = 0;
-  var cmvDetalhes = { skusReais: 0, skusEstimados: 0, modo: 'manual' };
+  var cmvDetalhes = { skusReais: 0, skusEstimados: 0, modo: 'manual', mesesLabel: cmvFiltroInfo.mesesLabel };
   if(cmvModoAuto && typeof calcCMVReal === 'function') {
     var cmvCalc = calcCMVReal();
     custoCMV = cmvCalc.total;
@@ -9746,9 +9826,19 @@ function syncFinanceiroKPIs(d) {
   if(cmvDetalhes.modo === 'auto') {
     var totalSkus = cmvDetalhes.skusReais + cmvDetalhes.skusEstimados;
     var pctReal = totalSkus > 0 ? (cmvDetalhes.skusReais/totalSkus*100).toFixed(0) : '0';
-    setT('fin-cmv-sub', '🟢 auto · '+cmvDetalhes.skusReais+'/'+totalSkus+' SKUs com custo real ('+pctReal+'%)');
+    var sufLabel = cmvDetalhes.mesesLabel ? ' · '+cmvDetalhes.mesesLabel : '';
+    setT('fin-cmv-sub', '🟢 auto · '+cmvDetalhes.skusReais+'/'+totalSkus+' SKUs reais ('+pctReal+'%)'+sufLabel);
   } else {
-    setT('fin-cmv-sub', 'CMV % do GMV (manual)');
+    // Manual: indicar se Auto está disponível ou bloqueado
+    var podeAtivarAuto = (typeof _custoStats !== 'undefined') && _custoStats.carregado;
+    var filtroOk = cmvFiltroInfo && cmvFiltroInfo.ok;
+    if(podeAtivarAuto && !filtroOk) {
+      setT('fin-cmv-sub', '⚠ ative "Auto" usando filtro de mês fechado (Tudo, Este mês)');
+    } else if(!podeAtivarAuto) {
+      setT('fin-cmv-sub', 'CMV % do GMV (manual) · conecte planilha de custo p/ usar Auto');
+    } else {
+      setT('fin-cmv-sub', 'CMV % do GMV (manual)');
+    }
   }
   setT('fin-plataforma', fMKPI(custoPlataforma));
   setT('fin-taxa-pgto',  fMKPI(custoTaxaPgto));
