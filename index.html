@@ -3857,6 +3857,7 @@ function saudeRenderKPIs() {
     var banner = document.getElementById('saude-cobertura-banner');
     if(banner) {
       var carregado = (typeof _custoStats !== 'undefined') && _custoStats.carregado;
+      var temUrl = !!localStorage.getItem('fc_custo_produtos_url');
       if(carregado) {
         // Cobertura calculada SOBRE OS PRODUTOS DO PERÍODO (não sobre toda a planilha de custo)
         var comReal = comVendas.filter(function(p){ return p.fonteCusto === 'real'; }).length;
@@ -3870,7 +3871,13 @@ function saudeRenderKPIs() {
         setTxt('saude-cobertura-marcas',
           qtdMarcas > 0 ? (qtdMarcas+' marca'+(qtdMarcas>1?'s':'')+' identificada'+(qtdMarcas>1?'s':'')) : 'sem marca identificada');
         banner.style.display = 'flex';
+      } else if(temUrl) {
+        // URL configurada mas planilha ainda não carregou (ou falhou)
+        setTxt('saude-cobertura-info', '⏳ Planilha de custo não carregada ainda. Clique em "🔄 Atualizar custos" ou veja o console (F12) para erros.');
+        setTxt('saude-cobertura-marcas', '');
+        banner.style.display = 'flex';
       } else {
+        // Sem URL configurada
         banner.style.display = 'none';
       }
     }
@@ -8471,9 +8478,15 @@ async function loadCustoProdutos() {
     var txt  = await res.text();
     var rows = parseGS(txt);  // helper já existente: parseia gviz JSON
     if(!rows || rows.length < 2) {
-      console.warn('[Custo] Planilha vazia ou inválida.');
+      console.warn('[Custo] Planilha vazia ou inválida. Resposta:', txt.substring(0,200));
       return;
     }
+
+    // Diagnóstico: mostrar cabeçalho e primeiras linhas no console
+    console.log('[Custo] Total de linhas:', rows.length);
+    console.log('[Custo] Cabeçalho (linha 0):', rows[0]);
+    console.log('[Custo] Amostra (linha 1):', rows[1]);
+    console.log('[Custo] Amostra (linha 2):', rows[2]);
 
     // Ignora a linha 0 se for cabeçalho textual
     var startRow = 0;
@@ -8591,6 +8604,56 @@ function getMarcaProduto(sku) {
   if(marcaPorSku[base]) return marcaPorSku[base];
   return null;
 }
+
+/* ─ Funções de debug (acessíveis pelo console: window.debugCusto.X) ─── */
+window.debugCusto = {
+  // Mostra estatísticas da planilha de custo carregada
+  status: function() {
+    var temUrl = !!localStorage.getItem(FC_CUSTO_URL_KEY);
+    var url = localStorage.getItem(FC_CUSTO_URL_KEY) || '(não configurada)';
+    console.log('═══ STATUS DO CUSTO REAL ═══');
+    console.log('URL configurada:', temUrl);
+    console.log('URL:', url);
+    console.log('Planilha carregada:', _custoStats.carregado);
+    console.log('Total SKUs com marca:', _custoStats.totalSkus);
+    console.log('Total SKUs com custo > 0:', _custoStats.comCusto);
+    console.log('Custo médio: R$', _custoStats.custoMedio.toFixed(2));
+    console.log('Marcas:', _custoStats.marcas);
+    console.log('Última carga:', _custoStats.ultimaCarga);
+    console.log('═══════════════════════════');
+    return _custoStats;
+  },
+  // Procura um SKU específico (testa todas as variações)
+  buscar: function(sku) {
+    console.log('═══ BUSCA SKU: '+sku+' ═══');
+    console.log('Match exato no map?:', custoRealMap[sku] || '(não)');
+    var base = String(sku).replace(/-\d{1,4}$/, '');
+    console.log('Após remover sufixo numérico:', base);
+    console.log('Match base no map?:', custoRealMap[base] || '(não)');
+    console.log('Marca direta?:', marcaPorSku[sku] || '(não)');
+    console.log('Marca via base?:', marcaPorSku[base] || '(não)');
+    console.log('getCustoReal('+sku+'):', getCustoReal(sku));
+    console.log('getMarcaProduto('+sku+'):', getMarcaProduto(sku));
+    // Procurar SKUs similares no map
+    var similares = Object.keys(custoRealMap).filter(function(k){ return k.indexOf(base.substring(0,10)) >= 0; }).slice(0,10);
+    console.log('SKUs no map que começam parecido:', similares);
+    console.log('═══════════════════════════');
+  },
+  // Lista TODOS os SKUs no map (limitar a N)
+  listar: function(n) {
+    n = n || 20;
+    var keys = Object.keys(custoRealMap).slice(0, n);
+    console.log('═══ PRIMEIROS '+n+' SKUs NO MAP DE CUSTO ═══');
+    keys.forEach(function(k){ console.log(k, '→', custoRealMap[k]); });
+    console.log('Total no map:', Object.keys(custoRealMap).length);
+    console.log('═══════════════════════════');
+  },
+  // Forçar reload
+  recarregar: function() {
+    console.log('Forçando reload...');
+    return loadCustoProdutos();
+  }
+};
 
 /* ─ Popular seletor de mês dos produtos ─ */
 function _popularSeletorMesProd() {
