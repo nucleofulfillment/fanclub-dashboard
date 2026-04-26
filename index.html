@@ -259,6 +259,17 @@ body::before {
   .g3-charts { grid-template-columns: 1fr !important; }
   /* ops-grid vertical no mobile */
   #ops-grid { grid-template-columns: 1fr !important; }
+  /* Grid de comparação Marcas+Produtos: vira 1 coluna em mobile */
+  .resumo-comparacao-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .resumo-comparacao-grid > div + div {
+    border-left: none !important;
+    padding-left: 0 !important;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    margin-top: 14px;
+  }
 }
 @media (max-width: 600px) {
   .fbar {
@@ -6509,17 +6520,15 @@ function compararResumos(i1, i2) {
 }
 
 /* ─ Comparação de marcas entre dois resumos (só se ambos têm) ─── */
-function _compararMarcasHTML(r1, r2) {
-  if(!r1 || !r2) return '';
+/* ─ Helper interno: renderiza SÓ a tabela de marcas (sem card externo). */
+function _tabelaMarcasHTML(r1, r2) {
   if(!Array.isArray(r1.marcasDistribuicao) || !Array.isArray(r2.marcasDistribuicao)) return '';
   if(r1.marcasDistribuicao.length === 0 || r2.marcasDistribuicao.length === 0) return '';
 
-  // Indexar por marca
   var m1 = {}, m2 = {};
   r1.marcasDistribuicao.forEach(function(m){ m1[m.marca] = m; });
   r2.marcasDistribuicao.forEach(function(m){ m2[m.marca] = m; });
 
-  // Conjunto de todas as marcas (ordenado pela qtd do snapshot mais novo)
   var todasMarcas = {};
   r1.marcasDistribuicao.forEach(function(m){ todasMarcas[m.marca] = (todasMarcas[m.marca]||0) + (m.qtd||0); });
   r2.marcasDistribuicao.forEach(function(m){ todasMarcas[m.marca] = (todasMarcas[m.marca]||0) + (m.qtd||0); });
@@ -6533,49 +6542,40 @@ function _compararMarcasHTML(r1, r2) {
     var arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
     var deltaTxt = b === 0 && a > 0 ? 'novo' : (a === 0 && b > 0 ? 'sumiu' : (Math.abs(delta).toFixed(1)+'%'));
     return '<tr>'+
-      '<td style="padding:6px 10px;font-family:var(--fmono);font-size:11px;color:var(--text)">'+
-        '<span style="color:#FBBF24;margin-right:6px">●</span>'+marca+'</td>'+
-      '<td style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:11px">'+a.toLocaleString('pt-BR')+' un</td>'+
-      '<td style="padding:6px 10px;text-align:center;font-family:var(--fmono);font-size:11px;color:'+color+';font-weight:600">'+arrow+' '+deltaTxt+'</td>'+
-      '<td style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:11px">'+b.toLocaleString('pt-BR')+' un</td>'+
+      '<td style="padding:5px 8px;font-family:var(--fmono);font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px">'+
+        '<span style="color:#FBBF24;margin-right:5px">●</span>'+marca+'</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:11px;white-space:nowrap">'+a.toLocaleString('pt-BR')+'</td>'+
+      '<td style="padding:5px 8px;text-align:center;font-family:var(--fmono);font-size:11px;color:'+color+';font-weight:600;white-space:nowrap">'+arrow+' '+deltaTxt+'</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:11px;color:var(--muted2);white-space:nowrap">'+b.toLocaleString('pt-BR')+'</td>'+
     '</tr>';
   }).join('');
 
-  return '<div style="grid-column:1/-1;background:var(--s2);border-radius:10px;padding:14px;border:1px solid var(--border);margin-top:6px">'+
-    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">🏷️ Comparação por Marca</div>'+
+  return '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">🏷️ Por Marca</div>'+
     '<table style="width:100%;border-collapse:collapse">'+
       '<thead><tr style="border-bottom:1px solid var(--border)">'+
-        '<th style="padding:6px 10px;text-align:left;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Marca</th>'+
-        '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r1.nome+'</th>'+
-        '<th style="padding:6px 10px;text-align:center;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Δ</th>'+
-        '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r2.nome+'</th>'+
+        '<th style="padding:5px 8px;text-align:left;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Marca</th>'+
+        '<th style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r1.nome+'</th>'+
+        '<th style="padding:5px 8px;text-align:center;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Δ</th>'+
+        '<th style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r2.nome+'</th>'+
       '</tr></thead>'+
       '<tbody>'+linhas+'</tbody>'+
-    '</table>'+
-  '</div>';
+    '</table>';
 }
 
-/* ─ Comparação Top 10 produtos entre dois resumos ─────────────────
-   Detecta produtos que subiram, caíram, novos no top, e os que sumiram.
-   Só renderiza se ambos resumos têm topProdutos com qtd > 0. */
-function _compararProdutosHTML(r1, r2) {
-  if(!r1 || !r2) return '';
+/* ─ Helper interno: renderiza SÓ a tabela de produtos (sem card externo). */
+function _tabelaProdutosHTML(r1, r2) {
   if(!Array.isArray(r1.topProdutos) || !Array.isArray(r2.topProdutos)) return '';
   if(r1.topProdutos.length === 0 || r2.topProdutos.length === 0) return '';
 
-  // Indexar por SKU (chave de comparação)
   var p1 = {}, p2 = {};
   r1.topProdutos.forEach(function(p){ if(p && p.sku) p1[p.sku] = p; });
   r2.topProdutos.forEach(function(p){ if(p && p.sku) p2[p.sku] = p; });
 
-  // Pegar TOP 10 do snapshot 1 (mais recente) — nossa referência principal
   var top1 = r1.topProdutos.slice(0, 10);
-  // Identificar SKUs que estavam no top de r2 mas saíram (sumidos do top em r1)
-  var top2Skus = new Set(r2.topProdutos.slice(0, 10).map(function(p){ return p.sku; }));
   var top1Skus = new Set(top1.map(function(p){ return p.sku; }));
   var sumidos = r2.topProdutos.slice(0, 10).filter(function(p){
     return !top1Skus.has(p.sku);
-  }).slice(0, 3); // limita a 3 sumidos
+  }).slice(0, 3);
 
   var fnLinha = function(p, isAtual){
     var aSku = p.sku;
@@ -6590,41 +6590,66 @@ function _compararProdutosHTML(r1, r2) {
                   : (qtdA === 0 && qtdB > 0) ? 'sumiu'
                   : (Math.abs(delta).toFixed(1) + '%');
     var nome = (a || b).nome || (a || b).sku;
-    if(nome.length > 50) nome = nome.substring(0, 47) + '...';
-    var marca = (a || b).marca || '';
-    var marcaTag = marca
-      ? '<span style="font-size:9px;color:#FBBF24;background:rgba(251,191,36,.10);padding:1px 6px;border-radius:3px;margin-left:6px">'+marca+'</span>'
-      : '';
-    return '<tr>'+
-      '<td style="padding:6px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);max-width:400px">'+
-        '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(a||b).sku+'">'+nome+marcaTag+'</div>'+
-        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:2px">'+(a||b).sku+'</div>'+
-      '</td>'+
-      '<td style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:11px">'+(qtdA>0?qtdA.toLocaleString('pt-BR')+' un':'—')+'</td>'+
-      '<td style="padding:6px 10px;text-align:center;font-family:var(--fmono);font-size:11px;color:'+color+';font-weight:600">'+arrow+' '+deltaTxt+'</td>'+
-      '<td style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:11px">'+(qtdB>0?qtdB.toLocaleString('pt-BR')+' un':'—')+'</td>'+
+    if(nome.length > 30) nome = nome.substring(0, 27) + '...';
+    return '<tr title="'+(a||b).sku+'">'+
+      '<td style="padding:5px 8px;font-family:var(--fmono);font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">'+
+        nome+'</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:11px;white-space:nowrap">'+(qtdA>0?qtdA.toLocaleString('pt-BR'):'—')+'</td>'+
+      '<td style="padding:5px 8px;text-align:center;font-family:var(--fmono);font-size:11px;color:'+color+';font-weight:600;white-space:nowrap">'+arrow+' '+deltaTxt+'</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:11px;color:var(--muted2);white-space:nowrap">'+(qtdB>0?qtdB.toLocaleString('pt-BR'):'—')+'</td>'+
     '</tr>';
   };
 
   var linhasTop = top1.map(function(p){ return fnLinha(p, true); }).join('');
   var linhasSumidos = sumidos.map(function(p){ return fnLinha(p, false); }).join('');
-
   var separador = sumidos.length > 0
-    ? '<tr><td colspan="4" style="padding:8px 10px 4px;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;border-top:1px dashed var(--border)">⚠ Saíram do Top 10</td></tr>'
+    ? '<tr><td colspan="4" style="padding:6px 8px 3px;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;border-top:1px dashed var(--border)">⚠ Saíram do Top 10</td></tr>'
     : '';
 
-  return '<div style="grid-column:1/-1;background:var(--s2);border-radius:10px;padding:14px;border:1px solid var(--border);margin-top:6px">'+
-    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">🏆 Comparação Top 10 Produtos</div>'+
+  return '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">🏆 Top 10 Produtos</div>'+
     '<table style="width:100%;border-collapse:collapse">'+
       '<thead><tr style="border-bottom:1px solid var(--border)">'+
-        '<th style="padding:6px 10px;text-align:left;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Produto</th>'+
-        '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r1.nome+'</th>'+
-        '<th style="padding:6px 10px;text-align:center;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Δ</th>'+
-        '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r2.nome+'</th>'+
+        '<th style="padding:5px 8px;text-align:left;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Produto</th>'+
+        '<th style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r1.nome+'</th>'+
+        '<th style="padding:5px 8px;text-align:center;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Δ</th>'+
+        '<th style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r2.nome+'</th>'+
       '</tr></thead>'+
       '<tbody>'+linhasTop+separador+linhasSumidos+'</tbody>'+
-    '</table>'+
+    '</table>';
+}
+
+/* ─ Card único com Marcas + Top Produtos lado a lado (grid 2 colunas).
+   Em telas <900px quebra automaticamente em 1 coluna (cima/baixo). */
+function _compararMarcasHTML(r1, r2) {
+  if(!r1 || !r2) return '';
+  var marcasHTML   = _tabelaMarcasHTML(r1, r2);
+  var produtosHTML = _tabelaProdutosHTML(r1, r2);
+
+  // Se nenhum dos dois tem dados, não renderiza nada
+  if(!marcasHTML && !produtosHTML) return '';
+
+  // Se só um tem dados, renderiza esse sozinho em coluna única
+  var soUm = !marcasHTML || !produtosHTML;
+  var conteudoFn = soUm
+    ? (marcasHTML || produtosHTML)
+    : '<div>'+marcasHTML+'</div>'+
+      '<div style="border-left:1px solid var(--border);padding-left:14px">'+produtosHTML+'</div>';
+
+  var gridStyle = soUm
+    ? ''
+    : 'display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:14px';
+
+  return '<div style="grid-column:1/-1;background:var(--s2);border-radius:10px;padding:14px;border:1px solid var(--border);margin-top:6px">'+
+    '<div style="'+gridStyle+'" class="resumo-comparacao-grid">'+
+      conteudoFn+
+    '</div>'+
   '</div>';
+}
+
+/* ─ Mantida pra compatibilidade — agora vazia, _compararMarcasHTML faz tudo. */
+function _compararProdutosHTML(r1, r2) {
+  // Conteúdo movido pra _compararMarcasHTML (card único 2 colunas)
+  return '';
 }
 
 function gerarLinkResumo(idx) {
