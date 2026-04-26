@@ -1092,13 +1092,11 @@ body.light body::before { opacity: 0; }
 <!-- App content -->
 <div class="app-content">
 
-  <!-- PAGE: DASHBOARD -->
-  <div id="page-dashboard" class="page active">
-    <main class="main">
-
-
-  <!-- Filter bar -->
-  <div class="fbar fu d1">
+  <!-- ╔══════════════════════════════════════════════════════╗ -->
+  <!-- ║ FILTRO GLOBAL — aplica em Dashboard, Financeiro,    ║ -->
+  <!-- ║ Marketing e Resumos. Inputs locais são read-only.   ║ -->
+  <!-- ╚══════════════════════════════════════════════════════╝ -->
+  <div class="fbar fu d1" id="filtro-global" style="margin-bottom:14px">
     <span class="flbl">Período</span>
     <div class="fpresets">
       <button class="ftab" onclick="setPreset('hoje',this)">Hoje</button>
@@ -1129,6 +1127,13 @@ body.light body::before { opacity: 0; }
     </select>
     <div class="finfo" id="f-info">Todos os registros</div>
   </div>
+
+  <!-- PAGE: DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <main class="main">
+
+
+  <!-- Filter bar antiga (mantida vazia para preservar referências; não exibe nada) -->
 
   <!-- KPIs -->
   <div class="slabel">indicadores principais</div>
@@ -1352,23 +1357,16 @@ body.light body::before { opacity: 0; }
     <main class="main">
 
       <!-- Filtro de datas independente do Financeiro -->
-      <div class="fbar" style="margin-bottom:20px">
-        <span class="flbl">Período</span>
-        <div class="fpresets">
-          <button class="ftab" onclick="setPresetFin('hoje',this)">Hoje</button>
-          <button class="ftab" onclick="setPresetFin('7d',this)">7 dias</button>
-          <button class="ftab" onclick="setPresetFin('30d',this)">30 dias</button>
-          <button class="ftab" onclick="setPresetFin('mes',this)">Este mês</button>
-          <button class="ftab on" onclick="setPresetFin('tudo',this)">Tudo</button>
-        </div>
+      <!-- Filtro local Financeiro — sincronizado com filtro global (read-only) -->
+      <div class="fbar" style="margin-bottom:20px;opacity:.85">
+        <span class="flbl" style="color:var(--accent)">⚙ Período (sincronizado com filtro global)</span>
         <div class="fsep"></div>
         <div class="fdates">
           <span class="flbl">De</span>
-          <input type="date" class="fdate" id="fin-from">
+          <input type="date" class="fdate" id="fin-from" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
           <span class="farrow">→</span>
           <span class="flbl">Até</span>
-          <input type="date" class="fdate" id="fin-to">
-          <button class="fbtn" onclick="applyFilterFin()">Filtrar</button>
+          <input type="date" class="fdate" id="fin-to" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
         </div>
         <div class="finfo" id="fin-info">Todos os registros</div>
       </div>
@@ -1684,23 +1682,16 @@ body.light body::before { opacity: 0; }
   <div id="page-marketing" class="page">
     <main class="main">
 
-      <!-- Filtro de período -->
-      <div class="fbar" style="margin-bottom:20px">
-        <span class="flbl">Período</span>
-        <div class="fpresets">
-          <button class="ftab" onclick="setPresetMkt('7d',this)">7 dias</button>
-          <button class="ftab" onclick="setPresetMkt('30d',this)">30 dias</button>
-          <button class="ftab on" onclick="setPresetMkt('mes',this)">Este mês</button>
-          <button class="ftab" onclick="setPresetMkt('tudo',this)">Tudo</button>
-        </div>
+      <!-- Filtro local Marketing — sincronizado com filtro global (read-only) -->
+      <div class="fbar" style="margin-bottom:20px;opacity:.85">
+        <span class="flbl" style="color:var(--accent)">⚙ Período (sincronizado com filtro global)</span>
         <div class="fsep"></div>
         <div class="fdates">
           <span class="flbl">De</span>
-          <input type="date" class="fdate" id="mkt-from">
+          <input type="date" class="fdate" id="mkt-from" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
           <span class="farrow">→</span>
           <span class="flbl">Até</span>
-          <input type="date" class="fdate" id="mkt-to">
-          <button class="fbtn" onclick="calcMarketing()">Calcular</button>
+          <input type="date" class="fdate" id="mkt-to" readonly tabindex="-1" style="pointer-events:none;opacity:.6">
         </div>
         <div class="finfo" id="mkt-info">—</div>
       </div>
@@ -1784,25 +1775,13 @@ body.light body::before { opacity: 0; }
         </div>
       </div>
 
-      <!-- Gráficos ABAIXO da tabela -->
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px" class="g3-charts">
-        <div class="card">
-          <div class="ch"><div><div class="ct">GMV por Canal</div><div class="cs">Receita por marketplace — comparação de participação</div></div></div>
-          <!-- Grid de colunas por canal -->
-          <div id="gmv-canal-grid" style="
-            display:grid;
-            grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
-            gap:10px;
-            margin-top:4px
-          "></div>
-          <!-- Canvas oculto para compatibilidade (não destruir lógica) -->
-          <canvas id="ch-mkt-inv" height="0" style="display:none"></canvas>
-          <div id="gmv-canal-lista" style="display:none"></div>
-        </div>
-        <div class="card">
-          <div class="ch"><div><div class="ct">ROAS por Canal</div><div class="cs">Calculado individualmente por canal</div></div></div>
-          <canvas id="ch-mkt-roas" height="200"></canvas>
-        </div>
+      <!-- Gráficos GMV por Canal e ROAS por Canal removidos a pedido -->
+      <!-- Canvas/divs internos mantidos ocultos para preservar a lógica JS existente -->
+      <div style="display:none">
+        <div id="gmv-canal-grid"></div>
+        <canvas id="ch-mkt-inv" height="0"></canvas>
+        <div id="gmv-canal-lista"></div>
+        <canvas id="ch-mkt-roas" height="0"></canvas>
       </div>
 
     </main>
@@ -2065,8 +2044,8 @@ body.light body::before { opacity: 0; }
                     style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
                 </div>
               </div>
-              <div>
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Financeiro %</label>
+              <div title="Aplica apenas para Loja Própria — marketplaces fazem retenção própria">
+                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Financeiro % <span style="color:var(--accent);font-size:9px">(só Loja Própria)</span></label>
                 <input type="number" id="prec-fin" value="0" min="0" max="100" step="0.1" oninput="calcPreco()"
                   style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
               </div>
@@ -2223,7 +2202,9 @@ body.light body::before { opacity: 0; }
             <span style="color:var(--green)">▬ Realizado</span>
             <span style="color:var(--amber)">▬ Projetado</span>
           </div></div>
-          <canvas id="ch-fc-diario" style="max-width:100%;height:180px;display:block;"></canvas>
+          <div style="position:relative;height:400px;width:100%;margin-top:8px">
+            <canvas id="ch-fc-diario"></canvas>
+          </div>
         </div>
         <div class="card">
           <div class="ch"><div><div class="ct">Saídas por Categoria</div><div class="cs">Distribuição das despesas</div></div></div>
@@ -2785,7 +2766,10 @@ function applyFilter(){
   var to   = document.getElementById('f-to').value;   // "YYYY-MM-DD" ou ""
   var canalFilter = (document.getElementById('f-canal')||{}).value || '';
   // Salvar filtro atual globalmente para uso em makeCharts (período anterior)
-  window._filtroAtual = {from: from, to: to};
+  window._filtroAtual = {from: from, to: to, canal: canalFilter};
+
+  // SINCRONIZAR filtros locais (read-only) e disparar recálculo nos menus afetados
+  sincronizarFiltrosLocais(from, to);
 
   var pedidos = getPedidos();
 
@@ -2801,11 +2785,48 @@ function applyFilter(){
 
   var fi   = document.getElementById('f-info');
   var pill = document.getElementById('pill-per');
-  if(!from&&!to){ fi.textContent=filtered.length+' registros · período completo'; pill.textContent='Período completo'; }
-  else { var f=from?fD(from):'...'; var t2=to?fD(to):'hoje'; fi.textContent=filtered.length+' registros · '+f+' → '+t2; pill.textContent=f+' – '+t2; }
+  if(!from&&!to){
+    fi.textContent = filtered.length + ' registros · período completo' + (canalFilter ? ' · canal: '+canalFilter : '');
+    if(pill) pill.textContent = 'Período completo';
+  } else {
+    var f=from?fD(from):'...'; var t2=to?fD(to):'hoje';
+    fi.textContent = filtered.length + ' registros · ' + f + ' → ' + t2 + (canalFilter ? ' · canal: '+canalFilter : '');
+    if(pill) pill.textContent = f+' – '+t2;
+  }
 
   if(filtered.length===0){ renderEmpty(); return; }
   renderAll(processarDados(filtered));
+
+  // Após renderAll atualizar Financeiro e Marketing também (usam o mesmo dataset filtrado)
+  // Não dispara se a página atual é Pedidos/Estoque/Precificação/etc — eles não dependem.
+  try { if(typeof syncFinanceiroKPIs === 'function' && window._lastProcessedData) syncFinanceiroKPIs(window._lastProcessedData); } catch(e){}
+  try { if(typeof calcMarketing === 'function') calcMarketing(); } catch(e){}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SINCRONIZAÇÃO DE FILTROS LOCAIS (READ-ONLY)
+   Os inputs em Financeiro e Marketing são apenas display — eles
+   refletem o filtro global. Esta função propaga o valor.
+═══════════════════════════════════════════════════════════════ */
+function sincronizarFiltrosLocais(from, to) {
+  var ids = ['fin-from', 'mkt-from'];  // inputs "from" locais
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = from || '';
+  });
+  var idsTo = ['fin-to', 'mkt-to'];
+  idsTo.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = to || '';
+  });
+  // Atualizar texto informativo dos filtros locais
+  var infoTxt;
+  if(!from && !to) infoTxt = 'Todos os registros';
+  else infoTxt = (from?fD(from):'...') + ' → ' + (to?fD(to):'hoje');
+  ['fin-info', 'mkt-info'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.textContent = infoTxt;
+  });
 }
 
 /* ─ image error handler ─ */
@@ -3683,6 +3704,17 @@ function showPage(pageId, navEl) {
   if(navEl) navEl.classList.add('active');
   // Close sidebar on mobile
   if(window.innerWidth <= 900) closeSidebar();
+
+  // FILTRO GLOBAL: visível apenas em Dashboard, Financeiro e Marketing
+  // (são os 3 menus que processam pedidos por período)
+  try {
+    var fg = document.getElementById('filtro-global');
+    if(fg) {
+      var pgsComFiltro = ['dashboard', 'financeiro', 'marketing'];
+      fg.style.display = pgsComFiltro.indexOf(pageId) !== -1 ? '' : 'none';
+    }
+  } catch(e){}
+
   // If estoque page, render estoque content
   if(pageId === 'estoque') renderEstoque();
   // If pedidos page, render pedidos
@@ -3692,25 +3724,13 @@ function showPage(pageId, navEl) {
   if(pageId === 'resumos') renderResumos();
   if(pageId === 'precificacao') renderPrecificacao();
   if(pageId === 'fluxocaixa') renderFluxoCaixaPage();
-  // If financeiro page, initialize filter
+  // If financeiro page, sincroniza filtros locais e recalcula com filtro global atual
   if(pageId === 'financeiro') {
-    // Garantir que filtro de data está preenchido ao abrir
     try {
-      var ffrom = document.getElementById('fin-f-from');
-      var fto   = document.getElementById('fin-f-to');
-      if(ffrom && !ffrom.value) {
-        var now = new Date();
-        ffrom.value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';
-      }
-      if(fto && !fto.value) {
-        fto.value = new Date().toISOString().split('T')[0];
-      }
-    } catch(e) {}
-    // Inicializar datas do financeiro se vazias
-    try{
-      var ft = document.getElementById('fin-to');
-      if(ft && !ft.value) ft.value = td();
-    }catch(e){}
+      var ffrom = document.getElementById('f-from')||{value:''};
+      var fto   = document.getElementById('f-to')||{value:''};
+      sincronizarFiltrosLocais(ffrom.value, fto.value);
+    } catch(e){}
     applyFilterFin();
   }
 }
@@ -3839,17 +3859,8 @@ var MKT_CANAL_MAP = {
 };
 
 function setPresetMkt(p, btn) {
-  document.querySelectorAll('#page-marketing .ftab').forEach(function(b){ b.classList.remove('on'); });
-  if(btn) btn.classList.add('on');
-  var now = new Date(), t = td();
-  var from = null, to = t;
-  if(p==='7d')  { var d=new Date(now);d.setDate(d.getDate()-6); from=d.toISOString().split('T')[0]; }
-  else if(p==='30d') { var d=new Date(now);d.setDate(d.getDate()-29);from=d.toISOString().split('T')[0]; }
-  else if(p==='mes') { from=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01'; }
-  else { from=null; to=null; }
-  try{document.getElementById('mkt-from').value=from||'';}catch(e){}
-  try{document.getElementById('mkt-to').value=to||'';}catch(e){}
-  calcMarketing();
+  // Compat: o filtro de Marketing virou global. Redireciona para setPreset do header.
+  if(typeof setPreset === 'function') setPreset(p, null);
 }
 
 function calcMarketing() {
@@ -3881,14 +3892,17 @@ function calcMarketing() {
   };
 
   // ── Filtrar pedidos pelo período ──────────────────────────
-  var from = (document.getElementById('mkt-from')||{}).value||'';
-  var to   = (document.getElementById('mkt-to')||{}).value||'';
+  // FONTE DA VERDADE: filtro global (f-from/f-to/f-canal)
+  var from = (document.getElementById('f-from')||{}).value||'';
+  var to   = (document.getElementById('f-to')||{}).value||'';
+  var canalFilter = (document.getElementById('f-canal')||{}).value||'';
   var pedidos = getPedidos();
   var filtrado = pedidos.filter(function(p) {
     if(!p.data||p.data.length<10) return false;
     var d = p.data.slice(0,10);
     if(from && d < from) return false;
     if(to   && d > to)   return false;
+    if(canalFilter && p.canal !== canalFilter) return false;
     return true;
   });
 
@@ -3916,6 +3930,7 @@ function calcMarketing() {
   try{document.getElementById('mkt-cpc').textContent=cpcGlobal>0?fMKPI(cpcGlobal):'—';}catch(e){}
 
   var periodTxt = from && to ? fD(from)+' → '+fD(to) : (from?fD(from)+' → hoje':'Período completo');
+  if(canalFilter) periodTxt += ' · canal: '+canalFilter;
   try{document.getElementById('mkt-info').textContent=periodTxt;}catch(e){}
 
   // ── Tabela com ROAS INDIVIDUAL por canal ─────────────────
@@ -4093,12 +4108,44 @@ function toggleTheme() {
 
 /* ═══════════════════════════════════════════════════════════════
    MENU RESUMOS — Snapshots, Exportação e Comparação
+   v2: Snapshots completos com restauração do dashboard + isolamento por empresa
 ═══════════════════════════════════════════════════════════════ */
-var RESUMOS_KEY = 'fc_resumos_v1';
+var RESUMOS_KEY_BASE = 'fc_resumos_v1';
 
-function salvarResumo() {
+// Chave dinâmica por empresa logada — isolamento entre Veltro/Roizen logins
+function _resumosKey() {
+  try {
+    var empId = (typeof veltroGetEmpresaAtual === 'function') ? veltroGetEmpresaAtual() : null;
+    if(empId) return RESUMOS_KEY_BASE + '_' + empId;
+  } catch(e) {}
+  return RESUMOS_KEY_BASE;  // fallback global se não houver empresa
+}
+// Manter referência antiga para compatibilidade (usada em poucos pontos legados)
+var RESUMOS_KEY = RESUMOS_KEY_BASE;
+
+// Estado do snapshot ativo
+var _snapshotAtivo = null;  // resumo atualmente visualizado, null = modo tempo real
+
+/* ─ Construir agregados de canal a partir de aprov/trans/entr para reconstrução depois ─ */
+function _agregadosPorCanal(arr) {
+  // Devolve {canal: {qtd, gmv}} a partir de array de pedidos
+  var m = {};
+  arr.forEach(function(p) {
+    if(!m[p.canal]) m[p.canal] = {qtd:0, gmv:0};
+    m[p.canal].qtd += 1;
+    m[p.canal].gmv += (p.valor||0);
+  });
+  return m;
+}
+
+async function salvarResumo() {
   var d = window._lastProcessedData;
   if(!d) { alert('Carregue os dados do dashboard primeiro (botão ↻ ou aguarde o refresh)'); return; }
+  // Não permitir salvar enquanto está vendo um snapshot (evita "snapshot de snapshot")
+  if(_snapshotAtivo) {
+    alert('Você está visualizando um snapshot. Clique em "Voltar ao tempo real" antes de salvar um novo resumo.');
+    return;
+  }
 
   // Nome automático baseado no filtro atual
   var fromEl = document.getElementById('f-from');
@@ -4119,15 +4166,48 @@ function salvarResumo() {
   var nome = window.prompt('Nome do resumo:', defaultName);
   if(!nome) return;
 
+  // Garantir que produtosVendidosMap reflete o filtro de data atual antes de capturar.
+  // Sem isso, o snapshot pega dados de outras abas/períodos carregados anteriormente.
+  if(typeof loadProdutosVendidos === 'function' && localStorage.getItem('fc_produtos_vendidos_url')) {
+    try {
+      console.log('[Roizen] Sincronizando produtosVendidosMap com período '+from+' → '+to+' antes de salvar...');
+      await loadProdutosVendidos(from, to);
+    } catch(e) { console.warn('[Roizen] Falha ao recarregar produtos vendidos:', e); }
+  }
+  // Garantir que _mktDataIA está atualizado (calcMarketing usa os campos do menu Marketing)
+  if(typeof calcMarketing === 'function') {
+    try { calcMarketing(); } catch(e) { console.warn('[Roizen] calcMarketing falhou:', e); }
+  }
+
   var cnt  = d.aprov.length + d.trans.length + d.entr.length;
   var rate = parseFloat((document.getElementById('tax-rate')||{}).value)||6;
-  var mkt  = window._mktDataIA ? window._mktDataIA.investimento.total : 0;
+  // Custo de Mídia: SEMPRE da soma dos indicadores do menu Marketing (_mktDataIA.investimento.total).
+  // Se Marketing não foi configurado, cai pro % manual digitado em Financeiro (fin-mkt-pct).
+  var mkt = 0;
+  var mktFonte = 'nenhuma';
+  if(window._mktDataIA && window._mktDataIA.investimento && window._mktDataIA.investimento.total > 0) {
+    mkt = window._mktDataIA.investimento.total;
+    mktFonte = 'menu-marketing';
+  } else {
+    var mktPctManual = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
+    if(mktPctManual > 0) {
+      mkt = d.total * (mktPctManual/100);
+      mktFonte = 'fin-mkt-pct (fallback)';
+    }
+  }
+  console.log('[Roizen] Salvando resumo — Mídia: R$'+mkt.toFixed(2)+' (fonte: '+mktFonte+')');
 
-  var resumo = {
+  // Snapshot AGREGADO — preserva tudo necessário para reconstruir gráficos e KPIs
+  // Não salva os arrays brutos aprov/trans/entr (substituídos por contagens + agregados)
+  var snapshot = {
+    // identidade
     id:     Date.now(),
     nome:   nome,
     data:   new Date().toLocaleString('pt-BR'),
-    periodo:{from, to},
+    periodo:{from: from, to: to},
+    versao: 2,
+
+    // KPIs principais (compatível com versão anterior — não quebra a lista)
     kpis: {
       gmv:     d.total,
       pedidos: cnt,
@@ -4136,24 +4216,106 @@ function salvarResumo() {
       aprov:   d.aprov.length,
       trans:   d.trans.length,
       entr:    d.entr.length,
+      gmvEntregues: d.entr.reduce(function(s,p){return s+(p.valor||0);}, 0),
       impostos:d.total*(rate/100),
       mkt:     mkt,
       pctMidia:d.total>0?mkt/d.total*100:0,
-      roas:    mkt>0?d.total/mkt:0
+      roas:    mkt>0?d.total/mkt:0,
+      // Total de produtos vendidos: lê DIRETAMENTE do KPI 'Produtos Vendidos' do dashboard.
+      // O dashboard já calcula esse número corretamente com o filtro de período aplicado.
+      // Em vez de duplicar a lógica aqui, basta ler o valor que já está renderizado na tela.
+      produtosVendidos: (function() {
+        try {
+          var el = document.getElementById('k-qtd');
+          if(!el) return 0;
+          // Remove tudo que não for dígito (pontos, vírgulas, espaços)
+          var txt = (el.textContent || '').replace(/[^\d]/g, '');
+          var n = parseInt(txt, 10);
+          var resultado = isNaN(n) ? 0 : n;
+          console.log('[Roizen] Produtos vendidos lido do KPI k-qtd:', el.textContent, '→', resultado);
+          return resultado;
+        } catch(e) { console.error('[Roizen] Erro ao ler k-qtd:', e); return 0; }
+      })(),
+      taxRate: rate
     },
+
+    // Snapshot agregado completo do `d` para reconstrução do dashboard
+    dadosCompletos: {
+      total:      d.total,
+      qtd:        d.qtd,
+      frete:      d.frete,
+      // Contagens dos arrays + agregados por canal (para reconstruir totais)
+      aprovCount: d.aprov.length,
+      transCount: d.trans.length,
+      entrCount:  d.entr.length,
+      aprovGMV:   d.aprov.reduce(function(s,p){return s+(p.valor||0);}, 0),
+      transGMV:   d.trans.reduce(function(s,p){return s+(p.valor||0);}, 0),
+      entrGMV:    d.entr.reduce(function(s,p){return s+(p.valor||0);}, 0),
+      aprovPorCanal: _agregadosPorCanal(d.aprov),
+      transPorCanal: _agregadosPorCanal(d.trans),
+      entrPorCanal:  _agregadosPorCanal(d.entr),
+      // Séries temporais e agregações
+      datas:      d.datas || [],
+      vals:       d.vals  || [],
+      meses:      d.meses || [],
+      cgm:        d.cgm   || {},
+      canais:     d.canais || [],
+      pagamentos: d.pagamentos || [],
+      tamanhos:   d.tamanhos || [],
+      top20:      d.top20 || [],
+      // Cashflow (futuro — pode ser irrelevante em snapshot histórico)
+      cfdatas:    d.cfdatas || [],
+      cfvals:     d.cfvals  || [],
+      cfc:        d.cfc     || {}
+    },
+
+    // Estados (planilha separada)
+    estadosData: (typeof estadosData !== 'undefined') ? JSON.parse(JSON.stringify(estadosData)) : [],
+
+    // Top produtos vendidos (planilha separada — limitar top 50 para não inchar)
+    topProdutos: (function() {
+      try {
+        if(typeof produtosVendidosMap === 'object' && produtosVendidosMap) {
+          return Object.values(produtosVendidosMap)
+            .sort(function(a,b){ return (b.qtd||0)-(a.qtd||0); })
+            .slice(0,50)
+            .map(function(p){ return {nome:p.nome, sku:p.sku, qtd:p.qtd}; });
+        }
+      } catch(e) {}
+      return [];
+    })(),
+
+    // Compat: campos antigos
     canais:  d.canais || [],
     mktData: window._mktDataIA || null
   };
 
-  var lista = JSON.parse(localStorage.getItem(RESUMOS_KEY)||'[]');
-  lista.unshift(resumo);
-  localStorage.setItem(RESUMOS_KEY, JSON.stringify(lista));
+  var key = _resumosKey();
+  var lista = JSON.parse(localStorage.getItem(key)||'[]');
+  lista.unshift(snapshot);
+
+  // Tentar salvar — se exceder quota do localStorage, oferecer remover o mais antigo
+  try {
+    localStorage.setItem(key, JSON.stringify(lista));
+  } catch(err) {
+    if(err.name === 'QuotaExceededError' || err.code === 22) {
+      if(lista.length > 1 && confirm('Limite de armazenamento atingido. Remover o resumo mais antigo para salvar este?')) {
+        lista.pop();
+        try { localStorage.setItem(key, JSON.stringify(lista)); }
+        catch(e2) { alert('Não foi possível salvar — limite do navegador atingido. Exclua resumos antigos manualmente.'); return; }
+      } else {
+        alert('Não foi possível salvar — limite do navegador atingido.');
+        return;
+      }
+    } else { throw err; }
+  }
+  console.log('[Roizen] Resumo salvo. Empresa='+(_resumosKey()===RESUMOS_KEY_BASE?'global':_resumosKey().replace(RESUMOS_KEY_BASE+'_',''))+', total='+lista.length);
   renderResumos();
   alert('✅ Resumo "'+nome+'" salvo com sucesso!');
 }
 
 function renderResumos() {
-  var lista = JSON.parse(localStorage.getItem(RESUMOS_KEY)||'[]');
+  var lista = JSON.parse(localStorage.getItem(_resumosKey())||'[]');
   var el = document.getElementById('resumos-lista');
   if(!el) return;
 
@@ -4164,7 +4326,20 @@ function renderResumos() {
 
   el.innerHTML = lista.map(function(r, i) {
     var k = r.kpis;
+    // Produtos Vendidos:
+    // - Resumos novos: usa k.produtosVendidos (soma exata do produtosVendidosMap)
+    // - Resumos antigos sem o campo: NÃO somar topProdutos (são só top 50, daria número errado)
+    //   → mostrar — para forçar o usuário a salvar de novo com a versão atualizada
+    var prodVend = (k.produtosVendidos && k.produtosVendidos > 0) ? k.produtosVendidos : 0;
+    var prodVendDisplay = prodVend > 0 ? prodVend.toLocaleString('pt-BR') : '—';
+    // % Mídia: prioriza k.pctMidia. Fallback: recalcula de mkt/gmv se mkt > 0.
+    var pctMidia = (k.pctMidia && k.pctMidia > 0) ? k.pctMidia
+                 : (k.mkt > 0 && k.gmv > 0 ? (k.mkt / k.gmv * 100) : 0);
     var periodoStr = r.periodo && r.periodo.from ? r.periodo.from + ' → ' + (r.periodo.to||'hoje') : 'Período completo';
+    var temDadosCompletos = !!(r.dadosCompletos);  // só resumos v2+ podem ser visualizados no dashboard
+    var btnVisualizar = temDadosCompletos
+      ? '<button onclick="visualizarResumo('+r.id+')" title="Aplicar este snapshot ao dashboard" style="padding:4px 12px;background:rgba(110,231,183,.1);border:1px solid rgba(110,231,183,.25);border-radius:6px;color:var(--accent);font-size:11px;cursor:pointer;font-weight:600">📸 Visualizar</button>'
+      : '<button disabled title="Resumo antigo — salve novamente para habilitar visualização" style="padding:4px 12px;background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;cursor:not-allowed">📸 Visualizar</button>';
     return '<div class="card" style="margin-bottom:12px">'+
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">'+
         '<div>'+
@@ -4172,18 +4347,19 @@ function renderResumos() {
           '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:3px">Salvo em: '+r.data+' · Período: '+periodoStr+'</div>'+
         '</div>'+
         '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+          btnVisualizar+
           (i < lista.length-1 ? '<button onclick="compararResumos('+i+','+(i+1)+')" style="padding:4px 12px;background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.2);border-radius:6px;color:#818CF8;font-size:11px;cursor:pointer">⚖️ Comparar com anterior</button>' : '')+
           '<button onclick="gerarLinkResumo('+i+')" style="padding:4px 12px;background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--muted2);font-size:11px;cursor:pointer">🔗 Gerar Link</button>'+
-          '<button onclick="excluirResumo('+r.id+')" style="padding:4px 12px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);border-radius:6px;color:var(--red);font-size:11px;cursor:pointer">🗑️</button>'+
+          '<button onclick="excluirResumo('+r.id+')" title="Excluir este resumo" style="padding:4px 12px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);border-radius:6px;color:var(--red);font-size:11px;cursor:pointer">🗑️ Excluir</button>'+
         '</div>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">'+
-        _resumoKPI('💰','GMV',fM(k.gmv),''),
-        _resumoKPI('📦','Pedidos',k.pedidos.toLocaleString('pt-BR'),''),
-        _resumoKPI('🎯','Ticket Médio',fM(k.ticket),''),
-        _resumoKPI('📈','ROAS',(k.roas>0?k.roas.toFixed(2)+'x':'—'),''),
-        _resumoKPI('📊','% Mídia',(k.pctMidia>0?k.pctMidia.toFixed(1)+'%':'—'),''),
-        _resumoKPI('🧾','Impostos',fM(k.impostos),''),
+        _resumoKPI('💰','GMV',fM(k.gmv),'')+
+        _resumoKPI('📦','Pedidos',k.pedidos.toLocaleString('pt-BR'),'')+
+        _resumoKPI('🎯','Ticket Médio',fM(k.ticket),'')+
+        _resumoKPI('🛍️','Produtos Vendidos',prodVendDisplay,'')+
+        _resumoKPI('📊','% Mídia',(pctMidia>0?pctMidia.toFixed(1)+'%':'—'),'')+
+        _resumoKPI('🧾','Impostos',fM(k.impostos),'')+
       '</div>'+
     '</div>';
   }).join('');
@@ -4199,13 +4375,16 @@ function _resumoKPI(ico, lbl, val, sub) {
 
 function excluirResumo(id) {
   if(!confirm('Excluir este resumo?')) return;
-  var lista = JSON.parse(localStorage.getItem(RESUMOS_KEY)||'[]').filter(function(r){return r.id !== id;});
-  localStorage.setItem(RESUMOS_KEY, JSON.stringify(lista));
+  var key = _resumosKey();
+  var lista = JSON.parse(localStorage.getItem(key)||'[]').filter(function(r){return r.id !== id;});
+  localStorage.setItem(key, JSON.stringify(lista));
+  // Se o resumo excluído estava ativo no dashboard, voltar ao tempo real
+  if(_snapshotAtivo && _snapshotAtivo.id === id) voltarTempoReal();
   renderResumos();
 }
 
 function compararResumos(i1, i2) {
-  var lista = JSON.parse(localStorage.getItem(RESUMOS_KEY)||'[]');
+  var lista = JSON.parse(localStorage.getItem(_resumosKey())||'[]');
   var r1 = lista[i1], r2 = lista[i2];
   if(!r1 || !r2) return;
 
@@ -4213,7 +4392,7 @@ function compararResumos(i1, i2) {
     {key:'gmv',    lbl:'GMV',         fmt:fM},
     {key:'pedidos',lbl:'Pedidos',      fmt:function(v){return v.toLocaleString('pt-BR');}},
     {key:'ticket', lbl:'Ticket Médio', fmt:fM},
-    {key:'roas',   lbl:'ROAS',         fmt:function(v){return v>0?v.toFixed(2)+'x':'—';}},
+    {key:'produtosVendidos', lbl:'Produtos Vendidos', fmt:function(v){return v>0?v.toLocaleString('pt-BR'):'—';}},
     {key:'pctMidia',lbl:'% Mídia',     fmt:function(v){return v>0?v.toFixed(1)+'%':'—';}},
     {key:'impostos',lbl:'Impostos',    fmt:fM}
   ];
@@ -4241,7 +4420,7 @@ function compararResumos(i1, i2) {
 }
 
 function gerarLinkResumo(idx) {
-  var lista = JSON.parse(localStorage.getItem(RESUMOS_KEY)||'[]');
+  var lista = JSON.parse(localStorage.getItem(_resumosKey())||'[]');
   var r = lista[idx];
   if(!r) return;
   var json = btoa(unescape(encodeURIComponent(JSON.stringify(r))));
@@ -4251,6 +4430,157 @@ function gerarLinkResumo(idx) {
   }).catch(function(){
     prompt('Copie o link abaixo:', url);
   });
+}
+
+/* ─ Modo Snapshot: aplicar resumo ao dashboard inteiro ────────── */
+// Reconstrói um objeto `d` compatível com renderAll/syncFinanceiroKPIs/makeCharts
+// a partir do snapshot salvo (sem os arrays brutos aprov/trans/entr)
+function _reconstruirDadosDeResumo(r) {
+  var dc = r.dadosCompletos;
+  if(!dc) return null;
+
+  // Reconstruir aprov/trans/entr como arrays "fake" com objetos sintéticos
+  // Cada pedido fake tem só {valor, canal, status, data} para os cálculos agregados funcionarem
+  function fakePedidos(porCanal, total, statusLbl) {
+    var arr = [];
+    Object.keys(porCanal||{}).forEach(function(canal) {
+      var info = porCanal[canal];
+      var valorMedio = info.qtd > 0 ? info.gmv / info.qtd : 0;
+      for(var i=0; i<info.qtd; i++) {
+        arr.push({
+          id: '—',
+          data: r.periodo && r.periodo.to ? r.periodo.to : '',
+          cliente: '—',
+          canal: canal,
+          status: statusLbl,
+          valor: valorMedio,
+          frete: 0,
+          produto: '—'
+        });
+      }
+    });
+    return arr;
+  }
+
+  return {
+    total: dc.total,
+    qtd:   dc.qtd,
+    frete: dc.frete,
+    aprov: fakePedidos(dc.aprovPorCanal, dc.aprovGMV, 'Aprovado'),
+    trans: fakePedidos(dc.transPorCanal, dc.transGMV, 'Em Transporte'),
+    entr:  fakePedidos(dc.entrPorCanal,  dc.entrGMV,  'Entregue'),
+    datas: dc.datas || [],
+    vals:  dc.vals  || [],
+    canais: dc.canais || [],
+    cgm:    dc.cgm    || {},
+    meses:  dc.meses  || [],
+    pagamentos: dc.pagamentos || [],
+    tamanhos:   dc.tamanhos || [],
+    top20:      dc.top20    || [],
+    cfdatas: dc.cfdatas || [],
+    cfvals:  dc.cfvals  || [],
+    cfc:     dc.cfc     || {}
+  };
+}
+
+function visualizarResumo(id) {
+  var lista = JSON.parse(localStorage.getItem(_resumosKey())||'[]');
+  var r = lista.find(function(x){ return x.id === id; });
+  if(!r) { alert('Resumo não encontrado.'); return; }
+  if(!r.dadosCompletos) {
+    alert('Este resumo foi salvo em uma versão anterior do sistema e não tem dados completos para reconstruir o dashboard. Salve um novo resumo no modo atual para usar esta funcionalidade.');
+    return;
+  }
+
+  var d = _reconstruirDadosDeResumo(r);
+  if(!d) { alert('Erro ao reconstruir dados do snapshot.'); return; }
+
+  // Guardar dados ao vivo para poder restaurar depois
+  if(!_snapshotAtivo) {
+    window._dashboardAoVivo = window._lastProcessedData;
+    window._estadosDataAoVivo = (typeof estadosData !== 'undefined') ? estadosData.slice() : [];
+  }
+  _snapshotAtivo = r;
+
+  // Aplicar ao dashboard
+  window._lastProcessedData = d;
+  // Restaurar estadosData se o resumo tiver
+  try {
+    if(r.estadosData && r.estadosData.length && typeof estadosData !== 'undefined') {
+      estadosData.length = 0;
+      r.estadosData.forEach(function(e){ estadosData.push(e); });
+    }
+  } catch(e) {}
+  // Aplicar tax-rate salvo
+  try {
+    if(r.kpis && r.kpis.taxRate) {
+      var taxEl = document.getElementById('tax-rate');
+      if(taxEl) taxEl.value = r.kpis.taxRate;
+    }
+  } catch(e) {}
+  // Restaurar _mktDataIA
+  try { if(r.mktData) window._mktDataIA = r.mktData; } catch(e) {}
+
+  // Re-renderizar todo o dashboard
+  try { renderAll(d); } catch(e) { console.warn('[Snapshot] renderAll falhou:', e); }
+  try { makeCharts(d); } catch(e) { console.warn('[Snapshot] makeCharts falhou:', e); }
+  try { if(typeof renderEstoque === 'function') renderEstoque(); } catch(e) {}
+  try { syncFinanceiroKPIs(d); } catch(e) {}
+
+  // Mostrar banner e ir para Dashboard
+  _atualizarBannerSnapshot();
+  showPage('dashboard', document.querySelector('[data-page="dashboard"]'));
+  console.log('[Roizen] 📸 Snapshot ativo:', r.nome);
+}
+
+function voltarTempoReal() {
+  if(!_snapshotAtivo) return;
+  _snapshotAtivo = null;
+  // Restaurar dados ao vivo
+  if(window._dashboardAoVivo) {
+    window._lastProcessedData = window._dashboardAoVivo;
+  }
+  try {
+    if(window._estadosDataAoVivo && typeof estadosData !== 'undefined') {
+      estadosData.length = 0;
+      window._estadosDataAoVivo.forEach(function(e){ estadosData.push(e); });
+    }
+  } catch(e) {}
+
+  _atualizarBannerSnapshot();
+  // Forçar refresh dos dados
+  try { if(typeof refresh === 'function') refresh(); } catch(e) {}
+  console.log('[Roizen] ◀ Voltou ao tempo real');
+}
+
+/* ─ Banner amarelo no topo "Snapshot ativo" ──────────────────── */
+function _atualizarBannerSnapshot() {
+  var existente = document.getElementById('snapshot-banner');
+  if(_snapshotAtivo) {
+    if(!existente) {
+      var banner = document.createElement('div');
+      banner.id = 'snapshot-banner';
+      banner.style.cssText = 'position:sticky;top:0;left:0;right:0;z-index:999;background:linear-gradient(90deg,#F59E0B 0%,#FB923C 100%);color:#0A0C10;padding:8px 16px;font-family:var(--fhead);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;box-shadow:0 2px 8px rgba(245,158,11,.3)';
+      banner.innerHTML =
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<span style="font-size:18px">📸</span>'+
+          '<span id="snapshot-banner-titulo">Snapshot ativo</span>'+
+        '</div>'+
+        '<button onclick="voltarTempoReal()" style="padding:5px 14px;background:#0A0C10;border:1px solid #0A0C10;border-radius:6px;color:#F59E0B;font-family:var(--fmono);font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.5px">◀ Voltar ao tempo real</button>';
+      // Inserir antes do conteúdo principal
+      var body = document.body;
+      if(body) body.insertBefore(banner, body.firstChild);
+    }
+    var titulo = document.getElementById('snapshot-banner-titulo');
+    if(titulo) {
+      var per = _snapshotAtivo.periodo && _snapshotAtivo.periodo.from
+        ? _snapshotAtivo.periodo.from + ' → ' + (_snapshotAtivo.periodo.to||'hoje')
+        : 'período completo';
+      titulo.textContent = 'Snapshot ativo: "'+_snapshotAtivo.nome+'" · '+per+' · salvo em '+_snapshotAtivo.data;
+    }
+  } else if(existente) {
+    existente.remove();
+  }
 }
 
 function exportarExcel() {
@@ -4298,11 +4628,12 @@ function exportarPDF() {
       var r = JSON.parse(decodeURIComponent(escape(atob(resumoParam))));
       // Mostrar o resumo compartilhado
       setTimeout(function() {
-        var lista = JSON.parse(localStorage.getItem(RESUMOS_KEY)||'[]');
+        var key = _resumosKey();
+        var lista = JSON.parse(localStorage.getItem(key)||'[]');
         // Só adicionar se não existir já (por id)
         if(!lista.find(function(x){return x.id===r.id;})) {
           lista.unshift(r);
-          localStorage.setItem(RESUMOS_KEY, JSON.stringify(lista));
+          localStorage.setItem(key, JSON.stringify(lista));
         }
         showPage('resumos', document.querySelector('[data-page="resumos"]'));
         renderResumos();
@@ -4543,7 +4874,8 @@ function calcPreco() {
   // Custos operacionais (% sobre preço de venda)
   var custoArm    = arm_rs * kit;  // R$ fixo por item × kit (ex: kit2 = 2× armazém)
   var custoAdsCanal = preco * (adsCanalPct/100);  // ADS Marketplace % sobre preço
-  var custoFin    = preco * (fin/100);
+  // FIX: Financeiro % aplica APENAS para Loja Própria (marketplaces fazem retenção própria)
+  var custoFin    = canal === 'Loja Própria' ? preco * (fin/100) : 0;
   var custoAds    = preco * (ads/100);
   var custoPlat   = preco * (plat/100);
   var custoPerdas = preco * (perdas/100);
@@ -4615,7 +4947,9 @@ function calcPreco() {
       var cmpImposto = preco * impPctGlobal;
       // Custos operacionais (mesmos do formulário)
       // ADS consolidado: mesmo % para todos os canais no comparativo
-      var cmpOpCosts = arm_rs * kit + preco*(fin+adsCanalPct+plat+perdas+fixo_pct)/100;
+      // FIX: Financeiro % aplica APENAS para Loja Própria (marketplaces fazem retenção própria)
+      var cmpFinPct  = c === 'Loja Própria' ? fin : 0;
+      var cmpOpCosts = arm_rs * kit + preco*(cmpFinPct+adsCanalPct+plat+perdas+fixo_pct)/100;
       var cmpTotal   = custoTotal + cmpComissao + cmpImposto + cmpOpCosts;
       var cmpLucro   = preco - cmpTotal;
       var cmpMargem  = preco>0 ? cmpLucro/preco*100 : 0;
@@ -4681,8 +5015,10 @@ function calcPrecoMinimo() {
   var sn = PREC_SIMPLES[faixa-1]||PREC_SIMPLES[2];
   var impPct = regime==='simples' ? sn.aliquota : (regime==='presumido' ? 0.1445 : 0.243);
   var comissaoPct = canal==='Shopee' ? 0.20 : canalInfo.comissao;  // usar 20% como estimativa para Shopee
+  // FIX: Financeiro % aplica APENAS para Loja Própria
+  var finCanal = canal === 'Loja Própria' ? fin : 0;
   // Armazém é R$ fixo — inclui no numerador, não no denominador
-  var pctVariavel  = comissaoPct + (fin+adsCanalPct+plat+perdas+fixo_pct)/100 + impPct;
+  var pctVariavel  = comissaoPct + (finCanal+adsCanalPct+plat+perdas+fixo_pct)/100 + impPct;
   var pctLucro    = metaMargem/100;
 
   // PrecoMin = (CustoProduto + TaxaFixa) / (1 - pctVariavel - pctLucro)
@@ -4747,7 +5083,8 @@ function renderPrecosMinimosPorCanal() {
   var custoTotal = custo * kit + frete;
   var sn = PREC_SIMPLES[faixa-1]||PREC_SIMPLES[2];
   var impPct = regime==='simples' ? sn.aliquota : (regime==='presumido' ? 0.1445 : 0.243);
-  var opPct  = (fin + adsPct + plat + perdas + fixo_pct) / 100;
+  // FIX: Financeiro % é movido para dentro do loop por canal (aplica APENAS para Loja Própria)
+  var opPctSemFin = (adsPct + plat + perdas + fixo_pct) / 100;
   var pctLucro = metaMargem / 100;
 
   var kitN = PREC_ESTADO.kit || 1;
@@ -4764,6 +5101,8 @@ function renderPrecosMinimosPorCanal() {
     var taxaF  = c==='Shopee' ? 4 : (ci.taxaFixa||0);
     // Dafiti: mensalidade diluída
     var extraPct = c==='Dafiti' ? calcCustoDafitiExtra(100) : 0;  // 100 como proxy inicial
+    // FIX: Financeiro % SOMENTE para Loja Própria
+    var opPct = opPctSemFin + (c === 'Loja Própria' ? fin/100 : 0);
     var totalPct = comPct + impPct + opPct + extraPct;
     var denom = 1 - totalPct - pctLucro;
     var precoMin = denom > 0.01 ? (custoTotal + arm_rs * kitN + taxaF) / denom : null;
@@ -5460,11 +5799,15 @@ function limparCacheTotal() {
   }
 
   // Limpar TODOS os caches do localStorage
+  // EXCEÇÃO: preservar dados do usuário (resumos salvos, por empresa)
   var removidos = 0;
   var keysToRemove = [];
   for(var i = 0; i < localStorage.length; i++) {
     var k = localStorage.key(i);
-    if(k && (k.startsWith('fc_rows_cache_') || k.startsWith('fc_') || k === CACHE_LS_KEY)) {
+    if(!k) continue;
+    // Preservar TODOS os resumos: fc_resumos_v1 (legado) e fc_resumos_v1_<empresa> (novo)
+    if(k === 'fc_resumos_v1' || k.startsWith('fc_resumos_v1_')) continue;
+    if(k.startsWith('fc_rows_cache_') || k.startsWith('fc_') || k === CACHE_LS_KEY) {
       keysToRemove.push(k);
     }
   }
@@ -6424,25 +6767,17 @@ function renderEstoque() {
    independentemente do filtro do Dashboard principal.
 ═══════════════════════════════════════════════════════════════ */
 function setPresetFin(p, btn) {
-  document.querySelectorAll('#page-financeiro .ftab').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  const now = new Date();
-  const y = now.getFullYear(), m = now.getMonth(), t = td();
-  let from = null, to = t;
-  if(p==='hoje') { from = t; }
-  else if(p==='7d')  { const d=new Date(now);d.setDate(d.getDate()-6); from=d.toISOString().split('T')[0]; }
-  else if(p==='30d') { const d=new Date(now);d.setDate(d.getDate()-29);from=d.toISOString().split('T')[0]; }
-  else if(p==='mes') { from=y+'-'+String(m+1).padStart(2,'0')+'-01'; to=t; }
-  else               { from=null; to=null; }
-  try{document.getElementById('fin-from').value=from||'';}catch(e){}
-  try{document.getElementById('fin-to').value=to||'';}catch(e){}
-  applyFilterFin();
+  // Compat: o filtro do Financeiro virou global. Redireciona para setPreset do header.
+  if(typeof setPreset === 'function') setPreset(p, null);
 }
 
 function applyFilterFin() {
-  var from = ''; var to = '';
-  try{from=document.getElementById('fin-from').value||'';}catch(e){}
-  try{to=document.getElementById('fin-to').value||'';}catch(e){}
+  // FONTE DA VERDADE: filtro global (f-from/f-to/f-canal)
+  // Os inputs locais (fin-from/fin-to) são read-only e refletem o global
+  var from = ''; var to = ''; var canalFilter = '';
+  try{ from = document.getElementById('f-from').value || ''; } catch(e){}
+  try{ to   = document.getElementById('f-to').value   || ''; } catch(e){}
+  try{ canalFilter = (document.getElementById('f-canal')||{}).value || ''; } catch(e){}
 
   var pedidos = getPedidos();
   var filtered = pedidos.filter(function(p) {
@@ -6450,6 +6785,7 @@ function applyFilterFin() {
     var d = p.data.slice(0,10);
     if(from && d < from) return false;
     if(to   && d > to)   return false;
+    if(canalFilter && p.canal !== canalFilter) return false;
     return true;
   });
 
@@ -6457,7 +6793,9 @@ function applyFilterFin() {
   try {
     var f = from ? fD(from) : '...';
     var t2 = to ? fD(to) : 'hoje';
-    document.getElementById('fin-info').textContent = filtered.length.toLocaleString('pt-BR') + ' registros' + (from||to ? ' · '+f+' → '+t2 : ' · período completo');
+    var infoTxt = filtered.length.toLocaleString('pt-BR') + ' registros' + (from||to ? ' · '+f+' → '+t2 : ' · período completo');
+    if(canalFilter) infoTxt += ' · canal: '+canalFilter;
+    document.getElementById('fin-info').textContent = infoTxt;
   } catch(e) {}
 
   if(filtered.length === 0) { syncFinanceiroKPIs(null); return; }
@@ -7393,6 +7731,8 @@ function veltroSalvarConfigModal() {
 /* ─ Logout ─ */
 function veltroLogout() {
   if(!confirm('Sair do Veltro?')) return;
+  // Garantir que snapshot ativo seja desativado para não vazar entre empresas
+  try { _snapshotAtivo = null; var b = document.getElementById('snapshot-banner'); if(b) b.remove(); } catch(e) {}
   localStorage.removeItem(VELTRO_SESSAO_KEY);
   location.reload();
 }
