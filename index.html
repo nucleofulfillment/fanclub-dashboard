@@ -1084,6 +1084,10 @@ body.light body::before { opacity: 0; }
       <span class="nav-icon">📦</span>
       <span>Estoque</span>
     </div>
+    <div class="nav-item" onclick="showPage('saude',this)" data-page="saude" data-label="Saúde do Estoque">
+      <span class="nav-icon">🩺</span>
+      <span>Saúde do Estoque</span>
+    </div>
     <div class="nav-item" onclick="showPage('marketing',this)" data-page="marketing" data-label="Marketing" data-sync="resumos">
       <span class="nav-icon">📣</span>
       <span>Marketing</span>
@@ -1654,6 +1658,206 @@ body.light body::before { opacity: 0; }
           <div class="rlist" id="r-tam-estoque"></div>
           <canvas id="ch-tam-bar" height="200" style="margin-top:16px"></canvas>
         </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+  <!-- ║ PAGE: SAÚDE DO ESTOQUE — módulo isolado, não toca menus existentes ║ -->
+  <!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+  <div id="page-saude" class="page">
+    <main class="main">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+        <div>
+          <div class="ct" style="font-family:var(--fdisplay);font-size:22px;font-weight:700">🩺 Saúde do Estoque</div>
+          <div class="cs" style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:3px">
+            Análise de margem por produto · Curva ABC automática · Modo simulação ativa
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="saudeRecalcular()" class="fbtn" title="Recarregar dados com filtro atual">↻ Recalcular</button>
+          <button onclick="saudeSalvarParams()" class="fbtn" style="background:rgba(110,231,183,.12);color:var(--accent);border:1px solid rgba(110,231,183,.3)">💾 Salvar Parâmetros</button>
+        </div>
+      </div>
+
+      <!-- ── KPI: 4 cards de status agregado ───────────────────────── -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px" id="saude-kpis">
+        <div class="card" style="padding:14px;border-left:3px solid var(--muted2)">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📦 Total SKUs</div>
+          <div id="saude-kpi-total" style="font-family:var(--fdisplay);font-size:22px;font-weight:700;color:var(--text)">—</div>
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">no período filtrado</div>
+        </div>
+        <div class="card" style="padding:14px;border-left:3px solid var(--green)">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🟢 Saudáveis</div>
+          <div id="saude-kpi-verde" style="font-family:var(--fdisplay);font-size:22px;font-weight:700;color:var(--green)">—</div>
+          <div id="saude-kpi-verde-pct" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">— do total</div>
+        </div>
+        <div class="card" style="padding:14px;border-left:3px solid #F59E0B">
+          <div style="font-family:var(--fmono);font-size:10px;color:#F59E0B;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🟡 Atenção</div>
+          <div id="saude-kpi-amarelo" style="font-family:var(--fdisplay);font-size:22px;font-weight:700;color:#F59E0B">—</div>
+          <div id="saude-kpi-amarelo-pct" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">— do total</div>
+        </div>
+        <div class="card" style="padding:14px;border-left:3px solid var(--red)">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔴 Críticos</div>
+          <div id="saude-kpi-vermelho" style="font-family:var(--fdisplay);font-size:22px;font-weight:700;color:var(--red)">—</div>
+          <div id="saude-kpi-vermelho-pct" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:2px">— do total</div>
+        </div>
+      </div>
+
+      <!-- ── Parâmetros: Regime tributário + Custos operacionais ────── -->
+      <div class="card" style="padding:18px;margin-bottom:14px">
+        <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">⚙ Parâmetros de Cálculo</div>
+
+        <!-- Regime tributário -->
+        <div style="margin-bottom:14px">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:8px">Regime tributário</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ftab on" onclick="saudeSetRegime('simples',this)" id="saude-rt-simples">Simples Nacional</button>
+            <button class="ftab" onclick="saudeSetRegime('presumido',this)" id="saude-rt-presumido">Lucro Presumido</button>
+            <button class="ftab" onclick="saudeSetRegime('real',this)" id="saude-rt-real">Lucro Real</button>
+          </div>
+          <div id="saude-rt-faixa-wrap" style="margin-top:10px">
+            <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:6px">Faixa de Faturamento (12 meses)</div>
+            <select id="saude-rt-faixa" onchange="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;font-family:var(--fmono);font-size:12px;color:var(--text);outline:none;color-scheme:dark">
+              <option value="1">Faixa 1 — até R$ 180.000 — 4,00%</option>
+              <option value="2">Faixa 2 — até R$ 360.000 — 7,30%</option>
+              <option value="3" selected>Faixa 3 — até R$ 720.000 — 9,50%</option>
+              <option value="4">Faixa 4 — até R$ 1.800.000 — 10,70%</option>
+              <option value="5">Faixa 5 — até R$ 3.600.000 — 14,30%</option>
+              <option value="6">Faixa 6 — até R$ 4.800.000 — 19,00%</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Custos operacionais -->
+        <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:8px">Custos operacionais (% sobre venda)</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Comissão média %</label>
+            <input type="number" id="saude-comissao" value="15" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Plataforma %</label>
+            <input type="number" id="saude-plataforma" value="2" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Taxa pagamento %</label>
+            <input type="number" id="saude-taxa-pgto" value="3" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Perdas %</label>
+            <input type="number" id="saude-perdas" value="2" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Custo Fixo %</label>
+            <input type="number" id="saude-custo-fixo" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Frete absorvido %</label>
+            <input type="number" id="saude-frete" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+        </div>
+
+        <div style="margin-top:14px;padding:10px 12px;background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.15);border-radius:7px">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:4px">📊 Modo Simulação Ativo</div>
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted2);line-height:1.5">
+            Como o custo real ainda não está disponível, o sistema estima o custo de cada produto
+            baseado na <strong>Curva ABC</strong>: Curva A → custo = 60% do preço (margem alvo 40%) ·
+            Curva B → custo = 50% (margem alvo 50%) · Curva C → custo = 40% (margem alvo 60%).
+            Quando os custos reais forem integrados, basta substituir <code>_custoSimulado()</code> por <code>_custoReal()</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Filtros da tabela ───────────────────────────────────── -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+        <button class="ftab on" onclick="saudeFiltroStatus('todos',this)">Todos</button>
+        <button class="ftab" onclick="saudeFiltroStatus('verde',this)" style="color:var(--green)">🟢 Saudáveis</button>
+        <button class="ftab" onclick="saudeFiltroStatus('amarelo',this)" style="color:#F59E0B">🟡 Atenção</button>
+        <button class="ftab" onclick="saudeFiltroStatus('vermelho',this)" style="color:var(--red)">🔴 Críticos</button>
+        <div class="fsep"></div>
+        <select id="saude-filtro-curva" onchange="saudeRenderTabela()"
+          style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
+          <option value="todas">Todas as curvas</option>
+          <option value="A">🅰️ Curva A</option>
+          <option value="B">🅱️ Curva B</option>
+          <option value="C">🅲 Curva C</option>
+        </select>
+        <select id="saude-ordem" onchange="saudeRenderTabela()"
+          style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
+          <option value="margem-asc">Margem ↑ (piores primeiro)</option>
+          <option value="margem-desc">Margem ↓ (melhores primeiro)</option>
+          <option value="gmv-desc" selected>GMV ↓ (mais vendidos)</option>
+          <option value="qtd-desc">Quantidade vendida ↓</option>
+          <option value="nome-asc">Nome A-Z</option>
+        </select>
+        <input type="text" id="saude-busca" placeholder="Buscar SKU ou nome..."
+          oninput="saudeRenderTabela()"
+          style="margin-left:auto;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;width:220px">
+      </div>
+
+      <!-- ── Tabela ─────────────────────────────────────────────── -->
+      <div class="card" style="margin-bottom:14px">
+        <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
+          <table class="dtbl">
+            <thead><tr>
+              <th style="text-align:left">SKU</th>
+              <th style="text-align:left">Produto</th>
+              <th style="text-align:center">Curva</th>
+              <th style="text-align:right">Preço Médio</th>
+              <th style="text-align:right">Custo Estimado</th>
+              <th style="text-align:left">Canal Top</th>
+              <th style="text-align:right">Margem Real</th>
+              <th style="text-align:center">Saúde</th>
+            </tr></thead>
+            <tbody id="saude-tbody">
+              <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
+                Carregando dados de produtos vendidos...
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:8px 14px;font-family:var(--fmono);font-size:10px;color:var(--muted);border-top:1px solid var(--border)" id="saude-tabela-info">—</div>
+      </div>
+
+      <!-- ── Gráficos e Rankings ─────────────────────────────────── -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;margin-bottom:14px">
+
+        <!-- Donut: distribuição por status -->
+        <div class="card">
+          <div class="ch"><div><div class="ct">Distribuição por Status</div><div class="cs">Proporção de produtos saudáveis</div></div></div>
+          <div style="position:relative;height:240px;width:100%;margin-top:8px">
+            <canvas id="saude-ch-status"></canvas>
+          </div>
+        </div>
+
+        <!-- Top 10 mais saudáveis -->
+        <div class="card">
+          <div class="ch"><div><div class="ct">Top 10 Mais Saudáveis</div><div class="cs">Maiores margens reais</div></div></div>
+          <div id="saude-rank-top" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+
+        <!-- Ranking de canais -->
+        <div class="card">
+          <div class="ch"><div><div class="ct">Canais por Margem Média</div><div class="cs">Do mais saudável para o menos</div></div></div>
+          <div id="saude-rank-canais" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+
+        <!-- Ranking de categorias -->
+        <div class="card">
+          <div class="ch"><div><div class="ct">Categorias Mais Saudáveis</div><div class="cs">Margem média por categoria</div></div></div>
+          <div id="saude-rank-categorias" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+
       </div>
 
     </main>
@@ -2774,6 +2978,500 @@ function getPedidos() {
   return mapped;
 }
 
+/* ╔══════════════════════════════════════════════════════════════════╗
+   ║ MÓDULO: SAÚDE DO ESTOQUE                                         ║
+   ║ Análise de margem por SKU com Curva ABC automática.              ║
+   ║ ISOLADO — não toca nenhum dado/função de outros menus.           ║
+   ║ Modo simulação: custo estimado por curva (40/50/60%).            ║
+   ║ Para evolução real: trocar _saudeCustoSimulado() por equivalente ║
+   ║ que leia o custo real de uma planilha/coluna no inventário.      ║
+   ╚══════════════════════════════════════════════════════════════════╝ */
+
+// Tabela do Simples Nacional — alíquotas efetivas estimadas por faixa
+var SAUDE_SIMPLES = [
+  {limite:180000,   aliquota:0.040},
+  {limite:360000,   aliquota:0.073},
+  {limite:720000,   aliquota:0.095},
+  {limite:1800000,  aliquota:0.107},
+  {limite:3600000,  aliquota:0.143},
+  {limite:4800000,  aliquota:0.190}
+];
+
+// Comissões padrão por canal (mesmo padrão do menu Precificação)
+var SAUDE_COMISSAO_CANAL = {
+  'Shopee': 0.20, 'Mercado Livre': 0.16, 'Shein': 0.18, 'TikTok Shop': 0.12,
+  'Dafiti': 0.20, 'Netshoes': 0.20, 'Loja Própria': 0.03
+};
+
+// Margem-alvo por curva (modo simulação)
+var SAUDE_MARGEM_ALVO = { A: 0.40, B: 0.50, C: 0.60 };
+
+// Faixas de status (margem real)
+var SAUDE_FAIXAS = { verde: 0.30, amarelo: 0.15 };  // ≥30% verde · 15-30% amarelo · <15% vermelho
+
+// Estado interno do módulo
+var _saudeProdutos = [];      // produtos calculados na última recálculo
+var _saudeFiltroStatus = 'todos';
+var _saudeChart = null;       // referência ao Chart.js do donut
+
+/* ─ Chave de localStorage isolada por empresa ───────────────────── */
+function _saudeKey() {
+  try {
+    var empId = (typeof veltroGetEmpresaAtual === 'function') ? veltroGetEmpresaAtual() : null;
+    if(empId) return 'fc_saude_params_v1_' + empId;
+  } catch(e) {}
+  return 'fc_saude_params_v1';
+}
+
+/* ─ Cálculo do CUSTO do produto ──────────────────────────────────── */
+// Lógica SIMULADA (atual): usa Curva ABC + margem-alvo
+function _saudeCustoSimulado(produto) {
+  var alvo = SAUDE_MARGEM_ALVO[produto.curva] || SAUDE_MARGEM_ALVO.B;
+  return produto.precoMedio * (1 - alvo);
+}
+// Lógica REAL (futura): placeholder — substituir quando custo real estiver disponível
+function _saudeCustoReal(produto) {
+  // TODO: integrar com planilha de inventário (coluna "Custo")
+  // Exemplo:
+  //   if(window._inventarioMap && window._inventarioMap[produto.sku]) {
+  //     return window._inventarioMap[produto.sku].custo;
+  //   }
+  return _saudeCustoSimulado(produto);  // fallback
+}
+// Função pública — TROCAR esta linha para ativar custos reais:
+var _saudeCalcularCusto = _saudeCustoSimulado;
+// Quando for hora: var _saudeCalcularCusto = _saudeCustoReal;
+
+/* ─ Curva ABC: classifica por GMV ─────────────────────────────────
+   Top SKUs que somam 80% do GMV → A · próximos 15% → B · resto → C */
+function _saudeClassificarABC(produtos) {
+  var ordenados = produtos.slice().sort(function(a,b){ return b.gmv - a.gmv; });
+  var totalGMV  = ordenados.reduce(function(s,p){ return s + p.gmv; }, 0);
+  if(totalGMV === 0) {
+    ordenados.forEach(function(p){ p.curva = 'C'; });
+    return ordenados;
+  }
+  var acumulado = 0;
+  ordenados.forEach(function(p){
+    acumulado += p.gmv;
+    var pctAcum = acumulado / totalGMV;
+    if(pctAcum <= 0.80)      p.curva = 'A';
+    else if(pctAcum <= 0.95) p.curva = 'B';
+    else                     p.curva = 'C';
+  });
+  return ordenados;
+}
+
+/* ─ Captura parâmetros atuais do form ────────────────────────────── */
+function _saudeGetParams() {
+  var num = function(id, def){ var v = parseFloat((document.getElementById(id)||{}).value); return isNaN(v) ? def : v; };
+  var regimeBtn = document.querySelector('#page-saude .ftab.on[id^="saude-rt-"]');
+  var regime = regimeBtn ? regimeBtn.id.replace('saude-rt-','') : 'simples';
+  return {
+    regime:    regime,
+    faixa:     parseInt(num('saude-rt-faixa', 3)),
+    comissao:  num('saude-comissao', 15),
+    plataforma:num('saude-plataforma', 2),
+    taxaPgto:  num('saude-taxa-pgto', 3),
+    perdas:    num('saude-perdas', 2),
+    custoFixo: num('saude-custo-fixo', 0),
+    frete:     num('saude-frete', 0)
+  };
+}
+
+/* ─ Captura produtos do período filtrado a partir do _lastProcessedData ──
+   _lastProcessedData.aprov + trans + entr são os pedidos do filtro global.
+   Agrupamos por SKU/produto para obter qtd e GMV por SKU no período. */
+function _saudeColetarProdutos() {
+  var d = window._lastProcessedData;
+  if(!d) return [];
+  var todosPedidos = (d.aprov||[]).concat(d.trans||[]).concat(d.entr||[]);
+  if(todosPedidos.length === 0) return [];
+
+  // Agrupar por (produto, sku) — usar nome+sku como chave para casos sem SKU
+  var map = {};
+  todosPedidos.forEach(function(p){
+    var sku  = p.sku || p.produto || '—';
+    var nome = p.produto || p.nome || sku;
+    var chave = sku;
+    if(!map[chave]) {
+      map[chave] = { sku: sku, nome: nome, qtd: 0, gmv: 0, porCanal: {} };
+    }
+    map[chave].qtd += 1;
+    map[chave].gmv += (p.valor || 0);
+    var canal = p.canal || '—';
+    if(!map[chave].porCanal[canal]) map[chave].porCanal[canal] = { qtd:0, gmv:0 };
+    map[chave].porCanal[canal].qtd += 1;
+    map[chave].porCanal[canal].gmv += (p.valor || 0);
+  });
+
+  // Converter pra array, calcular preço médio, canal top, categoria
+  var arr = Object.values(map).map(function(p){
+    p.precoMedio = p.qtd > 0 ? p.gmv / p.qtd : 0;
+    // Canal top (maior GMV)
+    var topCanal = '—', topGMV = -1;
+    Object.keys(p.porCanal).forEach(function(c){
+      if(p.porCanal[c].gmv > topGMV) { topGMV = p.porCanal[c].gmv; topCanal = c; }
+    });
+    p.canalTop = topCanal;
+    p.canalTopGMV = topGMV;
+    p.canalTopPct = p.gmv > 0 ? topGMV / p.gmv : 0;
+    // Categoria (reusa detectarCategoria do menu Estoque, se disponível)
+    try { p.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(p.nome) : 'Outros'; }
+    catch(e){ p.categoria = 'Outros'; }
+    return p;
+  });
+
+  // Classificar ABC por GMV
+  arr = _saudeClassificarABC(arr);
+  return arr;
+}
+
+/* ─ Calcula margem real para cada produto ────────────────────────── */
+function _saudeCalcularMargem(produto, params) {
+  var preco = produto.precoMedio || 0;
+  if(preco <= 0) return { margem:0, status:'vermelho', custo:0, deducoes:0 };
+
+  // Custo via função plugável (simulado ou real)
+  var custo = _saudeCalcularCusto(produto);
+
+  // Imposto conforme regime
+  var impPct = 0;
+  if(params.regime === 'simples') {
+    var faixaIdx = Math.max(0, Math.min(SAUDE_SIMPLES.length-1, (params.faixa||3) - 1));
+    impPct = SAUDE_SIMPLES[faixaIdx].aliquota;
+  } else if(params.regime === 'presumido') {
+    impPct = 0.1445;  // estimativa padrão
+  } else {  // real
+    impPct = 0.243;
+  }
+
+  // Comissão do canal top
+  var comCanalPct = SAUDE_COMISSAO_CANAL[produto.canalTop];
+  if(comCanalPct === undefined) comCanalPct = (params.comissao || 15) / 100;
+
+  // Deduções totais (% sobre preço)
+  var pctDeducoes = comCanalPct + impPct
+    + (params.plataforma||0)/100
+    + (params.taxaPgto  ||0)/100
+    + (params.perdas    ||0)/100
+    + (params.custoFixo ||0)/100
+    + (params.frete     ||0)/100;
+
+  var deducoes = preco * pctDeducoes;
+  var lucro    = preco - custo - deducoes;
+  var margem   = preco > 0 ? lucro / preco : 0;
+
+  // Classificar status
+  var status;
+  if(margem >= SAUDE_FAIXAS.verde) status = 'verde';
+  else if(margem >= SAUDE_FAIXAS.amarelo) status = 'amarelo';
+  else status = 'vermelho';
+
+  return { margem: margem, status: status, custo: custo, deducoes: deducoes, lucro: lucro };
+}
+
+/* ─ Função principal: recalcula tudo (chamada ao mudar filtro/parâmetro) ─ */
+function saudeRecalcular() {
+  var produtos = _saudeColetarProdutos();
+  var params   = _saudeGetParams();
+  produtos.forEach(function(p){
+    var calc = _saudeCalcularMargem(p, params);
+    p.custoEstimado = calc.custo;
+    p.deducoes      = calc.deducoes;
+    p.margemReal    = calc.margem;
+    p.statusSaude   = calc.status;
+  });
+  _saudeProdutos = produtos;
+  saudeRenderKPIs();
+  saudeRenderTabela();
+  saudeRenderGraficos();
+}
+
+/* ─ KPIs do topo ─────────────────────────────────────────────────── */
+function saudeRenderKPIs() {
+  var total = _saudeProdutos.length;
+  var v = _saudeProdutos.filter(function(p){return p.statusSaude==='verde';}).length;
+  var a = _saudeProdutos.filter(function(p){return p.statusSaude==='amarelo';}).length;
+  var r = _saudeProdutos.filter(function(p){return p.statusSaude==='vermelho';}).length;
+  var pct = function(n){ return total>0 ? (n/total*100).toFixed(1)+'%' : '—'; };
+  var setTxt = function(id, t){ var el = document.getElementById(id); if(el) el.textContent = t; };
+  setTxt('saude-kpi-total',         total.toLocaleString('pt-BR'));
+  setTxt('saude-kpi-verde',         v.toLocaleString('pt-BR'));
+  setTxt('saude-kpi-verde-pct',     pct(v) + ' do total');
+  setTxt('saude-kpi-amarelo',       a.toLocaleString('pt-BR'));
+  setTxt('saude-kpi-amarelo-pct',   pct(a) + ' do total');
+  setTxt('saude-kpi-vermelho',      r.toLocaleString('pt-BR'));
+  setTxt('saude-kpi-vermelho-pct',  pct(r) + ' do total');
+}
+
+/* ─ Tabela ───────────────────────────────────────────────────────── */
+function saudeRenderTabela() {
+  var tbody = document.getElementById('saude-tbody');
+  if(!tbody) return;
+  var info  = document.getElementById('saude-tabela-info');
+
+  if(_saudeProdutos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
+    if(info) info.textContent = '—';
+    return;
+  }
+
+  var busca   = (document.getElementById('saude-busca')||{}).value || '';
+  busca = busca.toLowerCase().trim();
+  var curvaF  = (document.getElementById('saude-filtro-curva')||{}).value || 'todas';
+  var ordem   = (document.getElementById('saude-ordem')||{}).value || 'gmv-desc';
+
+  var filtrados = _saudeProdutos.filter(function(p){
+    if(_saudeFiltroStatus !== 'todos' && p.statusSaude !== _saudeFiltroStatus) return false;
+    if(curvaF !== 'todas' && p.curva !== curvaF) return false;
+    if(busca && !(String(p.sku).toLowerCase().includes(busca) || String(p.nome).toLowerCase().includes(busca))) return false;
+    return true;
+  });
+
+  // Ordenação
+  filtrados.sort(function(a,b){
+    if(ordem === 'margem-asc')  return a.margemReal - b.margemReal;
+    if(ordem === 'margem-desc') return b.margemReal - a.margemReal;
+    if(ordem === 'gmv-desc')    return b.gmv - a.gmv;
+    if(ordem === 'qtd-desc')    return b.qtd - a.qtd;
+    if(ordem === 'nome-asc')    return String(a.nome).localeCompare(String(b.nome), 'pt-BR');
+    return 0;
+  });
+
+  var stCfg = {
+    verde:    { ico:'🟢', cor:'var(--green)', bg:'rgba(110,231,183,.15)', lbl:'Saudável' },
+    amarelo:  { ico:'🟡', cor:'#F59E0B',      bg:'rgba(245,158,11,.15)', lbl:'Atenção' },
+    vermelho: { ico:'🔴', cor:'var(--red)',   bg:'rgba(244,63,94,.15)',  lbl:'Crítico' }
+  };
+  var curvaCfg = {
+    A: { cor:'var(--green)',   bg:'rgba(110,231,183,.12)' },
+    B: { cor:'#60A5FA',        bg:'rgba(96,165,250,.12)' },
+    C: { cor:'var(--muted2)',  bg:'rgba(100,116,139,.12)' }
+  };
+
+  tbody.innerHTML = filtrados.slice(0, 300).map(function(p){
+    var st = stCfg[p.statusSaude];
+    var cv = curvaCfg[p.curva] || curvaCfg.C;
+    var margemPct = (p.margemReal*100).toFixed(1)+'%';
+    var canalLabel = p.canalTop + (p.canalTopPct>0 ? ' <span style="color:var(--muted2)">'+(p.canalTopPct*100).toFixed(0)+'%</span>' : '');
+    return '<tr>'+
+      '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted2)">'+_saudeEsc(p.sku)+'</td>'+
+      '<td style="font-size:12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_saudeEsc(p.nome)+'">'+_saudeEsc(p.nome)+'</td>'+
+      '<td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+cv.bg+';color:'+cv.cor+'">'+p.curva+'</span></td>'+
+      '<td style="text-align:right;font-family:var(--fmono);font-size:12px">R$ '+(p.precoMedio||0).toFixed(2).replace('.',',')+'</td>'+
+      '<td style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--muted2)">R$ '+(p.custoEstimado||0).toFixed(2).replace('.',',')+'</td>'+
+      '<td style="font-size:11px;color:var(--muted2)">'+canalLabel+'</td>'+
+      '<td style="text-align:right;font-family:var(--fdisplay);font-size:13px;font-weight:700;color:'+st.cor+'">'+margemPct+'</td>'+
+      '<td style="text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:5px;background:'+st.bg+';color:'+st.cor+';font-weight:600">'+st.ico+' '+st.lbl+'</span></td>'+
+    '</tr>';
+  }).join('');
+
+  if(info) {
+    info.textContent = filtrados.length.toLocaleString('pt-BR') + ' produtos · exibindo ' + Math.min(300, filtrados.length).toLocaleString('pt-BR') +
+      (filtrados.length > 300 ? ' (limitado a 300 — refine a busca)' : '');
+  }
+}
+
+/* ─ Helper: escapar HTML ─────────────────────────────────────────── */
+function _saudeEsc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ─ Filtros ──────────────────────────────────────────────────────── */
+function saudeFiltroStatus(st, btn) {
+  _saudeFiltroStatus = st;
+  document.querySelectorAll('#page-saude > main > div:nth-of-type(4) .ftab').forEach(function(b){ b.classList.remove('on'); });
+  // Fallback robusto: buscar todos os ftab dentro da page e marcar só os de filtro de status
+  document.querySelectorAll('#page-saude .ftab').forEach(function(b){
+    var oc = b.getAttribute('onclick')||'';
+    if(oc.indexOf('saudeFiltroStatus') !== -1) b.classList.remove('on');
+  });
+  if(btn) btn.classList.add('on');
+  saudeRenderTabela();
+}
+
+function saudeSetRegime(reg, btn) {
+  document.querySelectorAll('#page-saude .ftab[id^="saude-rt-"]').forEach(function(b){ b.classList.remove('on'); });
+  if(btn) btn.classList.add('on');
+  // Esconder/mostrar faixa do Simples
+  var wrap = document.getElementById('saude-rt-faixa-wrap');
+  if(wrap) wrap.style.display = (reg === 'simples') ? '' : 'none';
+  saudeRecalcular();
+}
+
+/* ─ Gráficos e rankings ──────────────────────────────────────────── */
+function saudeRenderGraficos() {
+  // Donut de status
+  try {
+    var canvas = document.getElementById('saude-ch-status');
+    if(canvas && typeof Chart !== 'undefined') {
+      if(_saudeChart) { _saudeChart.destroy(); _saudeChart = null; }
+      var v = _saudeProdutos.filter(function(p){return p.statusSaude==='verde';}).length;
+      var a = _saudeProdutos.filter(function(p){return p.statusSaude==='amarelo';}).length;
+      var r = _saudeProdutos.filter(function(p){return p.statusSaude==='vermelho';}).length;
+      _saudeChart = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+          labels: ['Saudável', 'Atenção', 'Crítico'],
+          datasets: [{
+            data: [v, a, r],
+            backgroundColor: ['#6EE7B7', '#F59E0B', '#F43F5E'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: { position: 'bottom', labels: { color:'#94A3B8', font:{family:'JetBrains Mono', size:11} } },
+            tooltip: { backgroundColor: '#181B22' }
+          }
+        }
+      });
+    }
+  } catch(e){ console.warn('[Saúde] donut falhou:', e); }
+
+  // Top 10 mais saudáveis (margem desc)
+  try {
+    var topEl = document.getElementById('saude-rank-top');
+    if(topEl) {
+      var top = _saudeProdutos.slice().sort(function(a,b){ return b.margemReal - a.margemReal; }).slice(0,10);
+      if(top.length === 0) {
+        topEl.innerHTML = '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);text-align:center;padding:20px">Sem dados</div>';
+      } else {
+        var maxM = top[0].margemReal || 1;
+        topEl.innerHTML = top.map(function(p,i){
+          var pct = maxM>0 ? (p.margemReal/maxM*100) : 0;
+          var stColor = p.statusSaude==='verde'?'var(--green)':p.statusSaude==='amarelo'?'#F59E0B':'var(--red)';
+          return '<div style="display:flex;align-items:center;gap:8px">'+
+            '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted2);width:18px">'+(i+1)+'.</span>'+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_saudeEsc(p.nome)+'">'+_saudeEsc(p.nome)+'</div>'+
+              '<div style="height:4px;background:var(--s2);border-radius:2px;margin-top:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+stColor+';border-radius:2px"></div></div>'+
+            '</div>'+
+            '<span style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:'+stColor+';min-width:55px;text-align:right">'+(p.margemReal*100).toFixed(1)+'%</span>'+
+          '</div>';
+        }).join('');
+      }
+    }
+  } catch(e){}
+
+  // Ranking de canais (média ponderada por GMV)
+  try {
+    var canEl = document.getElementById('saude-rank-canais');
+    if(canEl) {
+      var porCanal = {};
+      _saudeProdutos.forEach(function(p){
+        var c = p.canalTop;
+        if(!porCanal[c]) porCanal[c] = { somaPond:0, gmvTotal:0, qtd:0 };
+        porCanal[c].somaPond += p.margemReal * p.gmv;
+        porCanal[c].gmvTotal += p.gmv;
+        porCanal[c].qtd += 1;
+      });
+      var canais = Object.keys(porCanal).map(function(c){
+        var d = porCanal[c];
+        return { canal:c, margem: d.gmvTotal>0 ? d.somaPond/d.gmvTotal : 0, qtd: d.qtd };
+      }).sort(function(a,b){ return b.margem - a.margem; });
+
+      if(canais.length === 0) {
+        canEl.innerHTML = '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);text-align:center;padding:20px">Sem dados</div>';
+      } else {
+        canEl.innerHTML = canais.map(function(c){
+          var stColor = c.margem>=SAUDE_FAIXAS.verde?'var(--green)':c.margem>=SAUDE_FAIXAS.amarelo?'#F59E0B':'var(--red)';
+          var pct = Math.max(0, Math.min(100, c.margem*100*2));  // visual: 50% margem = 100% barra
+          return '<div style="display:flex;align-items:center;gap:8px">'+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'+
+                '<span style="font-size:11px;font-weight:600">'+_saudeEsc(c.canal)+'</span>'+
+                '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted2)">'+c.qtd+' SKUs</span>'+
+              '</div>'+
+              '<div style="height:4px;background:var(--s2);border-radius:2px;margin-top:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+stColor+';border-radius:2px"></div></div>'+
+            '</div>'+
+            '<span style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:'+stColor+';min-width:55px;text-align:right">'+(c.margem*100).toFixed(1)+'%</span>'+
+          '</div>';
+        }).join('');
+      }
+    }
+  } catch(e){}
+
+  // Ranking de categorias (idem)
+  try {
+    var catEl = document.getElementById('saude-rank-categorias');
+    if(catEl) {
+      var porCat = {};
+      _saudeProdutos.forEach(function(p){
+        var c = p.categoria || 'Outros';
+        if(!porCat[c]) porCat[c] = { somaPond:0, gmvTotal:0, qtd:0 };
+        porCat[c].somaPond += p.margemReal * p.gmv;
+        porCat[c].gmvTotal += p.gmv;
+        porCat[c].qtd += 1;
+      });
+      var cats = Object.keys(porCat).map(function(c){
+        var d = porCat[c];
+        return { cat:c, margem: d.gmvTotal>0 ? d.somaPond/d.gmvTotal : 0, qtd: d.qtd };
+      }).sort(function(a,b){ return b.margem - a.margem; });
+
+      if(cats.length === 0) {
+        catEl.innerHTML = '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);text-align:center;padding:20px">Sem dados</div>';
+      } else {
+        catEl.innerHTML = cats.map(function(c){
+          var stColor = c.margem>=SAUDE_FAIXAS.verde?'var(--green)':c.margem>=SAUDE_FAIXAS.amarelo?'#F59E0B':'var(--red)';
+          var pct = Math.max(0, Math.min(100, c.margem*100*2));
+          return '<div style="display:flex;align-items:center;gap:8px">'+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'+
+                '<span style="font-size:11px;font-weight:600">'+_saudeEsc(c.cat)+'</span>'+
+                '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted2)">'+c.qtd+' SKUs</span>'+
+              '</div>'+
+              '<div style="height:4px;background:var(--s2);border-radius:2px;margin-top:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+stColor+';border-radius:2px"></div></div>'+
+            '</div>'+
+            '<span style="font-family:var(--fdisplay);font-size:12px;font-weight:700;color:'+stColor+';min-width:55px;text-align:right">'+(c.margem*100).toFixed(1)+'%</span>'+
+          '</div>';
+        }).join('');
+      }
+    }
+  } catch(e){}
+}
+
+/* ─ Persistência por empresa ─────────────────────────────────────── */
+function saudeSalvarParams() {
+  try {
+    var params = _saudeGetParams();
+    localStorage.setItem(_saudeKey(), JSON.stringify(params));
+    alert('✅ Parâmetros salvos para esta empresa.');
+  } catch(e) {
+    alert('❌ Erro ao salvar: ' + e.message);
+  }
+}
+
+function _saudeRestaurarParams() {
+  try {
+    var raw = localStorage.getItem(_saudeKey());
+    if(!raw) return;
+    var p = JSON.parse(raw);
+    var setVal = function(id, v){ var el = document.getElementById(id); if(el && v !== undefined && v !== null) el.value = v; };
+    setVal('saude-rt-faixa', p.faixa);
+    setVal('saude-comissao', p.comissao);
+    setVal('saude-plataforma', p.plataforma);
+    setVal('saude-taxa-pgto', p.taxaPgto);
+    setVal('saude-perdas', p.perdas);
+    setVal('saude-custo-fixo', p.custoFixo);
+    setVal('saude-frete', p.frete);
+    if(p.regime) {
+      var btn = document.getElementById('saude-rt-' + p.regime);
+      if(btn) saudeSetRegime(p.regime, btn);
+    }
+  } catch(e){ console.warn('[Saúde] erro ao restaurar params:', e); }
+}
+
+/* ─ Entry point: chamada por showPage('saude') ───────────────────── */
+function renderSaude() {
+  _saudeRestaurarParams();
+  saudeRecalcular();
+}
+
+
 function setPreset(p,btn){
   document.querySelectorAll('#filtro-global .ftab').forEach(b=>b.classList.remove('on'));
   // Esconder o botão Personalizado quando um preset oficial é escolhido
@@ -2926,6 +3624,11 @@ function applyFilter(){
   // Não dispara se a página atual é Pedidos/Estoque/Precificação/etc — eles não dependem.
   try { if(typeof syncFinanceiroKPIs === 'function' && window._lastProcessedData) syncFinanceiroKPIs(window._lastProcessedData); } catch(e){}
   try { if(typeof calcMarketing === 'function') calcMarketing(); } catch(e){}
+  // Se o módulo Saúde do Estoque estiver aberto, recalcular com novo filtro
+  try {
+    var saudePage = document.getElementById('page-saude');
+    if(saudePage && saudePage.classList.contains('active') && typeof saudeRecalcular === 'function') saudeRecalcular();
+  } catch(e){}
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -3842,6 +4545,8 @@ function showPage(pageId, navEl) {
 
   // If estoque page, render estoque content
   if(pageId === 'estoque') renderEstoque();
+  // Saúde do Estoque — módulo isolado, recalcula com dados do filtro global atual
+  if(pageId === 'saude') { try { renderSaude(); } catch(e){ console.error('[Saúde]', e); } }
   // If pedidos page, render pedidos
   if(pageId === 'pedidos') renderPedidos('todos');
   // If marketing page, render marketing charts
@@ -4689,7 +5394,9 @@ function voltarTempoReal() {
   _atualizarBannerSnapshot();
   // Forçar refresh dos dados
   try { if(typeof refresh === 'function') refresh(); } catch(e) {}
-  console.log('[Roizen] ◀ Voltou ao tempo real');
+  // Navegar de volta para o menu Resumos (origem natural do snapshot)
+  try { showPage('resumos', document.querySelector('[data-page="resumos"]')); } catch(e) {}
+  console.log('[Roizen] ◀ Voltou ao tempo real (menu Resumos)');
 }
 
 /* ─ Banner amarelo no topo "Snapshot ativo" ──────────────────── */
