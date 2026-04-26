@@ -321,78 +321,12 @@ body.light body::before { opacity: 0; }
 /* ─────────────────────────────────────────────────────────────────
    INDICADOR DE INTEGRAÇÃO — fluxo de dados
    Financeiro & Marketing alimentam o menu Resumos.
-   - Linha vertical contínua (.sync-line) posicionada DENTRO da área
-     dos itens (não na borda da sidebar).
-   - Traço horizontal (sync-tick) saindo da linha em direção ao texto
-     de cada item conectado.
-   - Gradient SÓLIDO entre os pontos — começa onde o primeiro item
-     começa e termina onde o último termina.
-   - Animação flui "para cima" (Resumos → Mkt → Fin), sugerindo que
-     os dados convergem para os menus que precisam ser preenchidos.
+   Implementação simples: apenas uma bolinha pulsante (.sync-dot)
+   ao lado do texto dos 3 menus conectados. Sem linhas, sem
+   sobreposições, sem interação com hover.
    ───────────────────────────────────────────────────────────────── */
-/* Container de "Análises" precisa ser referência pro absolute */
-.sidebar-section { position: relative; }
 
-.sync-line {
-  position: absolute;
-  /* Posicionada DENTRO da área dos itens, alinhada com o ícone */
-  left: 22px;
-  width: 1.5px;
-  background: linear-gradient(180deg,
-    rgba(110, 231, 183, .95) 0%,
-    rgba(96, 165, 250, .95) 50%,
-    rgba(244, 114, 182, .95) 100%);
-  background-size: 100% 200%;
-  background-position: 0% 100%;
-  animation: syncFlow 4s linear infinite;
-  border-radius: 1px;
-  opacity: .85;
-  pointer-events: none;
-  z-index: 0;
-  transition: top .2s ease, height .2s ease;
-}
-
-/* Fluxo direcional: gradient sobe (Resumos → Marketing → Financeiro)
-   Sugere "dados convergindo" para os menus que precisam preenchimento */
-@keyframes syncFlow {
-  0%   { background-position: 0% 100%; }
-  100% { background-position: 0% -100%; }
-}
-
-/* Traço horizontal que sai da linha em direção ao texto do item conectado.
-   A cor de cada traço corresponde à posição daquele item na linha vertical. */
-.nav-item[data-sync="resumos"]::before {
-  content: "";
-  position: absolute;
-  left: 22px;            /* mesmo X da linha vertical */
-  top: 50%;
-  width: 8px;            /* comprimento do tracinho */
-  height: 1.5px;
-  transform: translateY(-50%);
-  border-radius: 1px;
-  pointer-events: none;
-  z-index: 1;
-}
-/* Financeiro — primeiro item conectado: cor verde-menta (topo do gradient) */
-.nav-item[data-page="financeiro"][data-sync="resumos"]::before {
-  background: linear-gradient(90deg,
-    rgba(110, 231, 183, .95) 0%,
-    rgba(110, 231, 183, .3) 100%);
-}
-/* Marketing — meio: cor azul */
-.nav-item[data-page="marketing"][data-sync="resumos"]::before {
-  background: linear-gradient(90deg,
-    rgba(96, 165, 250, .95) 0%,
-    rgba(96, 165, 250, .3) 100%);
-}
-/* Resumos — último: cor rosa (final do gradient) */
-.nav-item[data-page="resumos"][data-sync="resumos"]::before {
-  background: linear-gradient(90deg,
-    rgba(244, 114, 182, .95) 0%,
-    rgba(244, 114, 182, .3) 100%);
-}
-
-/* Bolinha pulsante ao lado do texto (à direita do item) */
+/* Bolinha pulsante ao lado do texto — verde-menta com leve glow */
 .sync-dot {
   position: absolute;
   right: 12px;
@@ -405,20 +339,19 @@ body.light body::before { opacity: 0; }
   box-shadow: 0 0 8px rgba(110, 231, 183, .6);
   animation: syncPulse 2s ease-in-out infinite;
   pointer-events: none;
+  z-index: 2;  /* sempre acima do hover do nav-item */
 }
 @keyframes syncPulse {
-  0%, 100% { opacity: .4; transform: translateY(-50%) scale(.85); }
-  50%      { opacity: 1;  transform: translateY(-50%) scale(1.15); }
+  0%, 100% { opacity: .45; transform: translateY(-50%) scale(.85); }
+  50%      { opacity: 1;   transform: translateY(-50%) scale(1.15); }
 }
 
-/* No modo recolhido: esconde tudo (sidebar fica muito apertada) */
-.sidebar.collapsed .sync-dot,
-.sidebar.collapsed .sync-line,
-.sidebar.collapsed .nav-item[data-sync="resumos"]::before { display: none; }
+/* No modo recolhido: esconder bolinhas (sidebar fica muito apertada) */
+.sidebar.collapsed .sync-dot { display: none; }
 
 /* Respeitar usuários com preferência de movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
-  .sync-line, .sync-dot { animation: none; }
+  .sync-dot { animation: none; }
 }
 .sidebar.collapsed .nav-item::after {
   content: attr(data-label);
@@ -1137,8 +1070,6 @@ body.light body::before { opacity: 0; }
   </div>
 
   <div class="sidebar-section">
-    <!-- Linha animada conectando Financeiro → Marketing → Resumos (posicionada via JS) -->
-    <div class="sync-line" id="sync-line-resumos"></div>
     <div class="sidebar-label">Análises</div>
     <div class="nav-item" onclick="showPage('financeiro',this)" data-page="financeiro" data-label="Financeiro" data-sync="resumos">
       <span class="nav-icon">💰</span>
@@ -3896,8 +3827,6 @@ function showPage(pageId, navEl) {
   // Update nav items
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if(navEl) navEl.classList.add('active');
-  // Reposicionar a linha conectora pois itens mudaram de classe (active)
-  if(typeof _posicionarSyncLine === 'function') setTimeout(_posicionarSyncLine, 50);
   // Close sidebar on mobile
   if(window.innerWidth <= 900) closeSidebar();
 
@@ -4288,40 +4217,7 @@ function toggleSidebarCollapse() {
   var collapsed = sb.classList.toggle('collapsed');
   if(btn) btn.textContent = collapsed ? '›' : '‹';
   localStorage.setItem('fc_sidebar_collapsed', collapsed ? '1' : '0');
-  // Reposicionar a linha conectora após mudança de largura da sidebar
-  setTimeout(_posicionarSyncLine, 250);
 }
-
-/* Posiciona a linha contínua que conecta Financeiro → Marketing → Resumos.
-   Mede o primeiro e o último item com data-sync="resumos" e ajusta top/height. */
-function _posicionarSyncLine() {
-  try {
-    var line = document.getElementById('sync-line-resumos');
-    if(!line) return;
-    var section = line.parentElement;  // .sidebar-section "Análises"
-    if(!section) return;
-    var itens = section.querySelectorAll('.nav-item[data-sync="resumos"]');
-    if(itens.length < 2) { line.style.display = 'none'; return; }
-    var primeiro = itens[0];
-    var ultimo   = itens[itens.length - 1];
-    // Posições relativas ao container da seção
-    var sectionRect = section.getBoundingClientRect();
-    var pRect = primeiro.getBoundingClientRect();
-    var uRect = ultimo.getBoundingClientRect();
-    // Top: meio do primeiro item; Bottom: meio do último — assim a linha
-    // "atravessa" os itens conectados centrada verticalmente
-    var top    = (pRect.top + pRect.height/2) - sectionRect.top;
-    var bottom = (uRect.top + uRect.height/2) - sectionRect.top;
-    line.style.display = '';
-    line.style.top = top + 'px';
-    line.style.height = (bottom - top) + 'px';
-  } catch(e){ /* silencioso */ }
-}
-
-/* Reposicionar quando carrega, redimensiona, ou navega entre páginas
-   (showPage muda classes 'active' que podem alterar altura dos itens) */
-window.addEventListener('load', function(){ setTimeout(_posicionarSyncLine, 100); });
-window.addEventListener('resize', _posicionarSyncLine);
 
 /* ─ Dark / Light mode ─ */
 function toggleTheme() {
