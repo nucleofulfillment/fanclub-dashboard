@@ -321,41 +321,78 @@ body.light body::before { opacity: 0; }
 /* ─────────────────────────────────────────────────────────────────
    INDICADOR DE INTEGRAÇÃO — fluxo de dados
    Financeiro & Marketing alimentam o menu Resumos.
-   Uma ÚNICA linha contínua liga os 3 menus (Fin → Mkt → Resumos),
-   atravessando os itens intermediários. A linha é renderizada via
-   um <div class="sync-line"> absoluto, posicionado por JS conforme
-   a altura real dos itens (responsivo a colapso/expansão da sidebar).
+   - Linha vertical contínua (.sync-line) posicionada DENTRO da área
+     dos itens (não na borda da sidebar).
+   - Traço horizontal (sync-tick) saindo da linha em direção ao texto
+     de cada item conectado.
+   - Gradient SÓLIDO entre os pontos — começa onde o primeiro item
+     começa e termina onde o último termina.
+   - Animação flui "para cima" (Resumos → Mkt → Fin), sugerindo que
+     os dados convergem para os menus que precisam ser preenchidos.
    ───────────────────────────────────────────────────────────────── */
 /* Container de "Análises" precisa ser referência pro absolute */
 .sidebar-section { position: relative; }
 
 .sync-line {
   position: absolute;
-  left: 0;
-  width: 1.5px;  /* metade da espessura anterior — mais discreto */
+  /* Posicionada DENTRO da área dos itens, alinhada com o ícone */
+  left: 22px;
+  width: 1.5px;
   background: linear-gradient(180deg,
-    transparent 0%,
-    rgba(110, 231, 183, .9) 25%,
-    rgba(96, 165, 250, .9) 50%,
-    rgba(244, 114, 182, .9) 75%,
-    transparent 100%);
-  background-size: 100% 300%;
+    rgba(110, 231, 183, .95) 0%,
+    rgba(96, 165, 250, .95) 50%,
+    rgba(244, 114, 182, .95) 100%);
+  background-size: 100% 200%;
   background-position: 0% 100%;
-  animation: syncFlow 4.5s linear infinite;
+  animation: syncFlow 4s linear infinite;
   border-radius: 1px;
-  opacity: .8;
+  opacity: .85;
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
   transition: top .2s ease, height .2s ease;
 }
 
-/* Fluxo direcional: Financeiro/Marketing → Resumos (gradient sobe) */
+/* Fluxo direcional: gradient sobe (Resumos → Marketing → Financeiro)
+   Sugere "dados convergindo" para os menus que precisam preenchimento */
 @keyframes syncFlow {
   0%   { background-position: 0% 100%; }
-  100% { background-position: 0%   0%; }
+  100% { background-position: 0% -100%; }
 }
 
-/* Bolinha pulsante ao lado do texto — indica que o item está conectado à linha */
+/* Traço horizontal que sai da linha em direção ao texto do item conectado.
+   A cor de cada traço corresponde à posição daquele item na linha vertical. */
+.nav-item[data-sync="resumos"]::before {
+  content: "";
+  position: absolute;
+  left: 22px;            /* mesmo X da linha vertical */
+  top: 50%;
+  width: 8px;            /* comprimento do tracinho */
+  height: 1.5px;
+  transform: translateY(-50%);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 1;
+}
+/* Financeiro — primeiro item conectado: cor verde-menta (topo do gradient) */
+.nav-item[data-page="financeiro"][data-sync="resumos"]::before {
+  background: linear-gradient(90deg,
+    rgba(110, 231, 183, .95) 0%,
+    rgba(110, 231, 183, .3) 100%);
+}
+/* Marketing — meio: cor azul */
+.nav-item[data-page="marketing"][data-sync="resumos"]::before {
+  background: linear-gradient(90deg,
+    rgba(96, 165, 250, .95) 0%,
+    rgba(96, 165, 250, .3) 100%);
+}
+/* Resumos — último: cor rosa (final do gradient) */
+.nav-item[data-page="resumos"][data-sync="resumos"]::before {
+  background: linear-gradient(90deg,
+    rgba(244, 114, 182, .95) 0%,
+    rgba(244, 114, 182, .3) 100%);
+}
+
+/* Bolinha pulsante ao lado do texto (à direita do item) */
 .sync-dot {
   position: absolute;
   right: 12px;
@@ -374,9 +411,10 @@ body.light body::before { opacity: 0; }
   50%      { opacity: 1;  transform: translateY(-50%) scale(1.15); }
 }
 
-/* No modo recolhido: esconde bolinhas e linha (sidebar fica muito apertada) */
+/* No modo recolhido: esconde tudo (sidebar fica muito apertada) */
 .sidebar.collapsed .sync-dot,
-.sidebar.collapsed .sync-line { display: none; }
+.sidebar.collapsed .sync-line,
+.sidebar.collapsed .nav-item[data-sync="resumos"]::before { display: none; }
 
 /* Respeitar usuários com preferência de movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
