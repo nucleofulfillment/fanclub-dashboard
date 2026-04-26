@@ -6211,17 +6211,61 @@ async function salvarResumo() {
     // Estados (planilha separada)
     estadosData: (typeof estadosData !== 'undefined') ? JSON.parse(JSON.stringify(estadosData)) : [],
 
-    // Top produtos vendidos (planilha separada — limitar top 50 para não inchar)
+    // Top produtos vendidos do PERÍODO (filtrado, qtd e gmv) — limitado a 50.
+    // Antes: top 50 do total da planilha (não respeitava filtro).
+    // Agora: respeita filtro mensal igual marcasDistribuicao, pra comparação justa.
     topProdutos: (function() {
       try {
-        if(typeof produtosVendidosMap === 'object' && produtosVendidosMap) {
-          return Object.values(produtosVendidosMap)
-            .sort(function(a,b){ return (b.qtd||0)-(a.qtd||0); })
-            .slice(0,50)
-            .map(function(p){ return {nome:p.nome, sku:p.sku, qtd:p.qtd}; });
+        if(typeof produtosVendidosMap !== 'object' || !produtosVendidosMap) return [];
+
+        // Calcular meses do filtro (mesma lógica de marcasDistribuicao)
+        var f0 = (document.getElementById('f-from')||{}).value || '';
+        var t0 = (document.getElementById('f-to')||{}).value   || '';
+        var mesesSetTP = null;
+        if(f0 || t0) {
+          mesesSetTP = new Set();
+          var dF = new Date(f0+'T00:00');
+          var dT = new Date(t0+'T00:00');
+          if(!isNaN(dF.getTime()) && !isNaN(dT.getTime())) {
+            var curTP = new Date(dF.getFullYear(), dF.getMonth(), 1);
+            var endTP = new Date(dT.getFullYear(), dT.getMonth(), 1);
+            while(curTP <= endTP) {
+              var mmTP = String(curTP.getMonth()+1).padStart(2,'0');
+              var yyTP = curTP.getFullYear().toString().slice(-2);
+              var nTP = (typeof MESES_ABAS !== 'undefined') ? MESES_ABAS[mmTP] : null;
+              if(nTP) {
+                var mkTP = nTP.toLowerCase().replace(/[^a-z]/g,'').substring(0,3) + yyTP;
+                mesesSetTP.add(mkTP);
+              }
+              curTP.setMonth(curTP.getMonth()+1);
+            }
+          }
         }
-      } catch(e) {}
-      return [];
+
+        return Object.values(produtosVendidosMap).map(function(p){
+          if(!p || !p.sku) return null;
+          var qtd = 0, gmv = 0;
+          if(mesesSetTP && p.por_mes) {
+            Object.keys(p.por_mes).forEach(function(mk){
+              if(mesesSetTP.has(mk)) {
+                qtd += (p.por_mes[mk] || 0);
+                gmv += (p.gmv_por_mes ? (p.gmv_por_mes[mk]||0) : 0);
+              }
+            });
+          } else if(!mesesSetTP) {
+            qtd = p.qtd || 0;
+            gmv = p.gmv || 0;
+          }
+          if(qtd <= 0) return null;
+          var marca = (typeof getMarcaProduto === 'function') ? (getMarcaProduto(p.sku) || '') : '';
+          return { nome: p.nome, sku: p.sku, qtd: qtd, gmv: gmv, marca: marca };
+        }).filter(function(p){ return p !== null; })
+          .sort(function(a,b){ return (b.qtd||0) - (a.qtd||0); })
+          .slice(0, 50);
+      } catch(e) {
+        console.warn('[Resumos] erro ao calcular topProdutos:', e);
+        return [];
+      }
     })(),
 
     // Distribuição por MARCA (novo no v3 — depende de planilha de Custo carregada).
@@ -6458,7 +6502,7 @@ function compararResumos(i1, i2) {
   }).join('');
 
   var cmp = document.getElementById('comparacao-cards');
-  if(cmp) cmp.innerHTML = html + _compararMarcasHTML(r1, r2);
+  if(cmp) cmp.innerHTML = html + _compararMarcasHTML(r1, r2) + _compararProdutosHTML(r1, r2);
   var cmpEl = document.getElementById('resumos-comparacao');
   if(cmpEl) cmpEl.style.display = 'block';
   cmpEl.scrollIntoView({behavior:'smooth'});
@@ -6507,6 +6551,78 @@ function _compararMarcasHTML(r1, r2) {
         '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r2.nome+'</th>'+
       '</tr></thead>'+
       '<tbody>'+linhas+'</tbody>'+
+    '</table>'+
+  '</div>';
+}
+
+/* ─ Comparação Top 10 produtos entre dois resumos ─────────────────
+   Detecta produtos que subiram, caíram, novos no top, e os que sumiram.
+   Só renderiza se ambos resumos têm topProdutos com qtd > 0. */
+function _compararProdutosHTML(r1, r2) {
+  if(!r1 || !r2) return '';
+  if(!Array.isArray(r1.topProdutos) || !Array.isArray(r2.topProdutos)) return '';
+  if(r1.topProdutos.length === 0 || r2.topProdutos.length === 0) return '';
+
+  // Indexar por SKU (chave de comparação)
+  var p1 = {}, p2 = {};
+  r1.topProdutos.forEach(function(p){ if(p && p.sku) p1[p.sku] = p; });
+  r2.topProdutos.forEach(function(p){ if(p && p.sku) p2[p.sku] = p; });
+
+  // Pegar TOP 10 do snapshot 1 (mais recente) — nossa referência principal
+  var top1 = r1.topProdutos.slice(0, 10);
+  // Identificar SKUs que estavam no top de r2 mas saíram (sumidos do top em r1)
+  var top2Skus = new Set(r2.topProdutos.slice(0, 10).map(function(p){ return p.sku; }));
+  var top1Skus = new Set(top1.map(function(p){ return p.sku; }));
+  var sumidos = r2.topProdutos.slice(0, 10).filter(function(p){
+    return !top1Skus.has(p.sku);
+  }).slice(0, 3); // limita a 3 sumidos
+
+  var fnLinha = function(p, isAtual){
+    var aSku = p.sku;
+    var a = isAtual ? p : (p1[aSku] || null);
+    var b = !isAtual ? p : (p2[aSku] || null);
+    var qtdA = a ? (a.qtd||0) : 0;
+    var qtdB = b ? (b.qtd||0) : 0;
+    var delta = qtdB > 0 ? ((qtdA - qtdB) / qtdB * 100) : (qtdA > 0 ? 100 : 0);
+    var color = delta > 0 ? 'var(--green)' : delta < 0 ? 'var(--red)' : 'var(--muted)';
+    var arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+    var deltaTxt = (qtdB === 0 && qtdA > 0) ? 'novo'
+                  : (qtdA === 0 && qtdB > 0) ? 'sumiu'
+                  : (Math.abs(delta).toFixed(1) + '%');
+    var nome = (a || b).nome || (a || b).sku;
+    if(nome.length > 50) nome = nome.substring(0, 47) + '...';
+    var marca = (a || b).marca || '';
+    var marcaTag = marca
+      ? '<span style="font-size:9px;color:#FBBF24;background:rgba(251,191,36,.10);padding:1px 6px;border-radius:3px;margin-left:6px">'+marca+'</span>'
+      : '';
+    return '<tr>'+
+      '<td style="padding:6px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);max-width:400px">'+
+        '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(a||b).sku+'">'+nome+marcaTag+'</div>'+
+        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:2px">'+(a||b).sku+'</div>'+
+      '</td>'+
+      '<td style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:11px">'+(qtdA>0?qtdA.toLocaleString('pt-BR')+' un':'—')+'</td>'+
+      '<td style="padding:6px 10px;text-align:center;font-family:var(--fmono);font-size:11px;color:'+color+';font-weight:600">'+arrow+' '+deltaTxt+'</td>'+
+      '<td style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:11px">'+(qtdB>0?qtdB.toLocaleString('pt-BR')+' un':'—')+'</td>'+
+    '</tr>';
+  };
+
+  var linhasTop = top1.map(function(p){ return fnLinha(p, true); }).join('');
+  var linhasSumidos = sumidos.map(function(p){ return fnLinha(p, false); }).join('');
+
+  var separador = sumidos.length > 0
+    ? '<tr><td colspan="4" style="padding:8px 10px 4px;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;border-top:1px dashed var(--border)">⚠ Saíram do Top 10</td></tr>'
+    : '';
+
+  return '<div style="grid-column:1/-1;background:var(--s2);border-radius:10px;padding:14px;border:1px solid var(--border);margin-top:6px">'+
+    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">🏆 Comparação Top 10 Produtos</div>'+
+    '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="border-bottom:1px solid var(--border)">'+
+        '<th style="padding:6px 10px;text-align:left;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Produto</th>'+
+        '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r1.nome+'</th>'+
+        '<th style="padding:6px 10px;text-align:center;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Δ</th>'+
+        '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r2.nome+'</th>'+
+      '</tr></thead>'+
+      '<tbody>'+linhasTop+separador+linhasSumidos+'</tbody>'+
     '</table>'+
   '</div>';
 }
