@@ -1737,7 +1737,7 @@ body.light body::before { opacity: 0; }
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
           <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Comissão média %</label>
-            <input type="number" id="saude-comissao" value="15" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+            <input type="number" id="saude-comissao" value="12" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
@@ -1747,12 +1747,12 @@ body.light body::before { opacity: 0; }
           </div>
           <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Taxa pagamento %</label>
-            <input type="number" id="saude-taxa-pgto" value="3" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+            <input type="number" id="saude-taxa-pgto" value="1.5" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Perdas %</label>
-            <input type="number" id="saude-perdas" value="2" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+            <input type="number" id="saude-perdas" value="1" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
@@ -1766,6 +1766,11 @@ body.light body::before { opacity: 0; }
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px" title="Aplicado apenas para canal Loja Própria — marketplaces fazem retenção própria">Financeiro % <span style="color:var(--muted2);font-size:9px">(só Loja Própria)</span></label>
+            <input type="number" id="saude-financeiro" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
+          </div>
+          <div>
             <label style="font-family:var(--fmono);font-size:10px;color:var(--accent);display:block;margin-bottom:4px;font-weight:600">🎯 Margem desejada %</label>
             <input type="number" id="saude-margem-desejada" value="30" min="0" max="100" step="0.5" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid rgba(110,231,183,.3);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--accent);outline:none;color-scheme:dark;font-weight:600">
@@ -1773,13 +1778,14 @@ body.light body::before { opacity: 0; }
         </div>
 
         <div style="margin-top:14px;padding:10px 12px;background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.15);border-radius:7px">
-          <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:4px">📊 Modo Simulação Ativo</div>
-          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted2);line-height:1.5">
-            Como o custo real ainda não está disponível, o sistema estima o custo de cada produto
-            baseado na <strong>Curva ABC</strong>: Curva A → custo = 40% do preço (margem 60%) ·
-            Curva B → custo = 50% (margem 50%) · Curva C → custo = 60% (margem 40%).
-            Curva A reflete produtos mais eficientes (escala/barganha) e Curva C produtos menos eficientes.
-            Quando os custos reais forem integrados, basta substituir <code>_custoSimulado()</code> por <code>_custoReal()</code>.
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:4px">📊 Modo Simulação Ativo · Regras Reais por Canal</div>
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted2);line-height:1.6">
+            <strong>Custo:</strong> estimado por Curva ABC — A → 40% do preço (margem 60%) · B → 50% (margem 50%) · C → 60% (margem 40%).
+            Curva A reflete produtos mais eficientes (escala/barganha) e Curva C produtos menos eficientes.<br>
+            <strong>Comissão e taxas:</strong> regras REAIS da tela Precificação são aplicadas conforme o canal selecionado no filtro
+            (Shopee 14-20% + R$4-26 conforme faixa · ML 19% + R$6,75 · Shein 20% + R$5 · Dafiti 25% + R$299 mensal · Loja Própria 0%).
+            Quando "Todos os canais" → calcula <strong>média ponderada</strong> pelo share de vendas de cada canal.<br>
+            <span style="color:var(--muted2);font-size:10px">Passe o mouse na coluna "Canal Top" para ver qual regra foi aplicada em cada produto.</span>
           </div>
         </div>
       </div>
@@ -1798,7 +1804,7 @@ body.light body::before { opacity: 0; }
           <option value="B">🅱️ Curva B</option>
           <option value="C">🅲 Curva C</option>
         </select>
-        <select id="saude-filtro-canal" onchange="saudeAtualizarVisao()"
+        <select id="saude-filtro-canal" onchange="saudeRecalcular()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
           <option value="todos">Todos os canais</option>
           <option value="Shopee">Shopee</option>
@@ -1806,15 +1812,17 @@ body.light body::before { opacity: 0; }
           <option value="Shein">Shein</option>
           <option value="TikTok Shop">TikTok Shop</option>
           <option value="Dafiti">Dafiti</option>
-          <option value="Netshoes">Netshoes</option>
           <option value="Loja Própria">Loja Própria</option>
         </select>
         <select id="saude-ordem" onchange="saudeRenderTabela()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
           <option value="margem-asc">Margem ↑ (piores primeiro)</option>
           <option value="margem-desc">Margem ↓ (melhores primeiro)</option>
+          <option value="status">Status (críticos primeiro)</option>
           <option value="gmv-desc" selected>GMV ↓ (mais vendidos)</option>
           <option value="qtd-desc">Quantidade vendida ↓</option>
+          <option value="preco-desc">Preço ↓ (mais caros)</option>
+          <option value="preco-asc">Preço ↑ (mais baratos)</option>
           <option value="nome-asc">Nome A-Z</option>
         </select>
         <label style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;color:var(--muted);cursor:pointer;user-select:none">
@@ -1853,14 +1861,6 @@ body.light body::before { opacity: 0; }
 
       <!-- ── Gráficos e Rankings ─────────────────────────────────── -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;margin-bottom:14px">
-
-        <!-- Donut: distribuição por status -->
-        <div class="card">
-          <div class="ch"><div><div class="ct">Distribuição por Status</div><div class="cs">Proporção de produtos saudáveis</div></div></div>
-          <div style="position:relative;height:240px;width:100%;margin-top:8px">
-            <canvas id="saude-ch-status"></canvas>
-          </div>
-        </div>
 
         <!-- Top 10 mais saudáveis -->
         <div class="card">
@@ -3105,6 +3105,7 @@ function _saudeGetParams() {
     perdas:    num('saude-perdas', 2),
     custoFixo: num('saude-custo-fixo', 0),
     frete:     num('saude-frete', 0),
+    financeiro:num('saude-financeiro', 0),
     margemDesejada: num('saude-margem-desejada', 30)
   };
 }
@@ -3115,12 +3116,11 @@ function _saudeGetParams() {
    Filtra os meses que estão dentro do período do filtro global.
 
    FALLBACK: se a planilha de produtos não foi conectada, agrupa
-   pedidos brutos do _lastProcessedData (que pode ter campos genéricos
-   tipo produto='Produto' em algumas plataformas — funciona, mas com
-   menos detalhe).
+   pedidos brutos do _lastProcessedData.
 
-   Para canal top de cada SKU, cruza com pedidos brutos do período
-   para descobrir em qual canal o produto mais vendeu. */
+   CANAL DE ANÁLISE: lê (saude-filtro-canal). Quando != 'todos',
+   recalcula GMV proporcional ao share daquele canal (via canaisGlobais)
+   e marca o produto com canalAnalise para usar regras corretas. */
 function _saudeColetarProdutos() {
   var d = window._lastProcessedData;
   if(!d) return [];
@@ -3128,6 +3128,9 @@ function _saudeColetarProdutos() {
   // Datas do filtro
   var from = (document.getElementById('f-from')||{}).value || '';
   var to   = (document.getElementById('f-to')||{}).value   || '';
+
+  // Canal de análise selecionado (read-only nesta função; coleta usa pra ponderação)
+  var canalAnalise = (document.getElementById('saude-filtro-canal')||{}).value || 'todos';
 
   // === FONTE PRIMÁRIA: produtosVendidosMap ===
   var temMap = (typeof produtosVendidosMap === 'object' && produtosVendidosMap && Object.keys(produtosVendidosMap).length > 0);
@@ -3147,33 +3150,42 @@ function _saudeColetarProdutos() {
     }
   }
 
-  // Calcular canal top por SKU base — cruzando com pedidos brutos
-  // (aprox: como pedidos não têm SKU, usamos o canal mais frequente como "canal top global")
-  var canaisGlobais = {};
+  // Agregação dos pedidos do PERÍODO filtrado, separando por canal
+  var canaisGlobais = {};  // { canal: { qtd, gmv } }
   var todosPedidos = (d.aprov||[]).concat(d.trans||[]).concat(d.entr||[]);
-  var totalGmvPedidos = 0;
+  var totalGmvPedidos = 0, totalQtdPedidos = 0;
   todosPedidos.forEach(function(p){
     var c = p.canal || '—';
     if(!canaisGlobais[c]) canaisGlobais[c] = { qtd:0, gmv:0 };
     canaisGlobais[c].qtd += 1;
     canaisGlobais[c].gmv += (p.valor || 0);
     totalGmvPedidos += (p.valor || 0);
+    totalQtdPedidos += 1;
   });
+
+  // Share do canal selecionado (usado pra ponderar GMV/qtd por SKU)
+  // Quando 'todos' → share = 1 (não pondera). Quando canal específico → share = % do canal.
+  var shareCanalGmv = 1, shareCanalQtd = 1;
+  if(canalAnalise !== 'todos' && canaisGlobais[canalAnalise]) {
+    shareCanalGmv = totalGmvPedidos > 0 ? canaisGlobais[canalAnalise].gmv / totalGmvPedidos : 0;
+    shareCanalQtd = totalQtdPedidos > 0 ? canaisGlobais[canalAnalise].qtd / totalQtdPedidos : 0;
+  } else if(canalAnalise !== 'todos') {
+    // Canal selecionado mas sem vendas no período → share zero
+    shareCanalGmv = 0; shareCanalQtd = 0;
+  }
 
   var arr = [];
 
   if(temMap) {
-    // Iterar produtos da planilha
     Object.values(produtosVendidosMap).forEach(function(p){
       if(!p || !p.nome) return;
 
-      // Filtrar só meses do período (deduplicando 'abr' vs 'abr26')
-      var qtdPeriodo = 0;
-      var gmvPeriodo = 0;
+      // Filtrar meses do período
+      var qtdPeriodo = 0, gmvPeriodo = 0;
       if(p.por_mes && Object.keys(p.por_mes).length > 0) {
         var qtdPorSigla = {}, gmvPorSigla = {};
         Object.keys(p.por_mes).forEach(function(mesKey){
-          var sigla = mesKey.replace(/\d+$/, '');  // 'abr26' → 'abr'
+          var sigla = mesKey.replace(/\d+$/, '');
           var v = p.por_mes[mesKey] || 0;
           if(qtdPorSigla[sigla] === undefined || v > qtdPorSigla[sigla]) qtdPorSigla[sigla] = v;
           var g = (p.gmv_por_mes && p.gmv_por_mes[mesKey]) || 0;
@@ -3186,87 +3198,87 @@ function _saudeColetarProdutos() {
           }
         });
       } else {
-        // Sem por_mes: usar totais
         qtdPeriodo = p.qtd || 0;
         gmvPeriodo = p.gmv || 0;
       }
-      if(qtdPeriodo <= 0) return;  // pular produtos sem venda no período
+      if(qtdPeriodo <= 0) return;
 
-      // Preço médio: do GMV/qtd da planilha. Se GMV não veio, estimar pelo
-      // ticket médio dos pedidos brutos (totalGmvPedidos / totalQtdPedidos).
-      var precoMedio = 0;
-      if(gmvPeriodo > 0 && qtdPeriodo > 0) {
-        precoMedio = gmvPeriodo / qtdPeriodo;
-      } else if(todosPedidos.length > 0) {
-        precoMedio = totalGmvPedidos / todosPedidos.length;  // ticket médio global como aproximação
+      // Aplica share do canal de análise (quando filtrado)
+      var qtdCanal = qtdPeriodo * shareCanalQtd;
+      var gmvCanal = gmvPeriodo * shareCanalGmv;
+
+      // Preço médio: do GMV/qtd da planilha (não muda com canal porque é o mesmo SKU)
+      var precoMedio = (gmvPeriodo > 0 && qtdPeriodo > 0)
+        ? (gmvPeriodo / qtdPeriodo)
+        : (totalQtdPedidos > 0 ? totalGmvPedidos / totalQtdPedidos : 0);
+
+      // Canal e regras:
+      // - Se canal específico: usa regras desse canal
+      // - Se 'todos': calcula média PONDERADA pelo share de cada canal nas vendas
+      //   (mais justo do que escolher só o canal #1)
+      var canalRegras = canalAnalise;
+      if(canalAnalise === 'todos') {
+        canalRegras = '__media__';  // sinal para _saudeCalcularMargem fazer média
       }
-
-      // Canal top: como produtosVendidosMap não tem canal por SKU, usamos o
-      // canal mais vendido GLOBALMENTE como aproximação. Documentado claramente.
-      var canalTopAprox = '—', topGMV = -1;
-      Object.keys(canaisGlobais).forEach(function(c){
-        if(canaisGlobais[c].gmv > topGMV) { topGMV = canaisGlobais[c].gmv; canalTopAprox = c; }
-      });
-      var canalTopPct = totalGmvPedidos > 0 ? topGMV / totalGmvPedidos : 0;
 
       var produto = {
         sku: p.sku || p.cod || '—',
         nome: p.nome,
-        qtd: qtdPeriodo,
-        gmv: gmvPeriodo > 0 ? gmvPeriodo : (precoMedio * qtdPeriodo),
+        qtd: canalAnalise === 'todos' ? qtdPeriodo : Math.round(qtdCanal),
+        gmv: canalAnalise === 'todos' ? gmvPeriodo : gmvCanal,
         precoMedio: precoMedio,
-        canalTop: canalTopAprox,
-        canalTopGMV: topGMV,
-        canalTopPct: canalTopPct,
-        porCanal: {},  // não temos canal por SKU
-        tamanhos: p.tamanhos || {}  // variações de tamanho (qtd por tamanho)
+        canalAnalise: canalAnalise,
+        canalRegras:  canalRegras,
+        canalTop:     canalAnalise === 'todos' ? 'Mix de canais' : canalAnalise,
+        canalTopPct:  (canalAnalise !== 'todos' && totalGmvPedidos > 0)
+                        ? (canaisGlobais[canalAnalise] ? canaisGlobais[canalAnalise].gmv/totalGmvPedidos : 0)
+                        : 0,
+        canaisGlobais: canaisGlobais,        // referência para média ponderada
+        totalGmvPedidos: totalGmvPedidos,    // referência para média ponderada
+        tamanhos: p.tamanhos || {}
       };
       try { produto.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(produto.nome) : 'Outros'; }
       catch(e){ produto.categoria = 'Outros'; }
       arr.push(produto);
     });
   } else {
-    // === FALLBACK: agrupar pedidos brutos (modo antigo) ===
+    // FALLBACK: agrupar pedidos brutos
     if(todosPedidos.length === 0) return [];
     var map = {};
     todosPedidos.forEach(function(p){
+      if(canalAnalise !== 'todos' && p.canal !== canalAnalise) return;  // filtra por canal
       var sku  = p.sku || p.produto || '—';
       var nome = p.produto || p.nome || sku;
-      var chave = sku;
-      if(!map[chave]) map[chave] = { sku: sku, nome: nome, qtd: 0, gmv: 0, porCanal: {} };
-      map[chave].qtd += 1;
-      map[chave].gmv += (p.valor || 0);
-      var canal = p.canal || '—';
-      if(!map[chave].porCanal[canal]) map[chave].porCanal[canal] = { qtd:0, gmv:0 };
-      map[chave].porCanal[canal].qtd += 1;
-      map[chave].porCanal[canal].gmv += (p.valor || 0);
+      if(!map[sku]) map[sku] = { sku: sku, nome: nome, qtd: 0, gmv: 0 };
+      map[sku].qtd += 1;
+      map[sku].gmv += (p.valor || 0);
     });
     arr = Object.values(map).map(function(p){
       p.precoMedio = p.qtd > 0 ? p.gmv / p.qtd : 0;
-      var topCanal = '—', topGMV = -1;
-      Object.keys(p.porCanal).forEach(function(c){
-        if(p.porCanal[c].gmv > topGMV) { topGMV = p.porCanal[c].gmv; topCanal = c; }
-      });
-      p.canalTop = topCanal;
-      p.canalTopGMV = topGMV;
-      p.canalTopPct = p.gmv > 0 ? topGMV / p.gmv : 0;
+      p.canalAnalise = canalAnalise;
+      p.canalRegras  = canalAnalise === 'todos' ? 'Loja Própria' : canalAnalise;
+      p.canalTop     = p.canalRegras;
+      p.canalTopPct  = 0;
       try { p.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(p.nome) : 'Outros'; }
       catch(e){ p.categoria = 'Outros'; }
       return p;
     });
   }
 
-  console.log('[Saúde] Produtos coletados: '+arr.length+' (fonte: '+(temMap?'produtosVendidosMap':'pedidos brutos')+', período: '+from+' → '+to+')');
+  console.log('[Saúde] Produtos coletados: '+arr.length+' (fonte: '+(temMap?'produtosVendidosMap':'pedidos brutos')+', canal: '+canalAnalise+', período: '+from+' → '+to+')');
 
   // Classificar ABC por GMV
   arr = _saudeClassificarABC(arr);
   return arr;
 }
 
-/* ─ Calcula margem real para cada produto ────────────────────────── */
+/* ─ Calcula margem real para cada produto ──────────────────────────
+   Reusa as MESMAS regras do menu Precificação (PREC_CANAIS,
+   calcComissaoShopee, calcTaxaFixaShopee) para garantir consistência
+   total entre Precificação e Saúde do Estoque. */
 function _saudeCalcularMargem(produto, params) {
   var preco = produto.precoMedio || 0;
-  if(preco <= 0) return { margem:0, status:'vermelho', custo:0, deducoes:0 };
+  if(preco <= 0) return { margem:0, status:'vermelho', custo:0, deducoes:0, regrasInfo:'sem preço' };
 
   // Custo via função plugável (simulado ou real)
   var custo = _saudeCalcularCusto(produto);
@@ -3282,19 +3294,71 @@ function _saudeCalcularMargem(produto, params) {
     impPct = 0.243;
   }
 
-  // Comissão do canal top
-  var comCanalPct = SAUDE_COMISSAO_CANAL[produto.canalTop];
-  if(comCanalPct === undefined) comCanalPct = (params.comissao || 15) / 100;
+  // ═══ COMISSÃO + TAXA FIXA: regras REAIS do menu Precificação ═══
+  // Usa o canal de regras (que pode vir do filtro ou do canal top global)
+  var canal = produto.canalRegras || produto.canalTop || 'Loja Própria';
+  var canalInfo = (typeof PREC_CANAIS !== 'undefined' && PREC_CANAIS[canal]) ? PREC_CANAIS[canal] : null;
 
-  // Deduções totais (% sobre preço)
-  var pctDeducoes = comCanalPct + impPct
+  var comCanalPct = 0;
+  var taxaFixaRS = 0;
+  var custoExtraDafiti = 0;
+  var canalLabel = canal;  // texto pra info
+
+  if(canal === '__media__') {
+    // MÉDIA PONDERADA: aplicar regras de cada canal proporcionalmente ao share
+    // de vendas. Reflete a realidade quando "Todos os canais" está selecionado.
+    var canais = produto.canaisGlobais || {};
+    var totalGmv = produto.totalGmvPedidos || 0;
+    if(totalGmv > 0) {
+      Object.keys(canais).forEach(function(c){
+        var share = canais[c].gmv / totalGmv;
+        if(share <= 0) return;
+        var info = (typeof PREC_CANAIS !== 'undefined' && PREC_CANAIS[c]) ? PREC_CANAIS[c] : null;
+        if(!info) return;
+        var comC = (c === 'Shopee' && typeof calcComissaoShopee === 'function') ? calcComissaoShopee(preco) : (info.comissao || 0);
+        var taxaC = (c === 'Shopee' && typeof calcTaxaFixaShopee === 'function') ? calcTaxaFixaShopee(preco) : (info.taxaFixa || 0);
+        comCanalPct += comC * share;
+        taxaFixaRS  += taxaC * share;
+      });
+    } else {
+      comCanalPct = (params.comissao || 12) / 100;
+      taxaFixaRS = 0;
+    }
+    canalLabel = 'Mix ponderado';
+  } else if(canalInfo) {
+    if(canal === 'Shopee' && typeof calcComissaoShopee === 'function') {
+      comCanalPct = calcComissaoShopee(preco);
+    } else {
+      comCanalPct = canalInfo.comissao || 0;
+    }
+    if(canal === 'Shopee' && typeof calcTaxaFixaShopee === 'function') {
+      taxaFixaRS = calcTaxaFixaShopee(preco);
+    } else {
+      taxaFixaRS = canalInfo.taxaFixa || 0;
+    }
+    if(canal === 'Dafiti' && typeof calcCustoDafitiExtra === 'function') {
+      custoExtraDafiti = calcCustoDafitiExtra(preco) * preco;
+    }
+  } else {
+    // Canal não mapeado: usa comissão geral dos parâmetros
+    comCanalPct = (params.comissao || 12) / 100;
+    taxaFixaRS = 0;
+  }
+
+  // Custos % do preço (parâmetros gerais)
+  // Financeiro % aplica APENAS para Loja Própria (mesma regra do menu Precificação)
+  var custoFinPct = (canal === 'Loja Própria') ? ((params.financeiro||0)/100) : 0;
+
+  var pctDeducoesProporcionais = comCanalPct + impPct
     + (params.plataforma||0)/100
     + (params.taxaPgto  ||0)/100
     + (params.perdas    ||0)/100
     + (params.custoFixo ||0)/100
-    + (params.frete     ||0)/100;
+    + (params.frete     ||0)/100
+    + custoFinPct;
 
-  var deducoes = preco * pctDeducoes;
+  // Deduções totais em R$: % proporcionais + taxa fixa + extra Dafiti
+  var deducoes = preco * pctDeducoesProporcionais + taxaFixaRS + custoExtraDafiti;
   var lucro    = preco - custo - deducoes;
   var margem   = preco > 0 ? lucro / preco : 0;
 
@@ -3304,25 +3368,31 @@ function _saudeCalcularMargem(produto, params) {
   else if(margem >= SAUDE_FAIXAS.amarelo) status = 'amarelo';
   else status = 'vermelho';
 
-  // PREÇO SUGERIDO para atingir margem desejada
-  // Fórmula: preço × (1 - %deduções - margem_desejada) = custo
-  //          preço = custo / (1 - %deduções - margem_desejada)
-  // Mesma lógica do menu Precificação.
+  // PREÇO SUGERIDO: resolver preço para atingir margem desejada.
+  // Equação: preço − custo − preço × pctProp − taxaFixa = preço × margemDesejada
+  // ⇒ preço × (1 − pctProp − margemDesejada) = custo + taxaFixa + extraDafiti
+  // ⇒ preço = (custo + taxaFixa + extra) / (1 − pctProp − margemDesejada)
   var margemAlvo = (params.margemDesejada || 30) / 100;
   var precoSugerido = 0;
-  var denom = 1 - pctDeducoes - margemAlvo;
+  var denom = 1 - pctDeducoesProporcionais - margemAlvo;
   if(denom > 0.01) {
-    precoSugerido = custo / denom;
+    precoSugerido = (custo + taxaFixaRS + custoExtraDafiti) / denom;
   } else {
-    // Margem desejada + deduções >= 100% → matemáticamente impossível
-    precoSugerido = -1;  // sinaliza inviável
+    precoSugerido = -1;  // inviável
   }
-  // Quanto precisa subir o preço (em % e R$)
   var ajustePct = preco > 0 && precoSugerido > 0 ? (precoSugerido / preco - 1) * 100 : 0;
+
+  // Info textual (transparência) — qual regra foi aplicada
+  var regrasInfo = canalLabel +
+    ' · com ' + (comCanalPct*100).toFixed(1) + '%' +
+    (taxaFixaRS > 0 ? ' + R$'+taxaFixaRS.toFixed(2) : '') +
+    ' · imp ' + (impPct*100).toFixed(1) + '%';
 
   return {
     margem: margem, status: status, custo: custo, deducoes: deducoes, lucro: lucro,
-    precoSugerido: precoSugerido, ajustePct: ajustePct
+    precoSugerido: precoSugerido, ajustePct: ajustePct,
+    canal: canalLabel, comissaoPct: comCanalPct, taxaFixa: taxaFixaRS,
+    regrasInfo: regrasInfo
   };
 }
 
@@ -3338,6 +3408,8 @@ function saudeRecalcular() {
     p.statusSaude    = calc.status;
     p.precoSugerido  = calc.precoSugerido;
     p.ajustePct      = calc.ajustePct;
+    p.regrasInfo     = calc.regrasInfo;
+    p.canalLabel     = calc.canal;  // 'Mix ponderado' ou nome do canal
   });
   _saudeProdutos = produtos;
   saudeRenderKPIs();
@@ -3410,11 +3482,15 @@ function saudeRenderTabela() {
   });
 
   // Ordenação
+  var statusOrder = { vermelho: 0, amarelo: 1, verde: 2 };
   filtrados.sort(function(a,b){
     if(ordem === 'margem-asc')  return a.margemReal - b.margemReal;
     if(ordem === 'margem-desc') return b.margemReal - a.margemReal;
     if(ordem === 'gmv-desc')    return b.gmv - a.gmv;
     if(ordem === 'qtd-desc')    return b.qtd - a.qtd;
+    if(ordem === 'preco-desc')  return b.precoMedio - a.precoMedio;
+    if(ordem === 'preco-asc')   return a.precoMedio - b.precoMedio;
+    if(ordem === 'status')      return (statusOrder[a.statusSaude]||3) - (statusOrder[b.statusSaude]||3);
     if(ordem === 'nome-asc')    return String(a.nome).localeCompare(String(b.nome), 'pt-BR');
     return 0;
   });
@@ -3436,7 +3512,8 @@ function saudeRenderTabela() {
     var st = stCfg[p.statusSaude];
     var cv = curvaCfg[p.curva] || curvaCfg.C;
     var margemPct = (p.margemReal*100).toFixed(1)+'%';
-    var canalLabel = p.canalTop + (p.canalTopPct>0 ? ' <span style="color:var(--muted2)">'+(p.canalTopPct*100).toFixed(0)+'%</span>' : '');
+    var canalLabel = (p.canalLabel || p.canalTop) +
+      (p.canalTopPct>0 ? ' <span style="color:var(--muted2)">'+(p.canalTopPct*100).toFixed(0)+'%</span>' : '');
 
     // Preço sugerido: mostrar APENAS para produtos críticos e em atenção
     var precoSugCell = '<span style="color:var(--muted2);font-size:11px">—</span>';
@@ -3459,7 +3536,7 @@ function saudeRenderTabela() {
       '<td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+cv.bg+';color:'+cv.cor+'">'+p.curva+'</span></td>'+
       '<td style="text-align:right;font-family:var(--fmono);font-size:12px">R$ '+(p.precoMedio||0).toFixed(2).replace('.',',')+'</td>'+
       '<td style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--muted2)">R$ '+(p.custoEstimado||0).toFixed(2).replace('.',',')+'</td>'+
-      '<td style="font-size:11px;color:var(--muted2)">'+canalLabel+'</td>'+
+      '<td style="font-size:11px;color:var(--muted2)" title="'+_saudeEsc(p.regrasInfo||'')+'">'+canalLabel+'</td>'+
       '<td style="text-align:right;font-family:var(--fdisplay);font-size:13px;font-weight:700;color:'+st.cor+'">'+margemPct+'</td>'+
       '<td style="text-align:right">'+precoSugCell+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:5px;background:'+st.bg+';color:'+st.cor+';font-weight:600">'+st.ico+' '+st.lbl+'</span></td>'+
@@ -3485,8 +3562,14 @@ function saudeRenderTabela() {
   }).join('');
 
   if(info) {
+    var totalCadastro = '';
+    try {
+      if(typeof estoqueData !== 'undefined' && estoqueData && estoqueData.length > 0) {
+        totalCadastro = ' · ' + estoqueData.length.toLocaleString('pt-BR') + ' SKUs cadastrados no estoque (esta análise mostra apenas os vendidos no período)';
+      }
+    } catch(e){}
     info.textContent = filtrados.length.toLocaleString('pt-BR') + ' produtos · exibindo ' + Math.min(300, filtrados.length).toLocaleString('pt-BR') +
-      (filtrados.length > 300 ? ' (limitado a 300 — refine a busca)' : '');
+      (filtrados.length > 300 ? ' (limitado a 300 — refine a busca)' : '') + totalCadastro;
   }
 }
 
@@ -3520,35 +3603,6 @@ function saudeSetRegime(reg, btn) {
 /* ─ Gráficos e rankings ──────────────────────────────────────────── */
 function saudeRenderGraficos() {
   var lista = _saudeProdutosFiltrados();
-  // Donut de status
-  try {
-    var canvas = document.getElementById('saude-ch-status');
-    if(canvas && typeof Chart !== 'undefined') {
-      if(_saudeChart) { _saudeChart.destroy(); _saudeChart = null; }
-      var v = lista.filter(function(p){return p.statusSaude==='verde';}).length;
-      var a = lista.filter(function(p){return p.statusSaude==='amarelo';}).length;
-      var r = lista.filter(function(p){return p.statusSaude==='vermelho';}).length;
-      _saudeChart = new Chart(canvas, {
-        type: 'doughnut',
-        data: {
-          labels: ['Saudável', 'Atenção', 'Crítico'],
-          datasets: [{
-            data: [v, a, r],
-            backgroundColor: ['#6EE7B7', '#F59E0B', '#F43F5E'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          cutout: '65%',
-          plugins: {
-            legend: { position: 'bottom', labels: { color:'#94A3B8', font:{family:'JetBrains Mono', size:11} } },
-            tooltip: { backgroundColor: '#181B22' }
-          }
-        }
-      });
-    }
-  } catch(e){ console.warn('[Saúde] donut falhou:', e); }
 
   // Top 10 mais saudáveis (margem desc)
   try {
@@ -3676,6 +3730,7 @@ function _saudeRestaurarParams() {
     setVal('saude-perdas', p.perdas);
     setVal('saude-custo-fixo', p.custoFixo);
     setVal('saude-frete', p.frete);
+    setVal('saude-financeiro', p.financeiro);
     setVal('saude-margem-desejada', p.margemDesejada);
     if(p.regime) {
       var btn = document.getElementById('saude-rt-' + p.regime);
