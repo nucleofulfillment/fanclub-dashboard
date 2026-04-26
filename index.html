@@ -2509,6 +2509,18 @@ body.light body::before { opacity: 0; }
           </div>
           <!-- DIFAL Lucro Presumido / Real -->
           <div id="prec-difal-config" style="display:none;margin-top:10px">
+            <!-- Toggle TTD SC: aplica em LP e LR -->
+            <div style="margin-bottom:10px;padding:10px 12px;background:rgba(110,231,183,.05);border:1px solid rgba(110,231,183,.2);border-radius:7px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="prec-ttd-sc" onchange="calcPreco()"
+                  style="width:14px;height:14px;cursor:pointer;accent-color:var(--accent)">
+                <span style="font-family:var(--fmono);font-size:11px;color:var(--text);font-weight:600">⚡ ICMS com benefício SC (TTD 409/410/411)</span>
+              </label>
+              <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;padding-left:22px">
+                Crédito presumido SC → ICMS efetivo de <strong style="color:var(--accent)">3%</strong> sobre o preço de venda (substitui DIFAL).
+                Aplica-se a empresas com TTD para e-commerce em SC.
+              </div>
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
               <div>
                 <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:6px">Estado Origem</div>
@@ -6863,6 +6875,21 @@ function calcImposto_SN(preco, faixa) {
   return preco * f.aliquota;
 }
 
+/* Helper: alíquota efetiva pra estimativa rápida (sem DIFAL detalhado).
+   Considera TTD SC quando aplicável (Presumido ou Real). ────────────── */
+function precImpostoEfetivoPct(regime, faixaIdx, ttdSC) {
+  if(regime === 'simples') {
+    var sn = PREC_SIMPLES[(faixaIdx||3)-1] || PREC_SIMPLES[2];
+    return sn.aliquota;
+  }
+  // Presumido: PIS 0.65 + COFINS 3 + IRPJ 4.8 + CSLL 2.88 = 11.33% federais
+  // Real:      PIS 1.65 + COFINS 7.6 + IRPJ/CSLL 5     = 14.25% federais
+  var federalPct = (regime === 'presumido') ? 0.1133 : 0.1425;
+  // ICMS: TTD SC = 3% efetivo, senão estimar 7% (média interestadual sul/sudeste)
+  var icmsPct = ttdSC ? 0.03 : 0.07;
+  return federalPct + icmsPct;
+}
+
 /* Calcular DIFAL */
 function calcDIFAL(preco, ufOrigem, ufDestino) {
   var icmsOrigem  = PREC_ICMS[ufOrigem]  || 0.17;
@@ -6874,25 +6901,40 @@ function calcDIFAL(preco, ufOrigem, ufDestino) {
   return {difal, info};
 }
 
-/* Calcular imposto Lucro Presumido */
-function calcImposto_LP(preco, ufOrigem, ufDestino) {
-  // PIS 0.65% + COFINS 3% + IRPJ 4,8% (15% × 32%) + CSLL 2,88% (9% × 32%) + ISS/ICMS aprox
+/* Calcular imposto Lucro Presumido
+   ttdSC = true → ICMS efetivo 3% (benefício SC TTD 409/410/411) substitui DIFAL */
+function calcImposto_LP(preco, ufOrigem, ufDestino, ttdSC) {
+  // PIS 0.65% + COFINS 3% + IRPJ 4,8% (15% × 32%) + CSLL 2,88% (9% × 32%)
   var pis = preco * 0.0065;
   var cofins = preco * 0.03;
   var irpj = preco * 0.048;
   var csll = preco * 0.0288;
-  var d = calcDIFAL(preco, ufOrigem, ufDestino);
-  return {total: pis + cofins + irpj + csll + d.difal, difal: d.difal, info: d.info};
+  var icmsRes;
+  if(ttdSC) {
+    var icmsTTD = preco * 0.03;  // 3% efetivo SC com TTD
+    icmsRes = { difal: icmsTTD, info: 'TTD SC: ICMS efetivo 3% — '+fMF(icmsTTD) };
+  } else {
+    icmsRes = calcDIFAL(preco, ufOrigem, ufDestino);
+  }
+  return {total: pis + cofins + irpj + csll + icmsRes.difal, difal: icmsRes.difal, info: icmsRes.info};
 }
 
-/* Calcular imposto Lucro Real */
-function calcImposto_LR(preco, ufOrigem, ufDestino) {
-  // PIS 1.65% + COFINS 7.6% + IRPJ/CSLL variável (estimativa 15%)
+/* Calcular imposto Lucro Real
+   IRPJ+CSLL: 5% sobre receita (estimativa pra lojista médio com lucro ~20%)
+   ttdSC = true → ICMS efetivo 3% substitui DIFAL */
+function calcImposto_LR(preco, ufOrigem, ufDestino, ttdSC) {
+  // PIS 1.65% + COFINS 7.6% (não-cumulativo) + IRPJ/CSLL ~5% (estimativa)
   var pis = preco * 0.0165;
   var cofins = preco * 0.076;
-  var ircsll = preco * 0.15;
-  var d = calcDIFAL(preco, ufOrigem, ufDestino);
-  return {total: pis + cofins + ircsll + d.difal, difal: d.difal, info: d.info};
+  var ircsll = preco * 0.05;  // antes: 0.15 (incidia sobre preço, errado — incide sobre lucro)
+  var icmsRes;
+  if(ttdSC) {
+    var icmsTTD = preco * 0.03;
+    icmsRes = { difal: icmsTTD, info: 'TTD SC: ICMS efetivo 3% — '+fMF(icmsTTD) };
+  } else {
+    icmsRes = calcDIFAL(preco, ufOrigem, ufDestino);
+  }
+  return {total: pis + cofins + ircsll + icmsRes.difal, difal: icmsRes.difal, info: icmsRes.info};
 }
 
 /* Função principal de cálculo */
@@ -6964,17 +7006,18 @@ function calcPreco() {
   var custoFixoPct= preco * (fixo_pct/100);
 
   // Imposto
+  var ttdSC = !!(document.getElementById('prec-ttd-sc') || {}).checked;
   var imposto = 0, difalVal = 0, difalInfo = '';
   if(regime === 'simples') {
     imposto = calcImposto_SN(preco, faixa);
   } else if(regime === 'presumido') {
-    var rLP = calcImposto_LP(preco, ufOrigem, ufDestino);
+    var rLP = calcImposto_LP(preco, ufOrigem, ufDestino, ttdSC);
     imposto = rLP.total; difalVal = rLP.difal; difalInfo = rLP.info;
   } else {
-    var rLR = calcImposto_LR(preco, ufOrigem, ufDestino);
+    var rLR = calcImposto_LR(preco, ufOrigem, ufDestino, ttdSC);
     imposto = rLR.total; difalVal = rLR.difal; difalInfo = rLR.info;
   }
-  if(difalInfo) try{document.getElementById('prec-difal-info').textContent='DIFAL: '+difalInfo;}catch(e){}
+  if(difalInfo) try{document.getElementById('prec-difal-info').textContent=(ttdSC?'⚡ ':'DIFAL: ')+difalInfo;}catch(e){}
 
   var totalCustos = custoTotal + comissao + custoArm + custoFin + custoAdsCanal + custoPlat + custoPerdas + imposto + custoFixoPct;
   var lucro  = preco - totalCustos;
@@ -7017,7 +7060,7 @@ function calcPreco() {
   var cmpEl = document.getElementById('prec-comparativo');
   if(cmpEl) {
     var sn = PREC_SIMPLES[faixa-1]||PREC_SIMPLES[2];
-    var impPctGlobal = regime==='simples' ? sn.aliquota : (regime==='presumido' ? 0.1445 : 0.243);
+    var impPctGlobal = precImpostoEfetivoPct(regime, faixa, ttdSC);
 
     var cmpData = Object.keys(PREC_CANAIS).map(function(c) {
       var ci = PREC_CANAIS[c];
@@ -7075,6 +7118,7 @@ function calcPrecoMinimo() {
   var canal     = PREC_ESTADO.canal || 'Shopee';
   var regime    = PREC_ESTADO.regime || 'simples';
   var faixa     = parseInt((document.getElementById('prec-faixa-sn')||{}).value)||3;
+  var ttdSC     = !!(document.getElementById('prec-ttd-sc') || {}).checked;
   // Margem desejada — ler dos dois campos (topo e lateral)
   var metaMargem= parseFloat((document.getElementById('prec-meta-margem-top')||{}).value) ||
                   parseFloat((document.getElementById('prec-meta-margem')||{}).value) || 20;
@@ -7095,7 +7139,7 @@ function calcPrecoMinimo() {
 
   // % variáveis sobre o preço
   var sn = PREC_SIMPLES[faixa-1]||PREC_SIMPLES[2];
-  var impPct = regime==='simples' ? sn.aliquota : (regime==='presumido' ? 0.1445 : 0.243);
+  var impPct = precImpostoEfetivoPct(regime, faixa, ttdSC);
   var comissaoPct = canal==='Shopee' ? 0.20 : canalInfo.comissao;  // usar 20% como estimativa para Shopee
   // FIX: Financeiro % aplica APENAS para Loja Própria
   var finCanal = canal === 'Loja Própria' ? fin : 0;
@@ -7179,6 +7223,7 @@ function renderPrecosMinimosPorCanal() {
   var kit      = PREC_ESTADO.kit || 1;
   var regime   = PREC_ESTADO.regime || 'simples';
   var faixa    = parseInt((document.getElementById('prec-faixa-sn')||{}).value)||3;
+  var ttdSC    = !!(document.getElementById('prec-ttd-sc') || {}).checked;
   var metaMargem = parseFloat((document.getElementById('prec-meta-margem-top')||{}).value)||20;
 
   if(custo <= 0) {
@@ -7188,7 +7233,7 @@ function renderPrecosMinimosPorCanal() {
 
   var custoTotal = custo * kit + frete;
   var sn = PREC_SIMPLES[faixa-1]||PREC_SIMPLES[2];
-  var impPct = regime==='simples' ? sn.aliquota : (regime==='presumido' ? 0.1445 : 0.243);
+  var impPct = precImpostoEfetivoPct(regime, faixa, ttdSC);
   // FIX: Financeiro % é movido para dentro do loop por canal (aplica APENAS para Loja Própria)
   var opPctSemFin = (adsPct + plat + perdas + fixo_pct) / 100;
   var pctLucro = metaMargem / 100;
