@@ -1851,44 +1851,44 @@ body.light body::before { opacity: 0; }
 
         <!-- Custos operacionais -->
         <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:8px">Custos operacionais (% sobre venda)</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end">
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px" title="Soma um % ADICIONAL de comissão sobre TODOS os canais. Útil pra simular custos extras (intermediários, sub-vendedores, custos não previstos).">Comissão extra % <span style="color:var(--muted2);font-size:9px">(adicional)</span></label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px;min-height:28px;line-height:1.3" title="Soma um % ADICIONAL de comissão sobre TODOS os canais. Útil pra simular custos extras (intermediários, sub-vendedores, custos não previstos).">Comissão extra % <span style="color:var(--muted2);font-size:9px">(adicional)</span></label>
             <input type="number" id="saude-comissao" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Plataforma %</label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px;min-height:28px;line-height:1.3">Plataforma %</label>
             <input type="number" id="saude-plataforma" value="2" min="0" max="100" step="0.1" oninput="saudeRecalcular(); _saudeSyncGlobal('plataformaPct', this.value);"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Taxa pagamento %</label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px;min-height:28px;line-height:1.3">Taxa pagamento %</label>
             <input type="number" id="saude-taxa-pgto" value="1.5" min="0" max="100" step="0.1" oninput="saudeRecalcular(); _saudeSyncGlobal('taxaPgtoPct', this.value);"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Perdas %</label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px;min-height:28px;line-height:1.3">Perdas %</label>
             <input type="number" id="saude-perdas" value="1" min="0" max="100" step="0.1" oninput="saudeRecalcular(); _saudeSyncGlobal('perdasPct', this.value);"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Custo Fixo %</label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px;min-height:28px;line-height:1.3">Custo Fixo %</label>
             <input type="number" id="saude-custo-fixo" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Frete absorvido %</label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px;min-height:28px;line-height:1.3">Frete absorvido %</label>
             <input type="number" id="saude-frete" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px" title="Aplicado apenas para canal Loja Própria — marketplaces fazem retenção própria">Financeiro % <span style="color:var(--muted2);font-size:9px">(só Loja Própria)</span></label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px;min-height:28px;line-height:1.3" title="Aplicado apenas para canal Loja Própria — marketplaces fazem retenção própria">Financeiro % <span style="color:var(--muted2);font-size:9px">(só LP)</span></label>
             <input type="number" id="saude-financeiro" value="0" min="0" max="100" step="0.1" oninput="saudeRecalcular(); _saudeSyncGlobal('financeiroPct', this.value);"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;color-scheme:dark">
           </div>
           <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--accent);display:block;margin-bottom:4px;font-weight:600">🎯 Margem desejada %</label>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--accent);display:block;margin-bottom:4px;font-weight:600;min-height:28px;line-height:1.3">🎯 Margem desejada %</label>
             <input type="number" id="saude-margem-desejada" value="10" min="0" max="100" step="0.5" oninput="saudeRecalcular()"
               style="width:100%;background:var(--s2);border:1px solid rgba(110,231,183,.3);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--accent);outline:none;color-scheme:dark;font-weight:600">
           </div>
