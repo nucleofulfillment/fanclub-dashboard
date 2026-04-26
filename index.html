@@ -6069,6 +6069,77 @@ async function salvarResumo() {
       return [];
     })(),
 
+    // Distribuição por MARCA (novo no v3 — depende de planilha de Custo carregada).
+    // Calculada SOBRE OS SKUs do período do snapshot, somando qtd e gmv proporcional ao filtro.
+    // Resumos antigos não terão esse campo — o renderResumos esconde a seção nesses casos.
+    marcasDistribuicao: (function() {
+      try {
+        if(typeof produtosVendidosMap !== 'object' || !produtosVendidosMap) return null;
+        if(typeof getMarcaProduto !== 'function') return null;
+
+        // Calcular meses do filtro (mesma lógica de calcCMVReal/calcQtdProdutosVendidos)
+        var f0 = (document.getElementById('f-from')||{}).value || '';
+        var t0 = (document.getElementById('f-to')||{}).value   || '';
+        var mesesSetM = null;
+        if(f0 || t0) {
+          mesesSetM = new Set();
+          var dF = new Date(f0+'T00:00');
+          var dT = new Date(t0+'T00:00');
+          if(!isNaN(dF.getTime()) && !isNaN(dT.getTime())) {
+            var curM = new Date(dF.getFullYear(), dF.getMonth(), 1);
+            var endM = new Date(dT.getFullYear(), dT.getMonth(), 1);
+            while(curM <= endM) {
+              var mmM = String(curM.getMonth()+1).padStart(2,'0');
+              var yyM = curM.getFullYear().toString().slice(-2);
+              var nM = (typeof MESES_ABAS !== 'undefined') ? MESES_ABAS[mmM] : null;
+              if(nM) {
+                var mkM = nM.toLowerCase().replace(/[^a-z]/g,'').substring(0,3) + yyM;
+                mesesSetM.add(mkM);
+              }
+              curM.setMonth(curM.getMonth()+1);
+            }
+          }
+        }
+
+        var porMarca = {};  // { marca: {qtd, gmv} }
+        var semMarca = { qtd: 0, gmv: 0 };
+        Object.values(produtosVendidosMap).forEach(function(p){
+          if(!p || !p.sku) return;
+          var qtd = 0, gmv = 0;
+          if(mesesSetM && p.por_mes) {
+            Object.keys(p.por_mes).forEach(function(mk){
+              if(mesesSetM.has(mk)) {
+                qtd += (p.por_mes[mk] || 0);
+                gmv += (p.gmv_por_mes ? (p.gmv_por_mes[mk]||0) : 0);
+              }
+            });
+          } else if(!mesesSetM) {
+            qtd = p.qtd || 0;
+            gmv = p.gmv || 0;
+          }
+          if(qtd <= 0) return;
+          var marca = getMarcaProduto(p.sku);
+          if(marca) {
+            if(!porMarca[marca]) porMarca[marca] = { qtd: 0, gmv: 0 };
+            porMarca[marca].qtd += qtd;
+            porMarca[marca].gmv += gmv;
+          } else {
+            semMarca.qtd += qtd;
+            semMarca.gmv += gmv;
+          }
+        });
+        // Converte em array ordenado por qtd desc
+        var arr = Object.keys(porMarca).map(function(m){ return {marca: m, qtd: porMarca[m].qtd, gmv: porMarca[m].gmv}; });
+        arr.sort(function(a,b){ return b.qtd - a.qtd; });
+        // Adicionar "Sem marca" no final se houver
+        if(semMarca.qtd > 0) arr.push({marca: '— Sem marca', qtd: semMarca.qtd, gmv: semMarca.gmv});
+        return arr.length > 0 ? arr : null;
+      } catch(e) {
+        console.warn('[Resumos] erro ao calcular distribuição por marca:', e);
+        return null;
+      }
+    })(),
+
     // Compat: campos antigos
     canais:  d.canais || [],
     mktData: window._mktDataIA || null
@@ -6145,8 +6216,43 @@ function renderResumos() {
         _resumoKPI('📊','% Mídia',(pctMidia>0?pctMidia.toFixed(1)+'%':'—'),'')+
         _resumoKPI('🧾','Impostos',fM(k.impostos),'')+
       '</div>'+
+      _resumoMarcasHTML(r)+
     '</div>';
   }).join('');
+}
+
+/* ─ Renderiza seção de Top Marcas dentro do card de Resumo ──────────
+   Só aparece se o snapshot tem r.marcasDistribuicao (resumos novos v3+). */
+function _resumoMarcasHTML(r) {
+  if(!r || !Array.isArray(r.marcasDistribuicao) || r.marcasDistribuicao.length === 0) return '';
+  var totalQtd = r.marcasDistribuicao.reduce(function(s,m){ return s + (m.qtd||0); }, 0);
+  var totalGmv = r.marcasDistribuicao.reduce(function(s,m){ return s + (m.gmv||0); }, 0);
+  if(totalQtd === 0) return '';
+  // Top 5 + agrupar resto se houver mais
+  var top = r.marcasDistribuicao.slice(0, 5);
+  var resto = r.marcasDistribuicao.slice(5);
+  if(resto.length > 0) {
+    var rQtd = resto.reduce(function(s,m){ return s + (m.qtd||0); }, 0);
+    var rGmv = resto.reduce(function(s,m){ return s + (m.gmv||0); }, 0);
+    if(rQtd > 0) top.push({ marca: 'Outras ('+resto.length+')', qtd: rQtd, gmv: rGmv });
+  }
+  var pills = top.map(function(m){
+    var pctQ = totalQtd > 0 ? (m.qtd/totalQtd*100) : 0;
+    var pctG = totalGmv > 0 ? (m.gmv/totalGmv*100) : 0;
+    var label = m.marca + ' · ' + m.qtd.toLocaleString('pt-BR') + ' un (' + pctQ.toFixed(0) + '%)';
+    var title = 'Quantidade: ' + m.qtd.toLocaleString('pt-BR') +
+                ' un (' + pctQ.toFixed(1) + '%) · GMV: ' + (typeof fM === 'function' ? fM(m.gmv) : 'R$ '+m.gmv.toFixed(0)) +
+                ' (' + pctG.toFixed(1) + '%)';
+    return '<span title="'+title+'" style="display:inline-block;font-family:var(--fmono);font-size:10px;color:var(--text);' +
+           'background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);' +
+           'padding:3px 8px;border-radius:5px;margin:2px 4px 2px 0">'+
+           '<span style="color:#FBBF24;margin-right:4px">●</span>'+label+
+           '</span>';
+  }).join('');
+  return '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)">'+
+    '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏷️ Top Marcas</div>'+
+    '<div>'+pills+'</div>'+
+  '</div>';
 }
 
 function _resumoKPI(ico, lbl, val, sub) {
@@ -6197,10 +6303,57 @@ function compararResumos(i1, i2) {
   }).join('');
 
   var cmp = document.getElementById('comparacao-cards');
-  if(cmp) cmp.innerHTML = html;
+  if(cmp) cmp.innerHTML = html + _compararMarcasHTML(r1, r2);
   var cmpEl = document.getElementById('resumos-comparacao');
   if(cmpEl) cmpEl.style.display = 'block';
   cmpEl.scrollIntoView({behavior:'smooth'});
+}
+
+/* ─ Comparação de marcas entre dois resumos (só se ambos têm) ─── */
+function _compararMarcasHTML(r1, r2) {
+  if(!r1 || !r2) return '';
+  if(!Array.isArray(r1.marcasDistribuicao) || !Array.isArray(r2.marcasDistribuicao)) return '';
+  if(r1.marcasDistribuicao.length === 0 || r2.marcasDistribuicao.length === 0) return '';
+
+  // Indexar por marca
+  var m1 = {}, m2 = {};
+  r1.marcasDistribuicao.forEach(function(m){ m1[m.marca] = m; });
+  r2.marcasDistribuicao.forEach(function(m){ m2[m.marca] = m; });
+
+  // Conjunto de todas as marcas (ordenado pela qtd do snapshot mais novo)
+  var todasMarcas = {};
+  r1.marcasDistribuicao.forEach(function(m){ todasMarcas[m.marca] = (todasMarcas[m.marca]||0) + (m.qtd||0); });
+  r2.marcasDistribuicao.forEach(function(m){ todasMarcas[m.marca] = (todasMarcas[m.marca]||0) + (m.qtd||0); });
+  var ordenadas = Object.keys(todasMarcas).sort(function(a,b){ return todasMarcas[b] - todasMarcas[a]; });
+
+  var linhas = ordenadas.slice(0, 8).map(function(marca){
+    var a = m1[marca] ? (m1[marca].qtd||0) : 0;
+    var b = m2[marca] ? (m2[marca].qtd||0) : 0;
+    var delta = b > 0 ? ((a - b) / b * 100) : (a > 0 ? 100 : 0);
+    var color = delta > 0 ? 'var(--green)' : delta < 0 ? 'var(--red)' : 'var(--muted)';
+    var arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+    var deltaTxt = b === 0 && a > 0 ? 'novo' : (a === 0 && b > 0 ? 'sumiu' : (Math.abs(delta).toFixed(1)+'%'));
+    return '<tr>'+
+      '<td style="padding:6px 10px;font-family:var(--fmono);font-size:11px;color:var(--text)">'+
+        '<span style="color:#FBBF24;margin-right:6px">●</span>'+marca+'</td>'+
+      '<td style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:11px">'+a.toLocaleString('pt-BR')+' un</td>'+
+      '<td style="padding:6px 10px;text-align:center;font-family:var(--fmono);font-size:11px;color:'+color+';font-weight:600">'+arrow+' '+deltaTxt+'</td>'+
+      '<td style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:11px">'+b.toLocaleString('pt-BR')+' un</td>'+
+    '</tr>';
+  }).join('');
+
+  return '<div style="grid-column:1/-1;background:var(--s2);border-radius:10px;padding:14px;border:1px solid var(--border);margin-top:6px">'+
+    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">🏷️ Comparação por Marca</div>'+
+    '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="border-bottom:1px solid var(--border)">'+
+        '<th style="padding:6px 10px;text-align:left;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Marca</th>'+
+        '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r1.nome+'</th>'+
+        '<th style="padding:6px 10px;text-align:center;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">Δ</th>'+
+        '<th style="padding:6px 10px;text-align:right;font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;font-weight:500">'+r2.nome+'</th>'+
+      '</tr></thead>'+
+      '<tbody>'+linhas+'</tbody>'+
+    '</table>'+
+  '</div>';
 }
 
 function gerarLinkResumo(idx) {
