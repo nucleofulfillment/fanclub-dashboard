@@ -1915,6 +1915,7 @@ body.light body::before { opacity: 0; }
         <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
           <table class="dtbl">
             <thead><tr>
+              <th style="text-align:center;width:34px" title="Clique para ver breakdown completo">ℹ️</th>
               <th style="text-align:left">SKU</th>
               <th style="text-align:left">Produto</th>
               <th style="text-align:center">Curva</th>
@@ -1926,7 +1927,7 @@ body.light body::before { opacity: 0; }
               <th style="text-align:center">Saúde</th>
             </tr></thead>
             <tbody id="saude-tbody">
-              <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">
+              <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">
                 Carregando dados de produtos vendidos...
               </td></tr>
             </tbody>
@@ -3129,6 +3130,7 @@ var SAUDE_FAIXAS = { verde: 0.30, amarelo: 0.15 };  // ≥30% verde · 15-30% am
 // Estado interno do módulo
 var _saudeProdutos = [];      // produtos calculados na última recálculo
 var _saudeFiltroStatus = 'todos';
+var _saudeSkusExpandidos = new Set();   // SKUs com breakdown aberto
 var _saudeChart = null;       // referência ao Chart.js do donut
 
 /* ─ Chave de localStorage isolada por empresa ───────────────────── */
@@ -3420,7 +3422,8 @@ function _saudeCalcularMargem(produto, params) {
         taxaFixaRS  += taxaC * share;
       });
     } else {
-      comCanalPct = (params.comissao || 0) / 100;
+      // Sem GMV no período → não há como ponderar; deixa zero (extra será aplicado depois)
+      comCanalPct = 0;
       taxaFixaRS = 0;
     }
     canalLabel = 'Mix ponderado';
@@ -3439,8 +3442,8 @@ function _saudeCalcularMargem(produto, params) {
       custoExtraDafiti = calcCustoDafitiExtra(preco) * preco;
     }
   } else {
-    // Canal não mapeado: usa comissão geral dos parâmetros
-    comCanalPct = (params.comissao || 0) / 100;
+    // Canal não mapeado: zerar (Comissão extra será aplicada depois pra todos)
+    comCanalPct = 0;
     taxaFixaRS = 0;
   }
 
@@ -3448,13 +3451,7 @@ function _saudeCalcularMargem(produto, params) {
   // Útil pra simular custos adicionais (intermediários, custos comerciais, etc.)
   // que não estão na regra padrão do canal. Funciona pra TODOS os canais.
   var ajusteComissaoExtra = (params.comissao || 0) / 100;
-  if(canal !== '__media__' || totalGmv === 0) {
-    // Já foi aplicado na linha "comCanalPct = (params.comissao..." quando canal não mapeado
-    // Para canais mapeados (com canalInfo) e mix ponderado, somamos aqui:
-    if(canalInfo || canal === '__media__') {
-      comCanalPct += ajusteComissaoExtra;
-    }
-  }
+  comCanalPct += ajusteComissaoExtra;
 
   // Custos % do preço (parâmetros gerais)
   // Financeiro % aplica APENAS para Loja Própria (mesma regra do menu Precificação)
@@ -3499,11 +3496,40 @@ function _saudeCalcularMargem(produto, params) {
     (taxaFixaRS > 0 ? ' + R$'+taxaFixaRS.toFixed(2) : '') +
     ' · imp ' + (impPct*100).toFixed(1) + '%';
 
+  // BREAKDOWN ESTRUTURADO (pra exibir no expand/detalhes)
+  // Cada item: { label, valorRS, pct, tipo: 'receita'|'deducao'|'lucro', sub: 'descrição' }
+  var regimeLabel = (params.regime === 'simples') ? ('Simples Nacional · Faixa '+(params.faixa||3)) :
+                    (params.regime === 'presumido') ? 'Lucro Presumido' : 'Lucro Real';
+  var breakdown = [];
+  breakdown.push({ label:'Receita de venda', valorRS: preco, pct: 100, tipo: 'receita', sub: 'Preço médio do produto no período' });
+  breakdown.push({ label:'Custo do produto', valorRS: -custo, pct: -(custo/preco*100), tipo: 'deducao', sub: 'Estimado por Curva '+(produto.curva||'?')+' (modo simulação)' });
+  if(comCanalPct > 0) {
+    breakdown.push({ label:'Comissão do canal', valorRS: -(preco*comCanalPct), pct: -(comCanalPct*100), tipo: 'deducao', sub: canalLabel+(ajusteComissaoExtra>0?' · inclui +'+(ajusteComissaoExtra*100).toFixed(1)+'% ajuste manual':'') });
+  }
+  if(taxaFixaRS > 0) {
+    breakdown.push({ label:'Taxa fixa do canal', valorRS: -taxaFixaRS, pct: -(taxaFixaRS/preco*100), tipo: 'deducao', sub: 'R$ '+taxaFixaRS.toFixed(2).replace('.',',')+' por venda' });
+  }
+  if(custoExtraDafiti > 0) {
+    breakdown.push({ label:'Mensalidade Dafiti diluída', valorRS: -custoExtraDafiti, pct: -(custoExtraDafiti/preco*100), tipo: 'deducao', sub: 'R$ 299/mês ÷ faturamento estimado' });
+  }
+  if(impPct > 0) {
+    breakdown.push({ label:'Imposto', valorRS: -(preco*impPct), pct: -(impPct*100), tipo: 'deducao', sub: regimeLabel });
+  }
+  if(params.plataforma > 0) breakdown.push({ label:'Plataforma', valorRS: -(preco*params.plataforma/100), pct: -params.plataforma, tipo:'deducao', sub:'Custo da plataforma de e-commerce' });
+  if(params.taxaPgto  > 0) breakdown.push({ label:'Taxa de pagamento', valorRS: -(preco*params.taxaPgto/100), pct: -params.taxaPgto, tipo:'deducao', sub:'Taxa do gateway/adquirente' });
+  if(params.perdas    > 0) breakdown.push({ label:'Perdas', valorRS: -(preco*params.perdas/100), pct: -params.perdas, tipo:'deducao', sub:'Estoque danificado, devoluções' });
+  if(params.custoFixo > 0) breakdown.push({ label:'Custo fixo', valorRS: -(preco*params.custoFixo/100), pct: -params.custoFixo, tipo:'deducao', sub:'Diluição de custos fixos sobre venda' });
+  if(params.frete     > 0) breakdown.push({ label:'Frete absorvido', valorRS: -(preco*params.frete/100), pct: -params.frete, tipo:'deducao', sub:'Frete pago pela loja (não cobrado do cliente)' });
+  if(custoFinPct      > 0) breakdown.push({ label:'Financeiro', valorRS: -(preco*custoFinPct), pct: -(custoFinPct*100), tipo:'deducao', sub:'Custo financeiro (apenas Loja Própria)' });
+  breakdown.push({ label:'Lucro líquido', valorRS: lucro, pct: margem*100, tipo: 'lucro', sub: 'Resultado após todas as deduções' });
+
   return {
     margem: margem, status: status, custo: custo, deducoes: deducoes, lucro: lucro,
     precoSugerido: precoSugerido, ajustePct: ajustePct,
     canal: canalLabel, comissaoPct: comCanalPct, taxaFixa: taxaFixaRS,
-    regrasInfo: regrasInfo
+    regrasInfo: regrasInfo,
+    breakdown: breakdown,
+    regimeLabel: regimeLabel
   };
 }
 
@@ -3520,7 +3546,9 @@ function saudeRecalcular() {
     p.precoSugerido  = calc.precoSugerido;
     p.ajustePct      = calc.ajustePct;
     p.regrasInfo     = calc.regrasInfo;
-    p.canalLabel     = calc.canal;  // 'Mix ponderado' ou nome do canal
+    p.canalLabel     = calc.canal;
+    p.breakdown      = calc.breakdown;
+    p.regimeLabel    = calc.regimeLabel;
   });
   _saudeProdutos = produtos;
   saudeRenderKPIs();
@@ -3573,7 +3601,7 @@ function saudeRenderTabela() {
   var info  = document.getElementById('saude-tabela-info');
 
   if(_saudeProdutos.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
     if(info) info.textContent = '—';
     return;
   }
@@ -3641,7 +3669,15 @@ function saudeRenderTabela() {
       }
     }
 
-    var linhaPai = '<tr>'+
+    var aberto = _saudeSkusExpandidos.has(p.sku);
+    var btnInfo = '<button onclick="saudeToggleBreakdown(\''+_saudeEsc(p.sku).replace(/'/g,"\\'")+'\', this)" '+
+      'style="background:'+(aberto?'rgba(110,231,183,.18)':'transparent')+';border:1px solid '+(aberto?'rgba(110,231,183,.4)':'var(--border2)')+';color:'+(aberto?'var(--accent)':'var(--muted2)')+';width:24px;height:24px;border-radius:5px;cursor:pointer;font-size:11px;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:all .15s" '+
+      'title="'+(aberto?'Ocultar':'Ver')+' breakdown de custos">'+
+      (aberto?'▾':'ℹ︎')+
+    '</button>';
+
+    var linhaPai = '<tr'+(aberto?' style="background:rgba(110,231,183,.04)"':'')+'>'+
+      '<td style="text-align:center;padding:4px 0">'+btnInfo+'</td>'+
       '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted2)">'+_saudeEsc(p.sku)+'</td>'+
       '<td style="font-size:12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_saudeEsc(p.nome)+'">'+_saudeEsc(p.nome)+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+cv.bg+';color:'+cv.cor+'">'+p.curva+'</span></td>'+
@@ -3653,6 +3689,12 @@ function saudeRenderTabela() {
       '<td style="text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:5px;background:'+st.bg+';color:'+st.cor+';font-weight:600">'+st.ico+' '+st.lbl+'</span></td>'+
     '</tr>';
 
+    // Linha expandida com breakdown (lazy: só renderiza se aberto)
+    var linhaBreakdown = '';
+    if(aberto) {
+      linhaBreakdown = '<tr><td colspan="10" style="padding:0;border-bottom:1px solid var(--border)">'+_saudeRenderBreakdown(p)+'</td></tr>';
+    }
+
     // Variações (tamanhos) — só se toggle ativo e produto tem tamanhos registrados
     var linhasVar = '';
     if(mostrarVar && p.tamanhos && Object.keys(p.tamanhos).length > 0) {
@@ -3661,6 +3703,7 @@ function saudeRenderTabela() {
         var qVar = p.tamanhos[t]||0;
         var pctVar = totQtdVar > 0 ? (qVar/totQtdVar*100).toFixed(1) : '0';
         linhasVar += '<tr style="background:rgba(0,0,0,.15)">'+
+          '<td></td>'+
           '<td style="font-family:var(--fmono);font-size:10px;color:var(--muted);padding-left:24px">↳ '+_saudeEsc(p.sku)+'-'+t+'</td>'+
           '<td colspan="2" style="font-size:10px;color:var(--muted)">Tamanho '+_saudeEsc(t)+'</td>'+
           '<td colspan="3" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:right">'+qVar+' un · '+pctVar+'% das vendas</td>'+
@@ -3669,7 +3712,7 @@ function saudeRenderTabela() {
       });
     }
 
-    return linhaPai + linhasVar;
+    return linhaPai + linhaBreakdown + linhasVar;
   }).join('');
 
   if(info) {
@@ -3687,6 +3730,73 @@ function saudeRenderTabela() {
 /* ─ Helper: escapar HTML ─────────────────────────────────────────── */
 function _saudeEsc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ─ Toggle e renderização do breakdown por linha ─────────────────── */
+function saudeToggleBreakdown(sku, btn) {
+  if(_saudeSkusExpandidos.has(sku)) {
+    _saudeSkusExpandidos.delete(sku);
+  } else {
+    _saudeSkusExpandidos.add(sku);
+  }
+  saudeRenderTabela();
+}
+
+function _saudeRenderBreakdown(p) {
+  if(!p.breakdown || !p.breakdown.length) return '';
+  var fmt = function(n){ return (n>=0?'+':'') + 'R$ ' + Math.abs(n).toFixed(2).replace('.',','); };
+  var fmtPct = function(n){ return (n>=0?'+':'') + n.toFixed(1) + '%'; };
+
+  var linhas = p.breakdown.map(function(item){
+    var corValor, corLabel, fontWeight;
+    if(item.tipo === 'receita') { corValor = 'var(--accent)'; corLabel = 'var(--text)'; fontWeight = 600; }
+    else if(item.tipo === 'lucro') {
+      corValor = item.valorRS >= 0 ? 'var(--green)' : 'var(--red)';
+      corLabel = corValor; fontWeight = 700;
+    }
+    else { corValor = 'var(--muted2)'; corLabel = 'var(--muted)'; fontWeight = 400; }
+
+    var separador = (item.tipo === 'lucro') ?
+      '<tr><td colspan="3" style="border-top:1px dashed var(--border);padding:0;height:6px"></td></tr>' : '';
+
+    return separador +
+      '<tr>'+
+      '<td style="padding:5px 8px;font-family:var(--fmono);font-size:11px;color:'+corLabel+';font-weight:'+fontWeight+';width:55%">'+
+        _saudeEsc(item.label)+
+        (item.sub ? '<div style="font-size:9px;color:var(--muted2);margin-top:1px;font-weight:400">'+_saudeEsc(item.sub)+'</div>' : '')+
+      '</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:12px;color:'+corValor+';font-weight:'+fontWeight+'">'+fmt(item.valorRS)+'</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-family:var(--fmono);font-size:11px;color:var(--muted2);width:80px">'+fmtPct(item.pct)+'</td>'+
+      '</tr>';
+  }).join('');
+
+  // Bloco extra: preço sugerido se status crítico/atenção
+  var sugBloco = '';
+  if((p.statusSaude === 'vermelho' || p.statusSaude === 'amarelo') && p.precoSugerido > 0) {
+    var ajusteCor = p.ajustePct > 0 ? 'var(--green)' : 'var(--red)';
+    var ajusteIco = p.ajustePct > 0 ? '↑' : '↓';
+    sugBloco =
+      '<div style="margin-top:10px;padding:10px;background:rgba(110,231,183,.08);border:1px solid rgba(110,231,183,.2);border-radius:6px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:4px;font-weight:600">💡 Para atingir margem desejada</div>'+
+      '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline">'+
+        '<div><span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Preço sugerido: </span><span style="font-family:var(--fdisplay);font-size:15px;font-weight:700;color:var(--accent)">R$ '+p.precoSugerido.toFixed(2).replace('.',',')+'</span></div>'+
+        '<div><span style="font-family:var(--fmono);font-size:9px;color:var(--muted)">Ajuste necessário: </span><span style="font-family:var(--fmono);font-size:12px;color:'+ajusteCor+';font-weight:600">'+ajusteIco+' '+Math.abs(p.ajustePct).toFixed(1)+'%</span></div>'+
+      '</div></div>';
+  } else if(p.precoSugerido === -1) {
+    sugBloco = '<div style="margin-top:10px;padding:8px 10px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);border-radius:6px;font-family:var(--fmono);font-size:10px;color:var(--red)">⚠ Inviável: deduções + margem desejada somam ≥ 100%</div>';
+  }
+
+  // Bloco de rodapé com regras aplicadas
+  var rodape =
+    '<div style="margin-top:8px;padding:6px 10px;background:var(--s2);border-radius:5px;font-family:var(--fmono);font-size:9px;color:var(--muted2);line-height:1.5">'+
+      '<strong style="color:var(--accent)">📋 Regra aplicada:</strong> '+_saudeEsc(p.canalLabel||p.canalTop)+' · '+_saudeEsc(p.regimeLabel||'')+'<br>'+
+      '<strong style="color:var(--accent)">⚙️ Custo:</strong> Modo simulação (Curva '+(p.curva||'?')+' = '+((SAUDE_CUSTO_PCT[p.curva]||0.5)*100).toFixed(0)+'% do preço)'+
+    '</div>';
+
+  return '<div style="padding:10px 14px;background:rgba(0,0,0,.18)">'+
+    '<table style="width:100%;border-collapse:collapse"><tbody>'+linhas+'</tbody></table>'+
+    sugBloco + rodape +
+  '</div>';
 }
 
 /* ─ Filtros ──────────────────────────────────────────────────────── */
@@ -7523,26 +7633,32 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           var qtd  = limpaBR(r[colQtd]);
           // GMV (Vlr Total Vendido — coluna D)
           var gmvProduto = (colGmv >= 0 && r[colGmv] !== undefined) ? limpaBR(r[colGmv]) : 0;
-          // Preço médio direto (coluna E "Valor Médio/Un")
-          var precoMedioPlanilha = (colPrecoMedio >= 0 && r[colPrecoMedio] !== undefined) ? limpaBR(r[colPrecoMedio]) : 0;
+
+          // ═══════════════════════════════════════════════════════════════
+          // PREÇO MÉDIO: SEMPRE calculado como GMV ÷ Qtd na própria linha
+          // ─────────────────────────────────────────────────────────────
+          // A coluna E (Valor Médio/Un) pode estar com formatação errada,
+          // fórmulas quebradas, ou ser interpretada incorretamente pelo gviz.
+          // GMV÷Qtd é matematicamente equivalente E mais robusto.
+          // ═══════════════════════════════════════════════════════════════
+          var precoMedioPlanilha = (qtd > 0 && gmvProduto > 0) ? (gmvProduto / qtd) : 0;
 
           // SANITY CHECKS — proteger contra valores absurdos vindos da planilha
-          // Preço unitário de produto físico realista: R$ 0,01 a R$ 100.000
           if(precoMedioPlanilha > 100000) {
-            console.warn('[FanClub Produtos] ⚠ Preço absurdo descartado: SKU='+sku+' valor='+precoMedioPlanilha+' (raw: '+r[colPrecoMedio]+')');
+            console.warn('[FanClub Produtos] ⚠ Preço calculado absurdo descartado: SKU='+sku+' valor='+precoMedioPlanilha+' (gmv='+gmvProduto+' qtd='+qtd+')');
             precoMedioPlanilha = 0;
           }
-          // GMV de um produto num mês: R$ 0,01 a R$ 10 milhões
           if(gmvProduto > 10000000) {
             console.warn('[FanClub Produtos] ⚠ GMV absurdo descartado: SKU='+sku+' valor='+gmvProduto+' (raw: '+r[colGmv]+')');
             gmvProduto = 0;
+            precoMedioPlanilha = 0;
           }
 
           // Capturar amostra das primeiras linhas (raw + parseado) para diagnóstico
           if(idxRow < 3 && nome && nome.length >= 2) {
             amostraLog.push({
               raw: { col0: r[0], col1: r[1], col2: r[colQtd], col3: r[colGmv], col4: r[colPrecoMedio] },
-              parsed: { sku: sku, nome: nome.substring(0,30), qtd: qtd, gmv: gmvProduto, precoMedio: precoMedioPlanilha }
+              parsed: { sku: sku, nome: nome.substring(0,30), qtd: qtd, gmv: gmvProduto, precoMedioCalc: precoMedioPlanilha }
             });
           }
 
