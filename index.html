@@ -319,15 +319,16 @@ body.light body::before { opacity: 0; }
 .nav-item { position: relative; }
 
 /* ─────────────────────────────────────────────────────────────────
-   INDICADOR DE INTEGRAÇÃO — itens conectados pelo filtro global
-   Dashboard → Financeiro → Marketing compartilham o mesmo filtro.
+   INDICADOR DE INTEGRAÇÃO — fluxo de dados
+   Financeiro & Marketing alimentam o menu Resumos.
+   A linha gradient flui de cima para baixo, na direção dos dados:
+   Financeiro ──┐
+                ├──► Resumos
+   Marketing ───┘
    - .sync-dot: bolinha pulsante ao lado do texto do menu
-   - .nav-item[data-sync] ::before: linha gradient lateral animada
+   - .nav-item[data-sync="resumos"]::before: linha gradient lateral animada
    ───────────────────────────────────────────────────────────────── */
-.nav-item[data-sync="filtro-global"] {
-  /* Reservar espaço pra borda lateral animada à esquerda */
-}
-.nav-item[data-sync="filtro-global"]::before {
+.nav-item[data-sync="resumos"]::before {
   content: "";
   position: absolute;
   left: 0;
@@ -341,20 +342,21 @@ body.light body::before { opacity: 0; }
     rgba(244, 114, 182, .9) 75%,
     transparent 100%);
   background-size: 100% 300%;
-  background-position: 0% 0%;
+  background-position: 0% 100%;
   animation: syncFlow 4.5s linear infinite;
   border-radius: 0 2px 2px 0;
   opacity: .7;
   pointer-events: none;
 }
-.nav-item[data-sync="filtro-global"]:hover::before,
-.nav-item[data-sync="filtro-global"].active::before {
+.nav-item[data-sync="resumos"]:hover::before,
+.nav-item[data-sync="resumos"].active::before {
   opacity: 1;
   width: 4px;
 }
+/* Fluxo direcional: cima para baixo (Financeiro/Marketing → Resumos) */
 @keyframes syncFlow {
-  0%   { background-position: 0%   0%; }
-  100% { background-position: 0% 300%; }
+  0%   { background-position: 0% 100%; }
+  100% { background-position: 0%   0%; }
 }
 
 /* Bolinha pulsante ao lado do texto */
@@ -380,7 +382,7 @@ body.light body::before { opacity: 0; }
 
 /* Respeitar usuários com preferência de movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
-  .nav-item[data-sync="filtro-global"]::before,
+  .nav-item[data-sync="resumos"]::before,
   .sync-dot { animation: none; }
 }
 .sidebar.collapsed .nav-item::after {
@@ -1093,19 +1095,18 @@ body.light body::before { opacity: 0; }
 
   <div class="sidebar-section">
     <div class="sidebar-label">Principal</div>
-    <div class="nav-item active" onclick="showPage('dashboard',this)" data-page="dashboard" data-label="Dashboard" data-sync="filtro-global">
+    <div class="nav-item active" onclick="showPage('dashboard',this)" data-page="dashboard" data-label="Dashboard">
       <span class="nav-icon">📊</span>
       <span>Dashboard</span>
-      <span class="sync-dot" title="Sincronizado com filtro global"></span>
     </div>
   </div>
 
   <div class="sidebar-section">
     <div class="sidebar-label">Análises</div>
-    <div class="nav-item" onclick="showPage('financeiro',this)" data-page="financeiro" data-label="Financeiro" data-sync="filtro-global">
+    <div class="nav-item" onclick="showPage('financeiro',this)" data-page="financeiro" data-label="Financeiro" data-sync="resumos">
       <span class="nav-icon">💰</span>
       <span>Financeiro & Vendas</span>
-      <span class="sync-dot" title="Sincronizado com filtro global"></span>
+      <span class="sync-dot" title="Alimenta o menu Resumos"></span>
     </div>
     <div class="nav-item" onclick="showPage('pedidos',this)" data-page="pedidos" data-label="Pedidos">
       <span class="nav-icon">📋</span>
@@ -1115,10 +1116,10 @@ body.light body::before { opacity: 0; }
       <span class="nav-icon">📦</span>
       <span>Estoque</span>
     </div>
-    <div class="nav-item" onclick="showPage('marketing',this)" data-page="marketing" data-label="Marketing" data-sync="filtro-global">
+    <div class="nav-item" onclick="showPage('marketing',this)" data-page="marketing" data-label="Marketing" data-sync="resumos">
       <span class="nav-icon">📣</span>
       <span>Marketing</span>
-      <span class="sync-dot" title="Sincronizado com filtro global"></span>
+      <span class="sync-dot" title="Alimenta o menu Resumos"></span>
     </div>
     <div class="nav-item" onclick="showPage('fluxocaixa',this)" data-page="fluxocaixa" data-label="Fluxo de Caixa">
       <span class="nav-icon">💵</span>
@@ -1128,9 +1129,10 @@ body.light body::before { opacity: 0; }
       <span class="nav-icon">🧮</span>
       <span>Precificação</span>
     </div>
-    <div class="nav-item" onclick="showPage('resumos',this)" data-page="resumos" data-label="Resumos">
+    <div class="nav-item" onclick="showPage('resumos',this)" data-page="resumos" data-label="Resumos" data-sync="resumos">
       <span class="nav-icon">📁</span>
       <span>Resumos</span>
+      <span class="sync-dot" title="Recebe dados de Financeiro e Marketing"></span>
     </div>
   </div>
 
