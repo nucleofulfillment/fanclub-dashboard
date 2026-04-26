@@ -950,6 +950,18 @@ body.light body::before { opacity: 0; }
                  outline:none;color-scheme:dark;box-sizing:border-box">
       </div>
 
+      <div class="card" style="padding:16px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#FBBF24;
+             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💰 Planilha Custo de Produtos</div>
+        <input type="text" id="onb-url-custo" placeholder="Cole a URL do Google Sheets (opcional)"
+          style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
+                 padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
+                 outline:none;color-scheme:dark;box-sizing:border-box">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:6px">
+          Estrutura: A=Código · B=Marca · C=Valor Atual (custo)
+        </div>
+      </div>
+
     </div>
 
     <div id="onb-erro" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);
@@ -1782,6 +1794,16 @@ body.light body::before { opacity: 0; }
         </div>
       </div>
 
+      <!-- ── Faixa de transparência: cobertura de custo real ────────── -->
+      <div id="saude-cobertura-banner" style="display:none;padding:10px 14px;background:linear-gradient(90deg,rgba(251,191,36,.08),rgba(251,191,36,.02));border:1px solid rgba(251,191,36,.25);border-radius:10px;margin-bottom:14px;font-family:var(--fmono);font-size:11px;color:var(--text);align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="color:#FBBF24;font-weight:700">💰 Custo Real</span>
+        <span id="saude-cobertura-info" style="color:var(--muted2)">—</span>
+        <span style="color:var(--muted)">·</span>
+        <span id="saude-cobertura-marcas" style="color:var(--muted2)">—</span>
+        <button onclick="loadCustoProdutos().then(function(){ if(typeof saudeRecalcular==='function') saudeRecalcular(); })"
+          style="margin-left:auto;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);color:#FBBF24;padding:4px 10px;border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">🔄 Atualizar custos</button>
+      </div>
+
       <!-- ── Parâmetros: Regime tributário + Custos operacionais ────── -->
       <div class="card" style="padding:18px;margin-bottom:14px">
         <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">⚙ Parâmetros de Cálculo</div>
@@ -1992,6 +2014,10 @@ body.light body::before { opacity: 0; }
           <option value="Dafiti">Dafiti</option>
           <option value="Loja Própria">Loja Própria</option>
         </select>
+        <select id="saude-filtro-marca" onchange="saudeRenderTabela()"
+          style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
+          <option value="todas">Todas as marcas</option>
+        </select>
         <select id="saude-ordem" onchange="saudeRenderTabela()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
           <option value="margem-asc">Margem ↑ (piores primeiro)</option>
@@ -2020,9 +2046,10 @@ body.light body::before { opacity: 0; }
               <th style="text-align:center;width:34px" title="Clique para ver breakdown completo">ℹ️</th>
               <th style="text-align:left">SKU</th>
               <th style="text-align:left">Produto</th>
+              <th style="text-align:left" title="Marca extraída da planilha de Custo de Produtos">Marca</th>
               <th style="text-align:center">Curva</th>
               <th style="text-align:right">Preço Médio</th>
-              <th style="text-align:right">Custo Estimado</th>
+              <th style="text-align:right" title="🟢 = custo real (planilha) · 🟡 = estimado por curva ABC">Custo</th>
               <th style="text-align:left">Canal Top</th>
               <th style="text-align:right">Margem Real</th>
               <th style="text-align:right" title="Preço sugerido para atingir a margem desejada (mostrado para produtos críticos e em atenção)">💡 Preço Sugerido</th>
@@ -3244,24 +3271,30 @@ function _saudeKey() {
 }
 
 /* ─ Cálculo do CUSTO do produto ──────────────────────────────────── */
-// Lógica SIMULADA (atual): custo = % do preço de venda baseado na curva ABC
+// Lógica SIMULADA (fallback): custo = % do preço de venda baseado na curva ABC
 function _saudeCustoSimulado(produto) {
   var pct = SAUDE_CUSTO_PCT[produto.curva];
   if(pct === undefined) pct = SAUDE_CUSTO_PCT.B;
   return produto.precoMedio * pct;
 }
-// Lógica REAL (futura): placeholder — substituir quando custo real estiver disponível
+// Lógica REAL: busca na planilha de Custo de Produtos. Se não encontrar, fallback.
+// Marca também produto.fonteCusto = 'real' | 'estimado' para indicador visual.
 function _saudeCustoReal(produto) {
-  // TODO: integrar com planilha de inventário (coluna "Custo")
-  // Exemplo:
-  //   if(window._inventarioMap && window._inventarioMap[produto.sku]) {
-  //     return window._inventarioMap[produto.sku].custo;
-  //   }
-  return _saudeCustoSimulado(produto);  // fallback
+  try {
+    if(typeof getCustoReal === 'function' && produto.sku) {
+      var info = getCustoReal(produto.sku);
+      if(info && info.custo > 0) {
+        produto.fonteCusto = 'real';
+        produto.marcaReal  = info.marca || produto.marcaReal || null;
+        return info.custo;
+      }
+    }
+  } catch(e) { console.warn('[Saúde] erro ao buscar custo real:', e); }
+  produto.fonteCusto = 'estimado';
+  return _saudeCustoSimulado(produto);
 }
-// Função pública — TROCAR esta linha para ativar custos reais:
-var _saudeCalcularCusto = _saudeCustoSimulado;
-// Quando for hora: var _saudeCalcularCusto = _saudeCustoReal;
+// Custo real ativo. Fallback automático quando SKU não tem dado real.
+var _saudeCalcularCusto = _saudeCustoReal;
 
 /* ─ Curva ABC: classifica por GMV ─────────────────────────────────
    Top SKUs que somam 80% do GMV → A · próximos 15% → B · resto → C */
@@ -3443,6 +3476,13 @@ function _saudeColetarProdutos() {
       };
       try { produto.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(produto.nome) : 'Outros'; }
       catch(e){ produto.categoria = 'Outros'; }
+      // Enriquecer com marca da planilha de Custo (se disponível)
+      try {
+        if(typeof getMarcaProduto === 'function') {
+          var m = getMarcaProduto(produto.sku);
+          if(m) produto.marca = m;
+        }
+      } catch(e){}
       arr.push(produto);
     });
   } else {
@@ -3740,6 +3780,28 @@ function saudeRecalcular() {
     p.regimeLabel    = calc.regimeLabel;
   });
   _saudeProdutos = produtos;
+
+  // Popular dropdown de marcas dinamicamente — preserva seleção atual se ainda válida
+  try {
+    var selM = document.getElementById('saude-filtro-marca');
+    if(selM) {
+      var atual = selM.value || 'todas';
+      var marcasUnicas = {};
+      produtos.forEach(function(p){
+        var m = p.marca && String(p.marca).trim();
+        if(m) marcasUnicas[m] = (marcasUnicas[m]||0) + 1;
+      });
+      var opts = ['<option value="todas">Todas as marcas</option>'];
+      Object.keys(marcasUnicas).sort().forEach(function(m){
+        var sel = (m === atual) ? ' selected' : '';
+        opts.push('<option value="'+_saudeEsc(m)+'"'+sel+'>'+_saudeEsc(m)+' ('+marcasUnicas[m]+')</option>');
+      });
+      selM.innerHTML = opts.join('');
+      // Se o usuário tinha 'X marca' selecionada e ela sumiu, voltar para 'todas'
+      if(atual !== 'todas' && !marcasUnicas[atual]) selM.value = 'todas';
+    }
+  } catch(e){}
+
   saudeRenderKPIs();
   saudeRenderTabela();
   saudeRenderGraficos();
@@ -3789,6 +3851,30 @@ function saudeRenderKPIs() {
   setTxt('saude-kpi-total-sub', totalComVendas > 0 && semVendas.length > 0
     ? (totalComVendas.toLocaleString('pt-BR')+' analisados · '+semVendas.length.toLocaleString('pt-BR')+' sem vendas')
     : (semVendas.length > 0 ? 'todos sem vendas no período' : 'no período filtrado'));
+
+  // ─── Banner de transparência: mostrar cobertura do custo real
+  try {
+    var banner = document.getElementById('saude-cobertura-banner');
+    if(banner) {
+      var carregado = (typeof _custoStats !== 'undefined') && _custoStats.carregado;
+      if(carregado) {
+        // Cobertura calculada SOBRE OS PRODUTOS DO PERÍODO (não sobre toda a planilha de custo)
+        var comReal = comVendas.filter(function(p){ return p.fonteCusto === 'real'; }).length;
+        var pctCob  = totalComVendas > 0 ? (comReal/totalComVendas*100).toFixed(1) : '0';
+        var marcas  = {};
+        comVendas.forEach(function(p){ if(p.marca) marcas[p.marca] = true; });
+        var qtdMarcas = Object.keys(marcas).length;
+        setTxt('saude-cobertura-info',
+          comReal+' de '+totalComVendas+' SKUs com custo real ('+pctCob+'%) · '+
+          (totalComVendas - comReal)+' usando estimativa por curva ABC');
+        setTxt('saude-cobertura-marcas',
+          qtdMarcas > 0 ? (qtdMarcas+' marca'+(qtdMarcas>1?'s':'')+' identificada'+(qtdMarcas>1?'s':'')) : 'sem marca identificada');
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+  } catch(e) { console.warn('[Saúde] erro no banner de cobertura:', e); }
 }
 
 /* ─ Tabela ───────────────────────────────────────────────────────── */
@@ -3798,7 +3884,7 @@ function saudeRenderTabela() {
   var info  = document.getElementById('saude-tabela-info');
 
   if(_saudeProdutos.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
     if(info) info.textContent = '—';
     return;
   }
@@ -3807,12 +3893,14 @@ function saudeRenderTabela() {
   busca = busca.toLowerCase().trim();
   var curvaF  = (document.getElementById('saude-filtro-curva')||{}).value || 'todas';
   var canalF  = (document.getElementById('saude-filtro-canal')||{}).value || 'todos';
+  var marcaF  = (document.getElementById('saude-filtro-marca')||{}).value || 'todas';
   var ordem   = (document.getElementById('saude-ordem')||{}).value || 'gmv-desc';
 
   var filtrados = _saudeProdutos.filter(function(p){
     if(_saudeFiltroStatus !== 'todos' && p.statusSaude !== _saudeFiltroStatus) return false;
     if(curvaF !== 'todas' && p.curva !== curvaF) return false;
     if(canalF !== 'todos' && p.canalTop !== canalF) return false;
+    if(marcaF !== 'todas' && (p.marca || '—') !== marcaF) return false;
     if(busca && !(String(p.sku).toLowerCase().includes(busca) || String(p.nome).toLowerCase().includes(busca))) return false;
     return true;
   });
@@ -3889,20 +3977,38 @@ function saudeRenderTabela() {
     var celPreco = semVendas
       ? '<span style="color:var(--muted2)">—</span>'
       : 'R$ '+(p.precoMedio||0).toFixed(2).replace('.',',');
+
+    // Custo: indicador visual conforme fonte (real da planilha vs estimado por curva)
+    var fonteCusto = p.fonteCusto || 'estimado';
+    var icoFonte = fonteCusto === 'real' ? '🟢' : '🟡';
+    var corFonte = fonteCusto === 'real' ? 'var(--green)' : '#F59E0B';
+    var titleFonte = fonteCusto === 'real'
+      ? 'Custo real — planilha de Custo de Produtos'
+      : 'Custo estimado — % por Curva ABC (fallback)';
     var celCusto = semVendas
       ? '<span style="color:var(--muted2)">—</span>'
-      : 'R$ '+(p.custoEstimado||0).toFixed(2).replace('.',',');
+      : '<span title="'+titleFonte+'" style="font-family:var(--fmono);font-size:12px;color:var(--muted2)">' +
+        '<span style="font-size:9px;color:'+corFonte+';margin-right:3px">'+icoFonte+'</span>' +
+        'R$ '+(p.custoEstimado||0).toFixed(2).replace('.',',')+'</span>';
+
     var celMargem = semVendas
       ? '<span style="color:var(--muted2);font-weight:400">—</span>'
       : margemPct;
+
+    // Marca (vem da planilha de Custo de Produtos quando disponível)
+    var marca = p.marca || '—';
+    var celMarca = (marca === '—')
+      ? '<span style="color:var(--muted2);font-size:10px">—</span>'
+      : '<span style="font-size:10px;color:var(--muted);font-family:var(--fmono);background:rgba(251,191,36,.10);padding:2px 6px;border-radius:4px;border:1px solid rgba(251,191,36,.2)">'+_saudeEsc(marca)+'</span>';
 
     var linhaPai = '<tr'+linhaStyle+'>'+
       '<td style="text-align:center;padding:4px 0">'+btnInfo+'</td>'+
       '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted2)">'+_saudeEsc(p.sku)+'</td>'+
       '<td style="font-size:12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_saudeEsc(p.nome)+'">'+_saudeEsc(p.nome)+'</td>'+
+      '<td>'+celMarca+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+cv.bg+';color:'+cv.cor+'">'+p.curva+'</span></td>'+
       '<td style="text-align:right;font-family:var(--fmono);font-size:12px">'+celPreco+'</td>'+
-      '<td style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--muted2)">'+celCusto+'</td>'+
+      '<td style="text-align:right">'+celCusto+'</td>'+
       '<td style="font-size:11px;color:var(--muted2)" title="'+_saudeEsc(p.regrasInfo||'')+'">'+canalLabel+'</td>'+
       '<td style="text-align:right;font-family:var(--fdisplay);font-size:13px;font-weight:700;color:'+st.cor+'">'+celMargem+'</td>'+
       '<td style="text-align:right">'+precoSugCell+'</td>'+
@@ -3912,7 +4018,7 @@ function saudeRenderTabela() {
     // Linha expandida com breakdown (lazy: só renderiza se aberto)
     var linhaBreakdown = '';
     if(aberto) {
-      linhaBreakdown = '<tr><td colspan="10" style="padding:0;border-bottom:1px solid var(--border)">'+_saudeRenderBreakdown(p)+'</td></tr>';
+      linhaBreakdown = '<tr><td colspan="11" style="padding:0;border-bottom:1px solid var(--border)">'+_saudeRenderBreakdown(p)+'</td></tr>';
     }
 
     // Variações (tamanhos) — só se toggle ativo e produto tem tamanhos registrados
@@ -3925,7 +4031,7 @@ function saudeRenderTabela() {
         linhasVar += '<tr style="background:rgba(0,0,0,.15)">'+
           '<td></td>'+
           '<td style="font-family:var(--fmono);font-size:10px;color:var(--muted);padding-left:24px">↳ '+_saudeEsc(p.sku)+'-'+t+'</td>'+
-          '<td colspan="2" style="font-size:10px;color:var(--muted)">Tamanho '+_saudeEsc(t)+'</td>'+
+          '<td colspan="3" style="font-size:10px;color:var(--muted)">Tamanho '+_saudeEsc(t)+'</td>'+
           '<td colspan="3" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:right">'+qVar+' un · '+pctVar+'% das vendas</td>'+
           '<td colspan="3" style="text-align:right;font-family:var(--fmono);font-size:10px;color:var(--muted)">— mesmas margens do produto pai —</td>'+
         '</tr>';
@@ -5321,6 +5427,7 @@ async function refresh(){
     loadProdutos();  // carrega aba de produtos em paralelo
     loadEstados();   // carrega GMV por estado em paralelo (mesmo padrão)
     loadProdutosVendidos(); // carrega nova planilha de produtos vendidos
+    if(typeof loadCustoProdutos === 'function') loadCustoProdutos(); // custo real
     applyFilter();
     document.getElementById('hdr-time').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     lbl.textContent=url?'AO VIVO':'EXEMPLO';
@@ -8316,6 +8423,175 @@ function recarregarProdutosVendidos() {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   PLANILHA DE CUSTO DE PRODUTOS — fonte primária de custo real
+   Estrutura: A=Código (com tamanho)  ·  B=Marca  ·  C=Valor Atual (custo)
+   Agrupamento: SKU base = remove tamanho final (-NN ou -NNN)
+   Resultado: custoRealMap[skuBase] = {custo: R$, marca: 'X', amostras: N}
+   Fallback: se SKU não tiver custo aqui, usa estimativa por curva ABC.
+   ═══════════════════════════════════════════════════════════════════ */
+var custoRealMap = {};            // { skuBase: {custo, marca, amostras} }
+var marcaPorSku  = {};            // { skuBase: 'Marca' } — extraído do mesmo arquivo
+var _custoStats  = {              // estatísticas pra exibir transparência ao usuário
+  totalSkus: 0,
+  comCusto:  0,
+  custoMedio: 0,
+  marcas: {},                     // { 'Worldcolors': qtd, ... }
+  carregado: false,
+  ultimaCarga: null
+};
+var FC_CUSTO_URL_KEY = 'fc_custo_produtos_url';
+
+async function loadCustoProdutos() {
+  var rawUrl = localStorage.getItem(FC_CUSTO_URL_KEY) || '';
+  if(!rawUrl) {
+    console.log('[Custo] URL não configurada — usando fallback (curva ABC).');
+    return;
+  }
+
+  // Converter URL do Google Sheets em URL JSON do gviz
+  var url;
+  if(rawUrl.includes('gviz/tq')) {
+    url = rawUrl;
+  } else {
+    var idMatch = rawUrl.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if(!idMatch) {
+      console.warn('[Custo] URL inválida:', rawUrl);
+      return;
+    }
+    var gidMatch = rawUrl.match(/gid=(\d+)/);
+    var gid = gidMatch ? gidMatch[1] : '';
+    url = 'https://docs.google.com/spreadsheets/d/'+idMatch[1]+'/gviz/tq?tqx=out:json'+
+          (gid ? '&gid='+gid : '');
+  }
+
+  try {
+    console.log('[Custo] Carregando planilha:', url);
+    var res  = await fetch(url + '&nocache=' + Date.now());
+    var txt  = await res.text();
+    var rows = parseGS(txt);  // helper já existente: parseia gviz JSON
+    if(!rows || rows.length < 2) {
+      console.warn('[Custo] Planilha vazia ou inválida.');
+      return;
+    }
+
+    // Ignora a linha 0 se for cabeçalho textual
+    var startRow = 0;
+    var firstRow = rows[0] || [];
+    var primeiroEhTexto = isNaN(parseFloat(String(firstRow[2]||'').replace(/[R$ .,]/g,'')));
+    if(primeiroEhTexto) startRow = 1;
+
+    var novoMap   = {};
+    var novoMarca = {};
+    var marcas    = {};
+    var totalCust = 0;
+    var cntCust   = 0;
+    var totalLin  = 0;
+
+    // Helper local: parsear número R$ no formato BR ou US
+    var parseValor = function(v) {
+      if(typeof v === 'number') return isFinite(v) ? v : 0;
+      if(v === null || v === undefined || v === '') return 0;
+      var s = String(v).replace(/[R$\s]/g,'').trim();
+      if(!s) return 0;
+      var hasComma = s.indexOf(',') >= 0;
+      var hasDot   = s.indexOf('.') >= 0;
+      if(hasComma && hasDot)      s = s.replace(/\./g,'').replace(',','.');
+      else if(hasComma)            s = s.replace(',','.');
+      else if(hasDot && (s.match(/\./g)||[]).length > 1) s = s.replace(/\./g,'');
+      var n = parseFloat(s);
+      return isFinite(n) ? n : 0;
+    };
+
+    for(var i = startRow; i < rows.length; i++) {
+      var r = rows[i];
+      if(!r || r.length < 3) continue;
+      var cod   = String(r[0]||'').trim();
+      var marca = String(r[1]||'').trim();
+      var custo = parseValor(r[2]);
+      if(!cod) continue;
+
+      totalLin++;
+
+      // Normalizar SKU base: remove sufixo de tamanho (-NN, -NNN ou -N)
+      // Formato típico: "101003000-6388-28" → "101003000-6388"
+      var skuBase = cod.replace(/-\d{1,4}$/, '');
+      if(!skuBase) skuBase = cod;
+
+      // Gravar marca sempre (mesmo sem custo)
+      if(marca && !novoMarca[skuBase]) {
+        novoMarca[skuBase] = marca;
+        marcas[marca] = (marcas[marca] || 0) + 1;
+      }
+
+      // Custo: só guarda se > 0 (R$ 0,00 cai no fallback)
+      if(custo > 0) {
+        if(!novoMap[skuBase]) {
+          novoMap[skuBase] = {custo: custo, marca: marca, amostras: 1};
+          totalCust += custo;
+          cntCust++;
+        } else {
+          // Múltiplas linhas (ex: tamanhos diferentes) — média ponderada
+          var prev = novoMap[skuBase];
+          var novoTotal = prev.amostras + 1;
+          novoMap[skuBase] = {
+            custo: (prev.custo * prev.amostras + custo) / novoTotal,
+            marca: prev.marca || marca,
+            amostras: novoTotal
+          };
+        }
+      }
+    }
+
+    custoRealMap = novoMap;
+    marcaPorSku  = novoMarca;
+    _custoStats = {
+      totalSkus:   Object.keys(novoMarca).length,
+      comCusto:    cntCust,
+      custoMedio:  cntCust > 0 ? totalCust / cntCust : 0,
+      marcas:      marcas,
+      carregado:   true,
+      ultimaCarga: new Date()
+    };
+
+    console.log('[Custo] ✅ Carregado: '+cntCust+' SKUs com custo real · '+
+                Object.keys(novoMarca).length+' SKUs com marca · '+
+                Object.keys(marcas).length+' marcas distintas · '+
+                'custo médio R$ '+(_custoStats.custoMedio).toFixed(2));
+
+    // Re-renderizar Saúde do Estoque se estiver aberto
+    try {
+      var saudePage = document.getElementById('page-saude');
+      if(saudePage && saudePage.classList.contains('active') && typeof saudeRecalcular === 'function') {
+        saudeRecalcular();
+      }
+    } catch(e){}
+  } catch(e) {
+    console.error('[Custo] Erro ao carregar planilha:', e);
+  }
+}
+
+/* ─ API pública: buscar custo real de um SKU. Retorna null se não houver. ─ */
+function getCustoReal(sku) {
+  if(!sku) return null;
+  var s = String(sku).trim();
+  // Tentar SKU completo (caso o sistema use SKU com tamanho)
+  if(custoRealMap[s]) return custoRealMap[s];
+  // Tentar SKU base (sem tamanho)
+  var base = s.replace(/-\d{1,4}$/, '');
+  if(custoRealMap[base]) return custoRealMap[base];
+  return null;
+}
+
+function getMarcaProduto(sku) {
+  if(!sku) return null;
+  var s = String(sku).trim();
+  if(marcaPorSku[s]) return marcaPorSku[s];
+  var base = s.replace(/-\d{1,4}$/, '');
+  if(marcaPorSku[base]) return marcaPorSku[base];
+  return null;
+}
+
 /* ─ Popular seletor de mês dos produtos ─ */
 function _popularSeletorMesProd() {
   var sel = document.getElementById('prod-mes-sel');
@@ -9736,6 +10012,8 @@ function veltroMostrarOnboarding(empresa) {
   try{ document.getElementById('onb-url-estoque').value   = links.estoque||'';   }catch(e){}
   try{ document.getElementById('onb-url-estados').value   = links.estados||'';   }catch(e){}
   try{ document.getElementById('onb-url-produtos').value  = links.produtos||'';  }catch(e){}
+  try{ document.getElementById('onb-url-fluxo').value     = links.fluxo||'';     }catch(e){}
+  try{ document.getElementById('onb-url-custo').value     = links.custo||'';     }catch(e){}
 }
 
 
@@ -9920,7 +10198,8 @@ function veltroSalvarConfig(pular) {
     estoque:   ((document.getElementById('onb-url-estoque')||{}).value||'').trim(),
     estados:   ((document.getElementById('onb-url-estados')||{}).value||'').trim(),
     produtos:  ((document.getElementById('onb-url-produtos')||{}).value||'').trim(),
-    fluxo:     ((document.getElementById('onb-url-fluxo')||{}).value||'').trim()
+    fluxo:     ((document.getElementById('onb-url-fluxo')||{}).value||'').trim(),
+    custo:     ((document.getElementById('onb-url-custo')||{}).value||'').trim()
   };
   veltroSaveLinks(id, links);
 
@@ -9965,6 +10244,14 @@ function veltroAplicarLinks(id, links) {
     try{ document.getElementById('fc-url-input').value = links.fluxo; }catch(e){}
   }
 
+  // Custo de Produtos (planilha simples — 4 colunas: Código, Marca, Custo, ...)
+  if(links.custo) {
+    localStorage.setItem('fc_custo_produtos_url', links.custo);
+    if(typeof loadCustoProdutos === 'function') {
+      setTimeout(loadCustoProdutos, 800);
+    }
+  }
+
   // Disparar refresh se função disponível
   if(typeof refresh === 'function') {
     // Limpar cache para forçar recarregamento com novos links
@@ -9993,6 +10280,7 @@ function veltroAbrirConfig() {
   try{ document.getElementById('cfg-url-estados').value   = links.estados||'';   }catch(e){}
   try{ document.getElementById('cfg-url-produtos').value  = links.produtos||'';  }catch(e){}
   try{ document.getElementById('cfg-url-fluxo').value    = links.fluxo||'';    }catch(e){}
+  try{ document.getElementById('cfg-url-custo').value    = links.custo||'';    }catch(e){}
   var modal = document.getElementById('veltro-config-modal');
   if(modal) { modal.style.display = 'flex'; }
 }
@@ -10008,7 +10296,8 @@ function veltroSalvarConfigModal() {
     estoque:   ((document.getElementById('cfg-url-estoque')||{}).value||'').trim(),
     estados:   ((document.getElementById('cfg-url-estados')||{}).value||'').trim(),
     produtos:  ((document.getElementById('cfg-url-produtos')||{}).value||'').trim(),
-    fluxo:     ((document.getElementById('cfg-url-fluxo')||{}).value||'').trim()
+    fluxo:     ((document.getElementById('cfg-url-fluxo')||{}).value||'').trim(),
+    custo:     ((document.getElementById('cfg-url-custo')||{}).value||'').trim()
   };
   veltroSaveLinks(id, links);
   veltroFecharConfig();
@@ -10405,6 +10694,12 @@ window.addEventListener('load', function() {
         <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#34D399;text-transform:uppercase;margin-bottom:5px">💵 Fluxo de Caixa (abas mensais)</div>
         <input type="text" id="cfg-url-fluxo" placeholder="URL do Google Sheets (opcional)"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
+      </div>
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#FBBF24;text-transform:uppercase;margin-bottom:5px">💰 Custo de Produtos</div>
+        <input type="text" id="cfg-url-custo" placeholder="URL do Google Sheets (opcional)"
+          style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:4px">A=Código · B=Marca · C=Valor Atual</div>
       </div>
     </div>
     <button onclick="veltroSalvarConfigModal()"
