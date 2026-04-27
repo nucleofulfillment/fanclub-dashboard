@@ -6141,27 +6141,73 @@ async function loadGS(url){
   // Se encontrou cabeçalho, detectar índices reais das colunas
   if(header) {
     var novoIdx = {};
+    // 🆕 Lista de palavras que invalidam um match de canal/loja/data principal
+    // Ex: "Data Marketplace" tem 'marketplace' mas também 'data' → não é canal
+    var KW_NEG_HEADER = ['data','identificador','status','situação','situacao','rastr','prazo','obs','ícone','icone','tipo','forma','permite'];
+    var ehNegativo = function(s) {
+      return KW_NEG_HEADER.some(function(kw){ return s.includes(kw); });
+    };
+
     header.forEach(function(h, ci) {
       if(!h) return;
       var s = String(h).toLowerCase().trim();
-      // Canal de venda
-      if(s.includes('canal') || s.includes('marketplace') || s.includes('plataforma')) novoIdx.canal = ci;
+      // Canal de venda — match EXATO primeiro, OU includes sem palavra negativa
+      // 🆕 Não sobrescreve se já achou (primeira coluna com match exato vence)
+      if(novoIdx.canal === undefined) {
+        if(s === 'marketplace' || s === 'canal' || s === 'plataforma' || s === 'canal de venda') {
+          novoIdx.canal = ci;
+        } else if(!ehNegativo(s) && (s.includes('canal') || s.includes('marketplace') || s.includes('plataforma'))) {
+          novoIdx.canal = ci;
+        }
+      }
       // Status do pedido
-      else if(s === 'status' || s === 'situação' || s === 'situacao' ||
-               (s.includes('status') && !s.includes('pagto') && !s.includes('pag') && !s.includes('rastr'))) novoIdx.status = ci;
+      if(novoIdx.status === undefined) {
+        if(s === 'status' || s === 'situação' || s === 'situacao') {
+          novoIdx.status = ci;
+        } else if(s.includes('status') && !s.includes('pagto') && !s.includes('pag') && !s.includes('rastr')) {
+          novoIdx.status = ci;
+        }
+      }
       // Data do pedido
-      else if(s === 'data' || s === 'data pedido' || s === 'data da venda' || s === 'criado em') novoIdx.data = ci;
+      if(novoIdx.data === undefined) {
+        if(s === 'data' || s === 'data pedido' || s === 'data da venda' || s === 'criado em' || s === 'data/hora') {
+          novoIdx.data = ci;
+        }
+      }
       // Valor total
-      else if(s === 'total' || s === 'valor total' || s === 'gmv' || s === 'valor' || s.includes('total do pedido')) novoIdx.valor = ci;
-      // Frete
-      else if(s === 'frete' || s === 'frete cobrado' || s.includes('frete')) novoIdx.frete = ci;
+      if(novoIdx.valor === undefined) {
+        if(s === 'total' || s === 'valor total' || s === 'gmv' || s === 'valor' || s.includes('total do pedido')) {
+          novoIdx.valor = ci;
+        }
+      }
+      // Frete (match EXATO primeiro pra não pegar "Valor Frete Transportadora")
+      if(novoIdx.frete === undefined) {
+        if(s === 'frete' || s === 'frete cobrado' || s === 'valor frete') {
+          novoIdx.frete = ci;
+        } else if(s.includes('frete') && !s.includes('transportadora')) {
+          novoIdx.frete = ci;
+        }
+      }
       // ID do pedido
-      else if(s === 'pedido' || s === 'nº pedido' || s === 'numero pedido' || s === 'id pedido' || s.includes('pedido')) novoIdx.pedido = ci;
-      // Cliente
-      else if(s === 'cliente' || s === 'nome' || s === 'comprador' || s.includes('cliente')) novoIdx.cliente = ci;
-      // Pagamento
-      else if(s.includes('pagamento') || s.includes('forma de pag') || s === 'pagto' ||
-         s.includes('forma pag') || s.includes('tipo pag') || s === 'pag' || s.includes('payment')) novoIdx.pag = ci;
+      if(novoIdx.pedido === undefined) {
+        if(s === 'pedido' || s === 'pedido id' || s === 'nº pedido' || s === 'numero pedido' || s === 'id pedido' || s === 'código') {
+          novoIdx.pedido = ci;
+        }
+      }
+      // Cliente (match EXATO primeiro pra não pegar "Id Cliente")
+      if(novoIdx.cliente === undefined) {
+        if(s === 'cliente' || s === 'nome' || s === 'comprador') {
+          novoIdx.cliente = ci;
+        }
+      }
+      // Pagamento — match EXATO primeiro pra não pegar "Forma de Recebimento"
+      if(novoIdx.pag === undefined) {
+        if(s === 'forma de pagamento' || s === 'pagamento' || s === 'pagto' || s === 'pag') {
+          novoIdx.pag = ci;
+        } else if(!s.includes('recebimento') && (s.includes('forma de pag') || s.includes('forma pag') || s.includes('tipo pag') || s.includes('payment'))) {
+          novoIdx.pag = ci;
+        }
+      }
     });
     // Atualizar _colIdx apenas para os campos encontrados
     var updated = [];
