@@ -1233,6 +1233,712 @@ footer{
   .hero-cta{flex-direction:column;align-items:stretch}
   .hero-cta .btn{justify-content:center}
 }
+
+/* ════════════ V2 ADDITIONS ════════════ */
+
+/* — Telefone no nav */
+.nav-phone{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:var(--text-dim);
+  text-decoration:none;
+  font-family:var(--font-mono);
+  font-size:13px;
+  font-weight:500;
+  padding:10px 14px;
+  border-radius:8px;
+  border:1px solid var(--line);
+  transition:all .2s;
+}
+.nav-phone:hover{
+  border-color:var(--accent);
+  color:var(--accent);
+}
+.nav-phone svg{flex-shrink:0}
+
+/* — Hero atmosphere extras */
+.hero{overflow:hidden}
+.hero-particles{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+  overflow:hidden;
+}
+.particle{
+  position:absolute;
+  width:3px;
+  height:3px;
+  background:var(--accent);
+  border-radius:50%;
+  opacity:0;
+  box-shadow: 0 0 12px var(--accent);
+  animation: particleFloat linear infinite;
+}
+@keyframes particleFloat{
+  0%   { opacity:0; transform: translateY(0) translateX(0) }
+  10%  { opacity:0.6 }
+  50%  { opacity:0.4 }
+  90%  { opacity:0.2 }
+  100% { opacity:0; transform: translateY(-180px) translateX(40px) }
+}
+/* Linhas de conexão (data flow) — atrás do dashboard */
+.data-lines{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+  opacity:.5;
+}
+.data-lines line, .data-lines circle{
+  stroke:var(--accent);
+}
+
+.hero .container{position:relative;z-index:2}
+
+/* — Glow leve atrás do dashboard */
+.dash-window{
+  position:relative;
+}
+.dash-window::after{
+  content:'';
+  position:absolute;
+  inset:-1px;
+  border-radius:14px;
+  background: linear-gradient(135deg,
+    transparent 0%,
+    rgba(110,231,183,0.15) 50%,
+    transparent 100%);
+  background-size: 200% 200%;
+  z-index:-1;
+  opacity:.4;
+  animation: dashGlow 6s ease-in-out infinite;
+  filter: blur(20px);
+}
+@keyframes dashGlow{
+  0%,100% { background-position: 0% 0% }
+  50%     { background-position: 100% 100% }
+}
+
+/* — Live dot in hero dashboard */
+.dash-live{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-family:var(--font-mono);
+  font-size:10px;
+  color:var(--accent);
+  margin-left:10px;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+}
+.dash-live::before{
+  content:'';
+  width:6px;height:6px;
+  background:var(--accent);
+  border-radius:50%;
+  box-shadow:0 0 8px var(--accent);
+  animation:pulse 2s infinite;
+}
+
+/* — KPI value subtle live update animation */
+@keyframes kpiTick{
+  0%,90% { opacity:1 }
+  45%    { opacity:.5 }
+}
+.dash-kpi-value.live{
+  animation: kpiTick 4s ease-in-out infinite;
+}
+
+/* — Bar incrementing animation (chart bars) */
+@keyframes barRise{
+  from { transform: scaleY(0) }
+  to   { transform: scaleY(1) }
+}
+
+/* ════════════ DEEP DIVE — module showcase ════════════ */
+.showcase{
+  padding:140px 0;
+  position:relative;
+}
+.showcase-row{
+  display:grid;
+  grid-template-columns:1fr 1.15fr;
+  gap:80px;
+  align-items:center;
+  margin-bottom:160px;
+}
+.showcase-row:last-child{margin-bottom:0}
+.showcase-row.reverse{
+  grid-template-columns:1.15fr 1fr;
+}
+.showcase-row.reverse .showcase-text{order:2}
+.showcase-row.reverse .showcase-visual{order:1}
+
+.showcase-text .section-eyebrow{margin-bottom:20px}
+.showcase-text h3{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:clamp(30px, 3.5vw, 44px);
+  line-height:1.05;
+  letter-spacing:-0.03em;
+  margin-bottom:20px;
+}
+.showcase-text h3 em{
+  font-style:normal;
+  color:var(--accent);
+}
+.showcase-text > p{
+  color:var(--text-dim);
+  font-size:17px;
+  line-height:1.55;
+  margin-bottom:28px;
+  max-width:520px;
+}
+
+.showcase-bullets{
+  list-style:none;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  margin-bottom:32px;
+}
+.showcase-bullets li{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  font-size:15px;
+  color:var(--text);
+}
+.showcase-bullets svg{
+  flex-shrink:0;
+  margin-top:5px;
+  color:var(--accent);
+}
+.showcase-bullets strong{
+  color:var(--text);
+  font-weight:600;
+  display:block;
+  margin-bottom:2px;
+}
+.showcase-bullets span{
+  color:var(--text-dim);
+  font-size:14px;
+}
+
+/* — Macbook-style frame for showcase */
+.macbook{
+  position:relative;
+  width:100%;
+  filter: drop-shadow(0 30px 60px rgba(0,0,0,0.5)) drop-shadow(0 0 80px rgba(110,231,183,0.08));
+}
+.macbook-screen{
+  background:var(--bg-1);
+  border:1px solid var(--line-2);
+  border-radius:12px 12px 4px 4px;
+  border-bottom:6px solid #0F1318;
+  overflow:hidden;
+  position:relative;
+}
+.macbook-screen::before{
+  content:'';
+  position:absolute;
+  top:0;left:0;right:0;
+  height:1px;
+  background:linear-gradient(90deg, transparent, rgba(110,231,183,0.3), transparent);
+  z-index:5;
+}
+.macbook-bar{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:9px 14px;
+  background:rgba(0,0,0,0.3);
+  border-bottom:1px solid var(--line);
+}
+.macbook-bar .dot{
+  width:9px;height:9px;border-radius:50%;background:var(--line-2);
+}
+.macbook-bar .r{background:#FF5F57}
+.macbook-bar .y{background:#FEBC2E}
+.macbook-bar .g{background:#28C840}
+.macbook-bar-title{
+  flex:1;
+  font-family:var(--font-mono);
+  font-size:10px;
+  color:var(--text-mute);
+  text-align:center;
+  letter-spacing:0.02em;
+}
+.macbook-base{
+  height:14px;
+  background:linear-gradient(180deg, #15191F 0%, #0A0C10 100%);
+  border-radius:0 0 16px 16px;
+  margin:0 -22px;
+  position:relative;
+}
+.macbook-base::before{
+  content:'';
+  position:absolute;
+  top:0; left:50%;
+  transform:translateX(-50%);
+  width:90px;
+  height:5px;
+  background:#0A0C10;
+  border-radius:0 0 12px 12px;
+}
+
+.macbook-content{
+  padding:18px;
+  min-height:340px;
+}
+
+/* — Saúde do Estoque mockup */
+.health-mockup-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:14px;
+}
+.health-mockup-head h5{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:15px;
+}
+.health-tabs{
+  display:flex;
+  gap:6px;
+}
+.health-tab{
+  font-family:var(--font-mono);
+  font-size:10px;
+  padding:5px 9px;
+  border-radius:5px;
+  background:var(--bg-3);
+  color:var(--text-dim);
+  border:1px solid var(--line);
+}
+.health-tab.active{
+  background:rgba(110,231,183,0.1);
+  border-color:var(--accent);
+  color:var(--accent);
+}
+
+.health-stats{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:8px;
+  margin-bottom:14px;
+}
+.health-stat-card{
+  padding:11px;
+  border-radius:7px;
+  border:1px solid var(--line);
+  background:var(--bg-3);
+}
+.health-stat-card.green{
+  border-color:rgba(52,211,153,0.3);
+  background:rgba(52,211,153,0.04);
+}
+.health-stat-card.yellow{
+  border-color:rgba(251,191,36,0.3);
+  background:rgba(251,191,36,0.04);
+}
+.health-stat-card.red{
+  border-color:rgba(248,113,113,0.3);
+  background:rgba(248,113,113,0.04);
+}
+.health-stat-num{
+  font-family:var(--font-display);
+  font-size:22px;
+  font-weight:700;
+  letter-spacing:-0.02em;
+  line-height:1;
+  margin-bottom:4px;
+}
+.health-stat-card.green .health-stat-num{color:var(--green)}
+.health-stat-card.yellow .health-stat-num{color:var(--yellow)}
+.health-stat-card.red .health-stat-num{color:var(--red)}
+.health-stat-label{
+  font-size:10px;
+  color:var(--text-mute);
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+}
+
+.health-table{
+  font-family:var(--font-mono);
+  font-size:11px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  overflow:hidden;
+}
+.health-table-head{
+  display:grid;
+  grid-template-columns: 24px 1fr 80px 70px 60px;
+  gap:10px;
+  padding:8px 12px;
+  background:var(--bg-3);
+  border-bottom:1px solid var(--line);
+  color:var(--text-mute);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+}
+.health-table-row{
+  display:grid;
+  grid-template-columns: 24px 1fr 80px 70px 60px;
+  gap:10px;
+  padding:8px 12px;
+  align-items:center;
+  border-bottom:1px solid var(--line);
+}
+.health-table-row:last-child{border-bottom:none}
+.health-table-row .ind{
+  width:8px; height:8px; border-radius:50%;
+}
+.health-table-row .ind.g{background:var(--green); box-shadow:0 0 6px var(--green)}
+.health-table-row .ind.y{background:var(--yellow); box-shadow:0 0 6px var(--yellow)}
+.health-table-row .ind.r{background:var(--red); box-shadow:0 0 6px var(--red)}
+.health-table-row .name{color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.health-table-row .stock{color:var(--text)}
+.health-table-row .margin{font-weight:600}
+.health-table-row .margin.green{color:var(--green)}
+.health-table-row .margin.yellow{color:var(--yellow)}
+.health-table-row .margin.red{color:var(--red)}
+.health-table-row .curve{
+  text-align:center;
+  background:var(--bg-3);
+  padding:2px 0;
+  border-radius:3px;
+  color:var(--text-dim);
+  font-size:10px;
+}
+
+/* — Precificação mockup */
+.price-mockup-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:12px;
+}
+.price-mockup-head h5{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:15px;
+}
+.price-sku{
+  font-family:var(--font-mono);
+  font-size:10px;
+  color:var(--text-mute);
+}
+.price-input-row{
+  display:grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap:8px;
+  margin-bottom:12px;
+}
+.price-input{
+  background:var(--bg-3);
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:8px 10px;
+}
+.price-input label{
+  font-family:var(--font-mono);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--text-mute);
+  display:block;
+  margin-bottom:3px;
+}
+.price-input .v{
+  font-family:var(--font-mono);
+  font-size:13px;
+  color:var(--text);
+  font-weight:500;
+}
+.price-input.focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 2px rgba(110,231,183,0.1);
+}
+.price-input.focus .v{color:var(--accent)}
+
+.price-regimes{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:6px;
+  margin-bottom:12px;
+}
+.price-regime{
+  padding:8px 6px;
+  text-align:center;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--bg-3);
+  font-size:10px;
+}
+.price-regime.active{
+  border-color:var(--accent);
+  background:rgba(110,231,183,0.08);
+}
+.price-regime-name{
+  font-family:var(--font-mono);
+  color:var(--text-mute);
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  margin-bottom:3px;
+  font-size:9px;
+}
+.price-regime-val{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:14px;
+  color:var(--text);
+}
+.price-regime.active .price-regime-val{color:var(--accent)}
+
+.price-result{
+  background:linear-gradient(135deg, rgba(110,231,183,0.08), rgba(110,231,183,0.02));
+  border:1px solid rgba(110,231,183,0.3);
+  border-radius:8px;
+  padding:14px;
+}
+.price-result-label{
+  font-family:var(--font-mono);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--text-mute);
+  margin-bottom:6px;
+}
+.price-result-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--text-dim);
+  padding:3px 0;
+}
+.price-result-row.final{
+  border-top:1px dashed rgba(110,231,183,0.3);
+  padding-top:8px;
+  margin-top:6px;
+}
+.price-result-row.final .v{
+  font-family:var(--font-display);
+  font-size:20px;
+  font-weight:700;
+  color:var(--accent);
+}
+
+/* — Marketing mockup */
+.mkt-mockup-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:14px;
+}
+.mkt-mockup-head h5{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:15px;
+}
+.mkt-totals{
+  display:grid;
+  grid-template-columns: repeat(3,1fr);
+  gap:8px;
+  margin-bottom:14px;
+}
+.mkt-total{
+  padding:11px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:var(--bg-3);
+}
+.mkt-total-label{
+  font-family:var(--font-mono);
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--text-mute);
+  margin-bottom:5px;
+}
+.mkt-total-num{
+  font-family:var(--font-display);
+  font-size:18px;
+  font-weight:700;
+  letter-spacing:-0.02em;
+  margin-bottom:3px;
+  line-height:1;
+}
+.mkt-total-num.accent{color:var(--accent)}
+.mkt-total-delta{
+  font-family:var(--font-mono);
+  font-size:9px;
+  color:var(--green);
+}
+.mkt-total-delta.down{color:var(--red)}
+
+.mkt-channels{
+  border:1px solid var(--line);
+  border-radius:7px;
+  overflow:hidden;
+}
+.mkt-channel{
+  display:grid;
+  grid-template-columns: 70px 1fr 60px 56px;
+  gap:10px;
+  padding:9px 12px;
+  align-items:center;
+  border-bottom:1px solid var(--line);
+  font-family:var(--font-mono);
+  font-size:11px;
+}
+.mkt-channel:last-child{border-bottom:none}
+.mkt-channel-name{
+  color:var(--text);
+  font-weight:500;
+  font-size:12px;
+}
+.mkt-channel-bar{
+  height:6px;
+  background:var(--bg-3);
+  border-radius:3px;
+  overflow:hidden;
+  position:relative;
+}
+.mkt-channel-bar-fill{
+  height:100%;
+  background:linear-gradient(90deg, var(--accent), var(--accent-d));
+  border-radius:3px;
+  transform-origin:left;
+}
+.mkt-channel-bar-fill.warn{
+  background:linear-gradient(90deg, var(--yellow), #F59E0B);
+}
+.mkt-channel-bar-fill.bad{
+  background:linear-gradient(90deg, var(--red), #DC2626);
+}
+.mkt-channel-roas{
+  text-align:right;
+  font-weight:600;
+  color:var(--text);
+}
+.mkt-channel-roas.good{color:var(--green)}
+.mkt-channel-roas.warn{color:var(--yellow)}
+.mkt-channel-roas.bad{color:var(--red)}
+.mkt-channel-tag{
+  font-size:9px;
+  text-align:center;
+  padding:2px 6px;
+  border-radius:3px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  font-weight:500;
+}
+.mkt-channel-tag.escalar{background:rgba(52,211,153,0.12);color:var(--green)}
+.mkt-channel-tag.observar{background:rgba(251,191,36,0.12);color:var(--yellow)}
+.mkt-channel-tag.cortar{background:rgba(248,113,113,0.12);color:var(--red)}
+
+/* ════════════ FLOATING WHATSAPP BUTTON ════════════ */
+.fab-whatsapp{
+  position:fixed;
+  bottom:24px;
+  right:24px;
+  z-index:90;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  background:#25D366;
+  color:#062018;
+  text-decoration:none;
+  font-family:var(--font-body);
+  font-weight:600;
+  font-size:14px;
+  padding:12px 18px 12px 14px;
+  border-radius:100px;
+  box-shadow: 0 10px 30px rgba(37,211,102,0.35), 0 0 0 4px rgba(37,211,102,0.1);
+  transition:all .25s ease;
+  white-space:nowrap;
+}
+.fab-whatsapp:hover{
+  transform:translateY(-2px);
+  box-shadow: 0 14px 40px rgba(37,211,102,0.45), 0 0 0 6px rgba(37,211,102,0.15);
+}
+.fab-whatsapp svg{
+  width:22px;height:22px;
+  flex-shrink:0;
+}
+.fab-whatsapp::before{
+  content:'';
+  position:absolute;
+  inset:-4px;
+  border-radius:100px;
+  border:2px solid #25D366;
+  opacity:0;
+  animation: fabPulse 2.5s ease-out infinite;
+}
+@keyframes fabPulse{
+  0%   { opacity:.6; transform: scale(1) }
+  100% { opacity:0;  transform: scale(1.25) }
+}
+
+/* ════════════ V2 RESPONSIVE ════════════ */
+@media (max-width: 1024px){
+  .nav-phone{display:none}
+  .showcase-row, .showcase-row.reverse{
+    grid-template-columns:1fr;
+    gap:48px;
+    margin-bottom:100px;
+  }
+  .showcase-row.reverse .showcase-text{order:1}
+  .showcase-row.reverse .showcase-visual{order:2}
+  .showcase{padding:100px 0}
+}
+
+@media (max-width: 720px){
+  .showcase{padding:80px 0}
+  .showcase-row, .showcase-row.reverse{margin-bottom:72px}
+
+  .macbook-content{padding:14px;min-height:auto}
+  .health-stats{gap:6px}
+  .health-stat-card{padding:9px}
+  .health-stat-num{font-size:18px}
+  .health-table-head, .health-table-row{
+    grid-template-columns: 16px 1fr 50px;
+    gap:8px;
+    padding:7px 10px;
+  }
+  .health-table-head .h-stock,
+  .health-table-head .h-curve,
+  .health-table-row .stock,
+  .health-table-row .curve{display:none}
+
+  .price-input-row{grid-template-columns:1fr 1fr}
+  .price-input-row .price-input:nth-child(3){grid-column:span 2}
+  .price-regimes{grid-template-columns:repeat(2,1fr)}
+  .price-result-row .v{font-size:11px}
+  .price-result-row.final .v{font-size:18px}
+
+  .mkt-totals{grid-template-columns:1fr}
+  .mkt-channel{
+    grid-template-columns: 1fr 50px;
+    gap:8px;
+  }
+  .mkt-channel-bar, .mkt-channel-tag{display:none}
+
+  .fab-whatsapp{
+    bottom:16px;
+    right:16px;
+    padding:11px 14px;
+    font-size:13px;
+  }
+  .fab-whatsapp .fab-text{display:none}
+}
 </style>
 </head>
 <body>
@@ -1255,6 +1961,7 @@ footer{
     <nav>
       <ul class="nav-links">
         <li><a href="#solucao">Solução</a></li>
+        <li><a href="#showcase">Destaques</a></li>
         <li><a href="#performance">Performance</a></li>
         <li><a href="#modulos">Módulos</a></li>
         <li><a href="#precos">Preços</a></li>
@@ -1263,7 +1970,10 @@ footer{
     </nav>
 
     <div class="nav-cta">
-      <a href="#contato" class="btn btn-ghost">Entrar</a>
+      <a href="tel:+5547996269177" class="nav-phone" aria-label="Telefone">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        (47) 99626-9177
+      </a>
       <a href="#contato" class="btn btn-primary">Agendar demo</a>
       <button class="hamburger" id="hamburger" aria-label="Menu">
         <span></span><span></span><span></span>
@@ -1275,10 +1985,15 @@ footer{
 <div class="mobile-overlay" id="mobileOverlay"></div>
 <aside class="mobile-menu" id="mobileMenu">
   <a href="#solucao">Solução <span>01</span></a>
-  <a href="#performance">Performance <span>02</span></a>
-  <a href="#modulos">Módulos <span>03</span></a>
-  <a href="#precos">Preços <span>04</span></a>
-  <a href="#contato">Contato <span>05</span></a>
+  <a href="#showcase">Destaques <span>02</span></a>
+  <a href="#performance">Performance <span>03</span></a>
+  <a href="#modulos">Módulos <span>04</span></a>
+  <a href="#precos">Preços <span>05</span></a>
+  <a href="#contato">Contato <span>06</span></a>
+  <a href="tel:+5547996269177" style="color:var(--accent);font-size:18px;font-family:var(--font-mono);font-weight:500;letter-spacing:0;border-bottom:none;padding-top:24px;display:flex;align-items:center;gap:10px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    (47) 99626-9177
+  </a>
   <a href="#contato" class="btn btn-primary btn-lg">Agendar demonstração</a>
 </aside>
 
@@ -1286,6 +2001,27 @@ footer{
 
 <!-- ════════════ HERO ════════════ -->
 <section class="hero">
+  <!-- Tech atmosphere: data flow lines + particles -->
+  <svg class="data-lines" viewBox="0 0 1440 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#6EE7B7" stop-opacity="0"/>
+        <stop offset="50%" stop-color="#6EE7B7" stop-opacity="0.4"/>
+        <stop offset="100%" stop-color="#6EE7B7" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <line x1="0"    y1="120" x2="1440" y2="120" stroke="url(#lineGrad)" stroke-width="1"/>
+    <line x1="0"    y1="280" x2="1440" y2="280" stroke="url(#lineGrad)" stroke-width="1" opacity="0.5"/>
+    <line x1="0"    y1="500" x2="1440" y2="500" stroke="url(#lineGrad)" stroke-width="1" opacity="0.3"/>
+    <circle cx="180"  cy="120" r="2" fill="#6EE7B7" opacity="0.6"/>
+    <circle cx="720"  cy="280" r="2" fill="#6EE7B7" opacity="0.5"/>
+    <circle cx="1200" cy="120" r="2" fill="#6EE7B7" opacity="0.5"/>
+    <circle cx="380"  cy="500" r="2" fill="#6EE7B7" opacity="0.4"/>
+    <circle cx="980"  cy="500" r="2" fill="#6EE7B7" opacity="0.4"/>
+  </svg>
+
+  <div class="hero-particles" id="heroParticles" aria-hidden="true"></div>
+
   <div class="container">
     <div class="eyebrow reveal">
       <span class="eyebrow-dot"></span>
@@ -1378,14 +2114,14 @@ footer{
 
         <div class="dash-content">
           <div class="dash-page-title">
-            <h3>Visão geral · Outubro</h3>
+            <h3>Visão geral · Outubro <span class="dash-live">live</span></h3>
             <span class="dash-period">26/03 — 26/04</span>
           </div>
 
           <div class="dash-kpis">
             <div class="dash-kpi">
               <div class="dash-kpi-label">GMV</div>
-              <div class="dash-kpi-value">R$ 1.247.392</div>
+              <div class="dash-kpi-value live" id="liveGmv">R$ 1.247.392</div>
               <div class="dash-kpi-delta up">↑ 18,4% vs mês anterior</div>
             </div>
             <div class="dash-kpi">
@@ -1566,6 +2302,378 @@ footer{
         </p>
       </article>
     </div>
+  </div>
+</section>
+
+<!-- ════════════ SHOWCASE — DEEP DIVE NOS MÓDULOS ════════════ -->
+<section class="showcase" id="showcase">
+  <div class="container">
+
+    <!-- Intro -->
+    <div class="reveal" style="text-align:center;max-width:720px;margin:0 auto 100px">
+      <div class="section-eyebrow" style="justify-content:center">
+        <span style="content:'';width:24px;height:1px;background:var(--accent);display:inline-block;margin-right:10px"></span>
+        Em destaque
+      </div>
+      <h2 class="section-title" style="margin-left:auto;margin-right:auto">
+        Os módulos que <em>movem o ponteiro.</em>
+      </h2>
+      <p class="section-sub" style="margin-left:auto;margin-right:auto">
+        Três peças onde Veltro faz diferença concreta no seu lucro do mês —
+        e que você não encontra junto em nenhum outro lugar.
+      </p>
+    </div>
+
+    <!-- ═══ SAÚDE DO ESTOQUE ═══ -->
+    <div class="showcase-row">
+      <div class="showcase-text reveal">
+        <div class="section-eyebrow">Saúde do estoque</div>
+        <h3>O termômetro do seu <em>capital parado.</em></h3>
+        <p>
+          Cada SKU avaliado em três dimensões: margem real, curva ABC e velocidade de giro.
+          O sistema te diz, em cores, o que está dando lucro, o que está agonizando e
+          o que precisa ir pra promoção <strong>ontem.</strong>
+        </p>
+        <ul class="showcase-bullets">
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>Classificação 🟢🟡🔴 automática</strong>
+              <span>Margem real cruzada com curva e giro — sem você abrir planilha.</span>
+            </div>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>SKU-killer detectado em segundos</strong>
+              <span>Aquele produto que vende mas dá prejuízo — você descobre antes que ele coma seu mês.</span>
+            </div>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>Plano de ação por linha</strong>
+              <span>Promover, descontinuar, reabastecer ou subir preço — sugestão direta no painel.</span>
+            </div>
+          </li>
+        </ul>
+        <a href="#contato" class="btn btn-primary">
+          Ver no sistema
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+
+      <div class="showcase-visual reveal">
+        <div class="macbook">
+          <div class="macbook-screen">
+            <div class="macbook-bar">
+              <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+              <span class="macbook-bar-title">app.veltro.os/saude-estoque</span>
+            </div>
+            <div class="macbook-content">
+              <div class="health-mockup-head">
+                <h5>Saúde do estoque · 847 SKUs</h5>
+                <div class="health-tabs">
+                  <span class="health-tab active">Todos</span>
+                  <span class="health-tab">Críticos</span>
+                  <span class="health-tab">Curva A</span>
+                </div>
+              </div>
+
+              <div class="health-stats">
+                <div class="health-stat-card green">
+                  <div class="health-stat-num">612</div>
+                  <div class="health-stat-label">Saudáveis</div>
+                </div>
+                <div class="health-stat-card yellow">
+                  <div class="health-stat-num">183</div>
+                  <div class="health-stat-label">Atenção</div>
+                </div>
+                <div class="health-stat-card red">
+                  <div class="health-stat-num">52</div>
+                  <div class="health-stat-label">Críticos</div>
+                </div>
+              </div>
+
+              <div class="health-table">
+                <div class="health-table-head">
+                  <span></span>
+                  <span>SKU</span>
+                  <span class="h-stock">Estoque</span>
+                  <span>Margem</span>
+                  <span class="h-curve">Curva</span>
+                </div>
+                <div class="health-table-row">
+                  <span class="ind g"></span>
+                  <span class="name">CAM-VRD-M · Camiseta verde M</span>
+                  <span class="stock">432 un</span>
+                  <span class="margin green">+42%</span>
+                  <span class="curve">A</span>
+                </div>
+                <div class="health-table-row">
+                  <span class="ind g"></span>
+                  <span class="name">TEN-PRT-39 · Tênis preto 39</span>
+                  <span class="stock">188 un</span>
+                  <span class="margin green">+38%</span>
+                  <span class="curve">A</span>
+                </div>
+                <div class="health-table-row">
+                  <span class="ind y"></span>
+                  <span class="name">JAQ-MRR-G · Jaqueta marrom G</span>
+                  <span class="stock">76 un</span>
+                  <span class="margin yellow">+14%</span>
+                  <span class="curve">B</span>
+                </div>
+                <div class="health-table-row">
+                  <span class="ind r"></span>
+                  <span class="name">BNE-AZL-U · Boné azul</span>
+                  <span class="stock">312 un</span>
+                  <span class="margin red">−3%</span>
+                  <span class="curve">C</span>
+                </div>
+                <div class="health-table-row">
+                  <span class="ind r"></span>
+                  <span class="name">MOC-BGE-37 · Mochila bege</span>
+                  <span class="stock">94 un</span>
+                  <span class="margin red">−7%</span>
+                  <span class="curve">C</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="macbook-base"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PRECIFICAÇÃO INTELIGENTE ═══ -->
+    <div class="showcase-row reverse">
+      <div class="showcase-text reveal">
+        <div class="section-eyebrow">Precificação inteligente</div>
+        <h3>O preço certo, <em>antes de publicar.</em></h3>
+        <p>
+          Simulador fiscal completo: Simples, Lucro Presumido, Lucro Real e TTD-SC.
+          Comissão real do canal, frete, MVA-ST, ICMS, PIS/COFINS — tudo aplicado
+          pedido a pedido pra você ver <strong>quanto sobra de fato.</strong>
+        </p>
+        <ul class="showcase-bullets">
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>4 regimes em paralelo</strong>
+              <span>Simples, Presumido, Real, TTD-SC — você compara o lucro em cada cenário.</span>
+            </div>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>Comissão real por canal</strong>
+              <span>Shopee 14%, ML 16%, Shein 10% — não é estimativa, é o que de fato é descontado.</span>
+            </div>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>Markup reverso</strong>
+              <span>Define a margem alvo, o sistema calcula o preço mínimo de venda em cada canal.</span>
+            </div>
+          </li>
+        </ul>
+        <a href="#contato" class="btn btn-primary">
+          Simular agora
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+
+      <div class="showcase-visual reveal">
+        <div class="macbook">
+          <div class="macbook-screen">
+            <div class="macbook-bar">
+              <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+              <span class="macbook-bar-title">app.veltro.os/precificacao</span>
+            </div>
+            <div class="macbook-content">
+              <div class="price-mockup-head">
+                <h5>Simulador · Camiseta verde M</h5>
+                <span class="price-sku">SKU CAM-VRD-M</span>
+              </div>
+
+              <div class="price-input-row">
+                <div class="price-input">
+                  <label>Custo</label>
+                  <span class="v">R$ 38,40</span>
+                </div>
+                <div class="price-input focus">
+                  <label>Preço venda</label>
+                  <span class="v">R$ 119,00</span>
+                </div>
+                <div class="price-input">
+                  <label>Canal</label>
+                  <span class="v">Shopee 14%</span>
+                </div>
+              </div>
+
+              <div class="price-regimes">
+                <div class="price-regime">
+                  <div class="price-regime-name">Simples</div>
+                  <div class="price-regime-val">28,4%</div>
+                </div>
+                <div class="price-regime active">
+                  <div class="price-regime-name">TTD-SC</div>
+                  <div class="price-regime-val">36,1%</div>
+                </div>
+                <div class="price-regime">
+                  <div class="price-regime-name">Presumido</div>
+                  <div class="price-regime-val">31,2%</div>
+                </div>
+                <div class="price-regime">
+                  <div class="price-regime-name">Real</div>
+                  <div class="price-regime-val">29,8%</div>
+                </div>
+              </div>
+
+              <div class="price-result">
+                <div class="price-result-label">Quebra · Regime TTD-SC selecionado</div>
+                <div class="price-result-row">
+                  <span>Receita bruta</span>
+                  <span class="v">R$ 119,00</span>
+                </div>
+                <div class="price-result-row">
+                  <span>(−) Comissão Shopee 14%</span>
+                  <span class="v">−R$ 16,66</span>
+                </div>
+                <div class="price-result-row">
+                  <span>(−) Custo produto</span>
+                  <span class="v">−R$ 38,40</span>
+                </div>
+                <div class="price-result-row">
+                  <span>(−) Imposto efetivo</span>
+                  <span class="v">−R$ 7,02</span>
+                </div>
+                <div class="price-result-row">
+                  <span>(−) Frete subsidiado</span>
+                  <span class="v">−R$ 13,98</span>
+                </div>
+                <div class="price-result-row final">
+                  <span>= Lucro líquido (36,1%)</span>
+                  <span class="v">R$ 42,94</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="macbook-base"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CÁLCULO DE MARKETING ═══ -->
+    <div class="showcase-row">
+      <div class="showcase-text reveal">
+        <div class="section-eyebrow">Cálculo de marketing</div>
+        <h3>ROAS unificado e <em>por marketplace.</em></h3>
+        <p>
+          Veltro consolida o investimento de Meta, Google, TikTok e mídia interna dos marketplaces
+          (Shopee Ads, ML Ads, Shein Ads) e cruza com a <strong>receita real e o lucro líquido</strong> —
+          não com a receita bruta que esconde prejuízo.
+        </p>
+        <ul class="showcase-bullets">
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>ROAS por canal e por marketplace</strong>
+              <span>Meta vs Shopee Ads vs ML Ads — comparativo lado a lado, mesma régua.</span>
+            </div>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>POAS — Profit on Ad Spend</strong>
+              <span>O ROAS de verdade: cruzado com lucro líquido, não com faturamento.</span>
+            </div>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div>
+              <strong>Sinal de escalar / cortar</strong>
+              <span>Cada campanha vem com sugestão direta — ninguém precisa ficar interpretando.</span>
+            </div>
+          </li>
+        </ul>
+        <a href="#contato" class="btn btn-primary">
+          Ver dashboard de mídia
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+
+      <div class="showcase-visual reveal">
+        <div class="macbook">
+          <div class="macbook-screen">
+            <div class="macbook-bar">
+              <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+              <span class="macbook-bar-title">app.veltro.os/marketing</span>
+            </div>
+            <div class="macbook-content">
+              <div class="mkt-mockup-head">
+                <h5>Performance de mídia · 30 dias</h5>
+              </div>
+
+              <div class="mkt-totals">
+                <div class="mkt-total">
+                  <div class="mkt-total-label">Investido</div>
+                  <div class="mkt-total-num">R$ 87.420</div>
+                  <div class="mkt-total-delta">↑ 12% MoM</div>
+                </div>
+                <div class="mkt-total">
+                  <div class="mkt-total-label">ROAS médio</div>
+                  <div class="mkt-total-num accent">4,82x</div>
+                  <div class="mkt-total-delta">↑ 0,6x</div>
+                </div>
+                <div class="mkt-total">
+                  <div class="mkt-total-label">POAS médio</div>
+                  <div class="mkt-total-num accent">1,38x</div>
+                  <div class="mkt-total-delta">↑ 0,2x</div>
+                </div>
+              </div>
+
+              <div class="mkt-channels">
+                <div class="mkt-channel">
+                  <span class="mkt-channel-name">Meta Ads</span>
+                  <div class="mkt-channel-bar"><div class="mkt-channel-bar-fill" style="width:88%"></div></div>
+                  <span class="mkt-channel-roas good">5,9x</span>
+                  <span class="mkt-channel-tag escalar">Escalar</span>
+                </div>
+                <div class="mkt-channel">
+                  <span class="mkt-channel-name">Shopee Ads</span>
+                  <div class="mkt-channel-bar"><div class="mkt-channel-bar-fill" style="width:74%"></div></div>
+                  <span class="mkt-channel-roas good">4,8x</span>
+                  <span class="mkt-channel-tag escalar">Escalar</span>
+                </div>
+                <div class="mkt-channel">
+                  <span class="mkt-channel-name">Google Ads</span>
+                  <div class="mkt-channel-bar"><div class="mkt-channel-bar-fill" style="width:62%"></div></div>
+                  <span class="mkt-channel-roas good">4,1x</span>
+                  <span class="mkt-channel-tag escalar">Escalar</span>
+                </div>
+                <div class="mkt-channel">
+                  <span class="mkt-channel-name">ML Ads</span>
+                  <div class="mkt-channel-bar"><div class="mkt-channel-bar-fill warn" style="width:46%"></div></div>
+                  <span class="mkt-channel-roas warn">3,0x</span>
+                  <span class="mkt-channel-tag observar">Observar</span>
+                </div>
+                <div class="mkt-channel">
+                  <span class="mkt-channel-name">TikTok Ads</span>
+                  <div class="mkt-channel-bar"><div class="mkt-channel-bar-fill bad" style="width:28%"></div></div>
+                  <span class="mkt-channel-roas bad">1,8x</span>
+                  <span class="mkt-channel-tag cortar">Cortar</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="macbook-base"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
 
@@ -2005,7 +3113,7 @@ footer{
             </div>
             <div>
               <h5>WhatsApp</h5>
-              <p>+55 (47) 9 9999-9999</p>
+              <p><a href="https://wa.me/5547996269177" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">+55 (47) 99626-9177</a></p>
             </div>
           </div>
           <div class="contact-info-row">
@@ -2114,6 +3222,14 @@ footer{
   </div>
 </footer>
 
+<!-- ════════════ FLOATING WHATSAPP ════════════ -->
+<a href="https://wa.me/5547996269177?text=Ol%C3%A1!%20Quero%20conhecer%20o%20Veltro%20OS." target="_blank" rel="noopener" class="fab-whatsapp" aria-label="Falar no WhatsApp">
+  <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17.498 14.382c-.301-.15-1.767-.867-2.04-.966-.273-.101-.473-.15-.673.15-.197.295-.771.964-.944 1.162-.175.195-.349.21-.646.075-.3-.15-1.263-.465-2.403-1.485-.888-.795-1.484-1.77-1.66-2.07-.174-.3-.019-.465.13-.615.136-.135.301-.345.451-.523.146-.181.194-.301.297-.496.1-.21.049-.375-.025-.524-.075-.15-.672-1.62-.922-2.206-.24-.584-.487-.51-.672-.51-.172-.015-.371-.015-.571-.015-.2 0-.523.074-.797.359-.273.3-1.045 1.02-1.045 2.475s1.07 2.865 1.219 3.075c.149.18 2.095 3.195 5.076 4.485.71.3 1.265.48 1.699.629.714.227 1.365.195 1.88.121.574-.091 1.767-.721 2.016-1.426.255-.705.255-1.29.18-1.425-.074-.135-.27-.21-.57-.345m-5.446 7.443h-.016c-1.77 0-3.524-.48-5.055-1.378l-.36-.214-3.75.975 1.005-3.645-.239-.375a9.869 9.869 0 0 1-1.516-5.26c0-5.445 4.455-9.885 9.942-9.885 2.654 0 5.145 1.035 7.021 2.91 1.875 1.859 2.909 4.35 2.909 6.99-.004 5.444-4.46 9.885-9.935 9.885M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.334.101 11.893c0 2.096.549 4.14 1.595 5.945L0 24l6.335-1.652a12.062 12.062 0 0 0 5.71 1.447h.006c6.585 0 11.946-5.336 11.949-11.896 0-3.176-1.24-6.165-3.495-8.411"/>
+  </svg>
+  <span class="fab-text">(47) 99626-9177</span>
+</a>
+
 <script>
 // ──── Nav scroll
 const nav = document.getElementById('nav');
@@ -2181,6 +3297,39 @@ document.querySelectorAll('a[href^="#"]').forEach(link => {
     }
   });
 });
+
+// ──── Hero particles (tech atmosphere)
+(function spawnParticles(){
+  const container = document.getElementById('heroParticles');
+  if (!container) return;
+  const COUNT = window.innerWidth < 720 ? 14 : 24;
+  for (let i = 0; i < COUNT; i++){
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.top  = (60 + Math.random() * 40) + '%';
+    const duration = 8 + Math.random() * 10;
+    const delay    = Math.random() * 12;
+    p.style.animationDuration = duration + 's';
+    p.style.animationDelay    = delay + 's';
+    p.style.opacity = 0.3 + Math.random() * 0.4;
+    container.appendChild(p);
+  }
+})();
+
+// ──── Live KPI ticker — sutil, simula dado vivo
+(function liveKpi(){
+  const el = document.getElementById('liveGmv');
+  if (!el) return;
+  let base = 1247392;
+  setInterval(() => {
+    // pequena variação em torno do valor base
+    base += Math.floor(Math.random() * 380) - 100;
+    if (base < 1247000) base = 1247000;
+    if (base > 1248500) base = 1248500;
+    el.textContent = 'R$ ' + base.toLocaleString('pt-BR');
+  }, 3500);
+})();
 </script>
 
 </body>
