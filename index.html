@@ -3489,13 +3489,29 @@ function mapRow(r) {
 ═══════════════════════════════════════════════════════════════ */
 /* 🆕 Atualiza o <select id="f-loja"> com base nas lojas detectadas nos pedidos.
    Se >1 loja única, mostra o filtro. Se ≤1 (ou todas vazias), esconde. */
+/* 🆕 Atualiza o <select id="f-loja"> com base nas lojas detectadas nos pedidos.
+   Usa SEMPRE o conjunto COMPLETO de pedidos (não filtrados), pra que o filtro
+   continue mostrando todas as lojas mesmo após filtrar uma delas.
+   Se >1 loja única, mostra o filtro. Se ≤1 (planilha sem multi-loja), esconde. */
 function _atualizarSeletorLojas(pedidos) {
   var sel = document.getElementById('f-loja');
-  if(!sel || !Array.isArray(pedidos) || pedidos.length === 0) return;
+  if(!sel) return;
+
+  // 🆕 Sempre usar a base COMPLETA (ignora filtros) pra manter dropdown estável
+  // Se chamou com pedidos filtrados, recupera os completos do cache
+  var fonte = pedidos;
+  try {
+    if(typeof getPedidos === 'function') {
+      var todos = getPedidos();
+      if(Array.isArray(todos) && todos.length > 0) fonte = todos;
+    }
+  } catch(e) {}
+
+  if(!Array.isArray(fonte) || fonte.length === 0) return;
 
   // Coleta lojas únicas com qtd de pedidos
   var lojasMap = {};
-  pedidos.forEach(function(p) {
+  fonte.forEach(function(p) {
     var l = (p.loja || '').trim();
     if(!l) return;
     lojasMap[l] = (lojasMap[l] || 0) + 1;
@@ -3504,7 +3520,7 @@ function _atualizarSeletorLojas(pedidos) {
     return lojasMap[b] - lojasMap[a];
   });
 
-  // Se não detectou multi-loja, esconde o filtro
+  // Se planilha não tem multi-loja, esconde o filtro
   if(lojasOrdenadas.length < 2) {
     sel.style.display = 'none';
     return;
@@ -3518,9 +3534,9 @@ function _atualizarSeletorLojas(pedidos) {
   }
   sel.dataset.lojasHash = hashAtual;
 
-  // Renderiza opções
+  // Renderiza opções com contagem TOTAL (não filtrada)
   var valorAtual = sel.value;
-  var totalPedidos = pedidos.length;
+  var totalPedidos = fonte.length;
   var html = '<option value="">🏪 Todas as lojas ('+totalPedidos.toLocaleString('pt-BR')+')</option>';
   lojasOrdenadas.forEach(function(loja) {
     var qtd = lojasMap[loja];
@@ -5344,8 +5360,19 @@ function _validarDados(d) {
   if(!d) return;
   var alertas = [];
 
+  // 🆕 Não validar canal quando há filtro de canal/loja ativo
+  // (filtros podem deixar 100% Loja Própria legitimamente)
+  var temFiltroCanal = false, temFiltroLoja = false;
+  try {
+    var fCanalEl = document.getElementById('f-canal');
+    var fLojaEl  = document.getElementById('f-loja');
+    temFiltroCanal = fCanalEl && fCanalEl.value && fCanalEl.value.length > 0;
+    temFiltroLoja  = fLojaEl  && fLojaEl.value  && fLojaEl.value.length > 0;
+  } catch(e) {}
+
   // 1. Verificar se canal está sendo detectado corretamente
-  if(d.canais && d.canais.length > 0) {
+  // (pula se filtro ativo — pode ser 100% legitimamente)
+  if(!temFiltroCanal && !temFiltroLoja && d.canais && d.canais.length > 0) {
     var totalPed = d.canais.reduce(function(s,c){ return s + (c[1]||0); }, 0);
     var lojaPropria = d.canais.find(function(c){ return c[0]==='Loja Própria'; });
     var pctLoja = lojaPropria && totalPed > 0 ? (lojaPropria[1]/totalPed*100) : 0;
