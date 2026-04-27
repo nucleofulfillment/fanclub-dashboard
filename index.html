@@ -11307,8 +11307,36 @@ function renderEstoqueIndicadores() {
     return detectarCategoria(p.nome) === catFilter;
   });
 
-  // ── Top 30 — ordenado por qtd vendida ───────────────────────
-  var prods = todosProdos
+  // ── Agrupar por SKU pai (somar quantidades das variações) ──
+  // Cada produto vira: { sku: skuPai, nome: nome do mais vendido, qtd: soma, gmv: soma, variacoes: N }
+  var agrupado = {};
+  todosProdos.forEach(function(p){
+    var sku = p.sku || p.cod || p.nome || '';
+    var pai = (typeof _extrairSkuPai === 'function') ? (_extrairSkuPai(sku) || sku) : sku;
+    var key = pai || sku || p.nome;
+    if(!agrupado[key]) {
+      agrupado[key] = {
+        sku:        pai,
+        nome:       p.nome,
+        qtd:        0,
+        gmv:        0,
+        variacoes:  0,
+        _topVarQtd: 0  // qtd da variação mais vendida (pra escolher o "nome representativo")
+      };
+    }
+    var g = agrupado[key];
+    g.qtd       += (p.qtd || 0);
+    g.gmv       += (p.gmv || 0);
+    g.variacoes += 1;
+    // Usa o nome da variação mais vendida como representativo do pai
+    if((p.qtd || 0) > g._topVarQtd) {
+      g._topVarQtd = (p.qtd || 0);
+      g.nome = p.nome;
+    }
+  });
+
+  // ── Top 30 — ordenado por qtd vendida (já agrupado por pai) ──
+  var prods = Object.values(agrupado)
     .sort(function(a,b){ return (b.qtd||0) - (a.qtd||0) || (b.gmv||0) - (a.gmv||0); })
     .slice(0,30);
 
@@ -11334,14 +11362,11 @@ function renderEstoqueIndicadores() {
     var medal   = MEDALS[i]||'';
     var cat     = detectarCategoria(p.nome);
     var emoji   = EMOJIS[cat]||'📦';
-    var nomeSKU = p.sku || p.cod || '';
-    // Extrai SKU pai (sem cor/tamanho) usando algoritmo que cobre FanClub e La Luna
-    var skuPai = (typeof _extrairSkuPai === 'function') ? _extrairSkuPai(nomeSKU) : nomeSKU;
-    // Variação = sufixo que sobra (pra mostrar discretamente ao lado)
-    var variacao = (skuPai && skuPai !== nomeSKU) ? nomeSKU.substring(skuPai.length).replace(/^-/, '') : '';
-    var searchTerm = skuPai || p.nome;
-    // URL dinâmica por empresa (item 4) — veltroBuscaProdutoUrl já chama _extrairSkuPai internamente
-    var searchUrl = (typeof veltroBuscaProdutoUrl === 'function') ? veltroBuscaProdutoUrl(searchTerm) : '';
+    // p.sku já é o SKU pai (agrupamento feito acima); p.variacoes = qtas variações somadas
+    var nomeSKU = p.sku || '';
+    var nVar    = p.variacoes || 1;
+    // URL aponta pro pai (veltroBuscaProdutoUrl chama _extrairSkuPai mas como já é pai, devolve igual)
+    var searchUrl = (typeof veltroBuscaProdutoUrl === 'function') ? veltroBuscaProdutoUrl(nomeSKU) : '';
     var temLink = !!searchUrl;
 
     var nomeHtml = temLink
@@ -11350,17 +11375,18 @@ function renderEstoqueIndicadores() {
         '</a>'
       : '<div class="t20name" title="'+p.nome+'" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">'+p.nome+'</div>';
 
-    // SKU exibido: pai + variação em cinza (ex: "LN0699-RS · 12")
-    var skuDisplay = variacao
-      ? '<span style="color:var(--accent)">'+skuPai+'</span><span style="color:var(--muted2)"> · '+variacao+'</span>'
-      : '<span style="color:var(--accent)">'+nomeSKU+'</span>';
+    // Linha do SKU: pai em verde + (se aplicável) badge "N tamanhos"
+    var skuDisplay = '<span style="color:var(--accent)">'+nomeSKU+'</span>';
+    if(nVar > 1) {
+      skuDisplay += '<span title="'+nVar+' variações somadas no total" style="color:var(--muted2);margin-left:6px">· '+nVar+' tam.</span>';
+    }
 
     return '<div class="t20row" style="gap:10px;align-items:center;padding:8px 4px">'+
       '<div class="t20n '+medal+'">'+(i+1)+'<\/div>'+
       '<div style="width:34px;height:34px;border-radius:8px;flex-shrink:0;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:17px">'+emoji+'<\/div>'+
       '<div class="t20bw" style="min-width:0">'+
         nomeHtml+
-        '<div style="font-family:var(--fmono);font-size:10px;margin-bottom:3px" title="SKU pai · variação (link aponta para o pai)">'+skuDisplay+'<\/div>'+
+        '<div style="font-family:var(--fmono);font-size:10px;margin-bottom:3px">'+skuDisplay+'<\/div>'+
         '<div class="t20bg"><div class="t20bar" style="width:'+barW+'%;background:'+(i<3?'var(--accent)':'var(--a2)')+'"><\/div><\/div>'+
       '<\/div>'+
       '<div style="text-align:right;flex-shrink:0">'+
