@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Carregando... · Veltro OS</title>
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // 404.html → Redirecionador pra URLs bonitas estilo /laluna
+    //
+    // Como funciona:
+    // 1. GitHub Pages serve este arquivo quando a URL não existe
+    //    (ex: www.veltroos.com.br/laluna)
+    // 2. Capturamos o path "/laluna" e guardamos
+    // 3. Redirecionamos pro index.html (raiz) com query string
+    // 4. O index.html lê o parâmetro e abre a empresa correta
+    //
+    // Isso simula URLs bonitas sem precisar de servidor backend.
+    // Inspirado em: https://github.com/rafgraph/spa-github-pages
+    // ═══════════════════════════════════════════════════════════════
+    (function() {
+      var l = window.location;
+      // Path completo da URL (ex: "/laluna" ou "/laluna/algo")
+      var path = l.pathname;
+      // Remove a barra inicial e pega só o primeiro segmento
+      var empresaId = (path.replace(/^\/+/, '').split('/')[0] || '').toLowerCase();
+      // Validação básica: ID precisa ter pelo menos 2 chars
+      if(empresaId && empresaId.length >= 2) {
+        // Redireciona pra raiz com ?empresa=ID — index.html cuida do resto
+        l.replace(l.protocol + '//' + l.hostname +
+                  (l.port ? ':' + l.port : '') +
+                  '/?empresa=' + encodeURIComponent(empresaId) + l.hash);
+      } else {
+        // Sem ID válido — manda pra raiz (tela de login)
+        l.replace(l.protocol + '//' + l.hostname +
+                  (l.port ? ':' + l.port : '') + '/');
+      }
+    })();
+  </script>
+  <style>
+    body{margin:0;background:#0A0C10;color:#888;font-family:-apple-system,sans-serif;
+         display:flex;align-items:center;justify-content:center;height:100vh;font-size:14px}
+  </style>
+</head>
+<body>
+  <div>Carregando...</div>
+</body>
+</html>
