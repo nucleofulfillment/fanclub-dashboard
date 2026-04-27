@@ -11355,6 +11355,20 @@ function renderEstoqueIndicadores() {
   var MEDALS = ['g','s','b'];
   var EMOJIS = {'Tênis':'👟','Sandálias':'🩴','Botas':'🥾','Sapatilhas':'🩰','Chinelos':'🩴','Meias':'🧦','Outros':'📦'};
 
+  // ── Map de estoque por SKU pai (soma todas as variações) ──
+  // Construído 1x antes do loop pra performance. Lê do estoqueData (planilha de Estoque).
+  var estoquePorPai = {};
+  try {
+    if(typeof estoqueData !== 'undefined' && Array.isArray(estoqueData)) {
+      estoqueData.forEach(function(it){
+        if(!it || typeof it.estoque !== 'number') return;
+        var paiE = (typeof _extrairSkuPai === 'function') ? (_extrairSkuPai(it.sku) || it.sku) : it.sku;
+        if(!paiE) return;
+        estoquePorPai[paiE] = (estoquePorPai[paiE] || 0) + (it.estoque || 0);
+      });
+    }
+  } catch(e) { console.warn('[Top30] erro ao montar mapa de estoque por pai:', e); }
+
   t20el.innerHTML = prods.map(function(p,i){
     var qtd     = p.qtd || 0;
     var pct     = (qtd/totQ*100).toFixed(1);
@@ -11381,12 +11395,33 @@ function renderEstoqueIndicadores() {
       skuDisplay += '<span title="'+nVar+' variações somadas no total" style="color:var(--muted2);margin-left:6px">· '+nVar+' tam.</span>';
     }
 
+    // ── Estoque do pai (soma das variações) ──
+    // Valores: undefined = SKU não encontrado no estoque (mostra '—')
+    //          0 = sem estoque (vermelho)
+    //          < qtd vendida = atenção (amarelo, vai faltar)
+    //          ≥ qtd vendida = saudável (verde)
+    var estPai = estoquePorPai[nomeSKU];
+    var estLine;
+    if(estPai === undefined || estPai === null) {
+      estLine = '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-bottom:3px" title="SKU pai não encontrado na planilha de Estoque">📦 Estoque: <span style="color:var(--muted2)">— sem dado</span></div>';
+    } else {
+      var estCor = (estPai <= 0) ? 'var(--red)' : (estPai < qtd) ? '#F59E0B' : 'var(--green)';
+      var estLabel = estPai.toLocaleString('pt-BR');
+      var estTip   = (estPai <= 0)
+        ? 'Zerado · pode estar perdendo vendas'
+        : (estPai < qtd)
+          ? 'Menos estoque que vendido no período · risco de ruptura'
+          : 'Estoque saudável (≥ vendido no período)';
+      estLine = '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);margin-bottom:3px" title="'+estTip+'">📦 Estoque: <span style="color:'+estCor+';font-weight:600">'+estLabel+'</span> un</div>';
+    }
+
     return '<div class="t20row" style="gap:10px;align-items:center;padding:8px 4px">'+
       '<div class="t20n '+medal+'">'+(i+1)+'<\/div>'+
       '<div style="width:34px;height:34px;border-radius:8px;flex-shrink:0;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:17px">'+emoji+'<\/div>'+
       '<div class="t20bw" style="min-width:0">'+
         nomeHtml+
         '<div style="font-family:var(--fmono);font-size:10px;margin-bottom:3px">'+skuDisplay+'<\/div>'+
+        estLine+
         '<div class="t20bg"><div class="t20bar" style="width:'+barW+'%;background:'+(i<3?'var(--accent)':'var(--a2)')+'"><\/div><\/div>'+
       '<\/div>'+
       '<div style="text-align:right;flex-shrink:0">'+
