@@ -1291,6 +1291,11 @@ body.light body::before { opacity: 0; }
       <option value="Netshoes">Netshoes</option>
       <option value="Loja Própria">Loja Própria</option>
     </select>
+    <!-- 🆕 Filtro de LOJA (multi-loja) — só aparece se detectado -->
+    <select class="fdate" id="f-loja" onchange="applyFilter()"
+      style="cursor:pointer;min-width:140px;display:none">
+      <option value="">🏪 Todas as lojas</option>
+    </select>
     <div class="finfo" id="f-info">Todos os registros</div>
   </div>
 
@@ -3429,6 +3434,11 @@ function mapRow(r) {
   if (!data || data.length < 10) return null;
   var valor = parseValor(r[ci.valor]);
   if (valor <= 0) return null;
+  // 🆕 Loja (se detectada — multi-loja)
+  var loja = '';
+  if(typeof ci.loja === 'number' && ci.loja >= 0 && r[ci.loja]) {
+    loja = String(r[ci.loja]).trim();
+  }
   return {
     data:    data,
     id:      String(r[ci.pedido]||'').replace('.0',''),
@@ -3440,6 +3450,7 @@ function mapRow(r) {
     status:  normStatus(r[ci.status]),
     valor:   valor,
     frete:   parseValor(r[ci.frete]),
+    loja:    loja,
   };
 }
 
@@ -3448,7 +3459,57 @@ function mapRow(r) {
    Percorre os pedidos UMA ÚNICA VEZ e monta todas as estruturas
    necessárias para KPIs, gráficos e tabelas.
 ═══════════════════════════════════════════════════════════════ */
+/* 🆕 Atualiza o <select id="f-loja"> com base nas lojas detectadas nos pedidos.
+   Se >1 loja única, mostra o filtro. Se ≤1 (ou todas vazias), esconde. */
+function _atualizarSeletorLojas(pedidos) {
+  var sel = document.getElementById('f-loja');
+  if(!sel || !Array.isArray(pedidos) || pedidos.length === 0) return;
+
+  // Coleta lojas únicas com qtd de pedidos
+  var lojasMap = {};
+  pedidos.forEach(function(p) {
+    var l = (p.loja || '').trim();
+    if(!l) return;
+    lojasMap[l] = (lojasMap[l] || 0) + 1;
+  });
+  var lojasOrdenadas = Object.keys(lojasMap).sort(function(a,b){
+    return lojasMap[b] - lojasMap[a];
+  });
+
+  // Se não detectou multi-loja, esconde o filtro
+  if(lojasOrdenadas.length < 2) {
+    sel.style.display = 'none';
+    return;
+  }
+
+  // Cache pra não re-renderizar à toa (idempotente)
+  var hashAtual = lojasOrdenadas.join('|');
+  if(sel.dataset.lojasHash === hashAtual) {
+    sel.style.display = '';
+    return;
+  }
+  sel.dataset.lojasHash = hashAtual;
+
+  // Renderiza opções
+  var valorAtual = sel.value;
+  var totalPedidos = pedidos.length;
+  var html = '<option value="">🏪 Todas as lojas ('+totalPedidos.toLocaleString('pt-BR')+')</option>';
+  lojasOrdenadas.forEach(function(loja) {
+    var qtd = lojasMap[loja];
+    html += '<option value="'+loja.replace(/"/g,'&quot;')+'">'+loja+' ('+qtd.toLocaleString('pt-BR')+')</option>';
+  });
+  sel.innerHTML = html;
+  // Restaurar seleção se ainda válida
+  if(valorAtual && lojasOrdenadas.indexOf(valorAtual) >= 0) {
+    sel.value = valorAtual;
+  }
+  sel.style.display = '';
+}
+
 function processarDados(pedidos) {
+  // 🆕 Atualizar seletor de lojas se houver multi-loja (idempotente — só popula se mudar)
+  try { _atualizarSeletorLojas(pedidos); } catch(e) {}
+
   // Acumuladores
   var total=0, frete=0;
   var aprov=[], trans=[], entr=[];
@@ -4857,8 +4918,10 @@ function applyFilter(){
   var from = document.getElementById('f-from').value; // "YYYY-MM-DD" ou ""
   var to   = document.getElementById('f-to').value;   // "YYYY-MM-DD" ou ""
   var canalFilter = (document.getElementById('f-canal')||{}).value || '';
+  // 🆕 Filtro de loja (multi-loja)
+  var lojaFilter = (document.getElementById('f-loja')||{}).value || '';
   // Salvar filtro atual globalmente para uso em makeCharts (período anterior)
-  window._filtroAtual = {from: from, to: to, canal: canalFilter};
+  window._filtroAtual = {from: from, to: to, canal: canalFilter, loja: lojaFilter};
 
   // ATUALIZAR o botão de preset ativo (ou Personalizado se não bater com nenhum)
   _atualizarBotaoPresetAtivo();
@@ -4875,17 +4938,23 @@ function applyFilter(){
     if(from && d < from) return false;
     if(to   && d > to)   return false;
     if(canalFilter && p.canal !== canalFilter) return false;
+    // 🆕 Filtro por loja (se ativo)
+    if(lojaFilter && p.loja !== lojaFilter) return false;
     return true;
   });
 
   var fi   = document.getElementById('f-info');
   var pill = document.getElementById('pill-per');
+  var extraInfo = '';
+  if(canalFilter) extraInfo += ' · canal: '+canalFilter;
+  if(lojaFilter)  extraInfo += ' · loja: '+lojaFilter;
+
   if(!from&&!to){
-    fi.textContent = filtered.length + ' registros · período completo' + (canalFilter ? ' · canal: '+canalFilter : '');
+    fi.textContent = filtered.length + ' registros · período completo' + extraInfo;
     if(pill) pill.textContent = 'Período completo';
   } else {
     var f=from?fD(from):'...'; var t2=to?fD(to):'hoje';
-    fi.textContent = filtered.length + ' registros · ' + f + ' → ' + t2 + (canalFilter ? ' · canal: '+canalFilter : '');
+    fi.textContent = filtered.length + ' registros · ' + f + ' → ' + t2 + extraInfo;
     if(pill) pill.textContent = f+' – '+t2;
   }
 
@@ -5907,6 +5976,80 @@ async function loadGS(url){
       _colIdx.pag = savedPag;
     } else {
       console.warn('[Veltro] ⚠️ Forma de pagamento não detectada. Verifique: _colIdx.pag = '+_colIdx.pag);
+    }
+  }
+
+  /* ─── DETECÇÃO DE COLUNA "LOJA" (MULTI-LOJA) ───
+     Estratégia 1: cabeçalho contém "loja" (case insensitive)
+     Estratégia 2: coluna com 2-20 valores únicos curtos repetindo
+     Resultado salvo em _colIdx.loja (-1 se não encontrou) */
+  var lojaCol = -1;
+
+  // Estratégia 1: cabeçalho
+  if(header) {
+    header.forEach(function(h, ci) {
+      if(lojaCol >= 0) return;
+      var hl = String(h||'').toLowerCase().trim();
+      // "Loja" exato, ou contém "filial"/"unidade"
+      if(hl === 'loja' || hl === 'lojas' || hl === 'filial' || hl === 'unidade' || hl === 'marca') {
+        // Validar que NÃO é a coluna canal (já detectada)
+        if(ci !== _colIdx.canal) lojaCol = ci;
+      }
+    });
+    if(lojaCol >= 0) console.log('[Veltro] 🏪 Coluna LOJA encontrada no cabeçalho: col'+lojaCol+' = "'+header[lojaCol]+'"');
+  }
+
+  // Estratégia 2: análise de valores únicos
+  if(lojaCol < 0) {
+    var valoresUnicosPorCol = {};
+    amostra.forEach(function(r) {
+      if(!r) return;
+      r.forEach(function(cell, ci) {
+        if(ci === _colIdx.canal || ci === _colIdx.status) return;
+        if(!cell) return;
+        var s = String(cell).trim();
+        if(s.length < 1 || s.length > 60) return;
+        if(!valoresUnicosPorCol[ci]) valoresUnicosPorCol[ci] = new Set();
+        valoresUnicosPorCol[ci].add(s);
+      });
+    });
+    // Procura coluna com 2-20 valores únicos (multi-loja típico)
+    var candidatas = [];
+    Object.keys(valoresUnicosPorCol).forEach(function(ci) {
+      var qtd = valoresUnicosPorCol[ci].size;
+      if(qtd >= 2 && qtd <= 20) {
+        // Validar que valores parecem nomes de loja (não datas, não números puros)
+        var todos = Array.from(valoresUnicosPorCol[ci]);
+        var pareceLoja = todos.every(function(v) {
+          // Não é só número, não é data
+          return isNaN(parseFloat(v)) || v.match(/[a-zA-Z]/);
+        });
+        // Match com padrão "N - Nome" (Magazord típico)
+        var temPadraoMagazord = todos.some(function(v) { return /^\d+\s*-\s*\w/.test(v); });
+        if(pareceLoja || temPadraoMagazord) {
+          candidatas.push({ col: parseInt(ci), unicos: qtd, score: temPadraoMagazord ? qtd + 100 : qtd });
+        }
+      }
+    });
+    candidatas.sort(function(a,b){ return b.score - a.score; });
+    if(candidatas.length > 0) {
+      lojaCol = candidatas[0].col;
+      console.log('[Veltro] 🏪 Coluna LOJA detectada por conteúdo: col'+lojaCol+' ('+candidatas[0].unicos+' lojas únicas)');
+    }
+  }
+
+  // Aplicar resultado
+  if(lojaCol >= 0) {
+    _colIdx.loja = lojaCol;
+    try { localStorage.setItem('veltro_loja_col', lojaCol); } catch(e){}
+  } else {
+    // Tentar recuperar da sessão anterior
+    var savedLoja = parseInt(localStorage.getItem('veltro_loja_col')||'-1');
+    if(savedLoja >= 0) {
+      _colIdx.loja = savedLoja;
+      console.log('[Veltro] Usando coluna de LOJA salva: col'+savedLoja);
+    } else {
+      _colIdx.loja = -1; // Single-loja (modo padrão)
     }
   }
 
@@ -7272,6 +7415,61 @@ var PREC_CANAIS = {
   'Loja Própria': {comissao: 0.00, taxaFixa: 0,     nome: '🏪 Loja Própria',   cor: '#6EE7B7', taxaInfo: 'Sem comissão — use campo % ADS para tráfego pago'},
   'TikTok Shop':  {comissao: 0.12, taxaFixa: 4.00,  nome: '🎵 TikTok Shop',    cor: '#69C9D0', taxaInfo: '6% comissão + 6% frete + R$4 por item (fev/2026)'}
 };
+
+/* ═══════════════════════════════════════════════════════════════
+   🆕 CANAIS_DISPONIVEIS — Lista mestre de canais conhecidos
+   Lista expandida que inclui canais não cobertos pelo PREC_CANAIS atual.
+   Empresas marcam quais usam no cadastro (admin).
+   IMPORTANTE: NÃO substitui PREC_CANAIS — é complementar.
+   PREC_CANAIS continua sendo a fonte de verdade pra cálculo de margem
+   (Precificação, DRE). CANAIS_DISPONIVEIS é só pra UI de configuração
+   por empresa (filtros, checkbox de admin).
+═══════════════════════════════════════════════════════════════ */
+var CANAIS_DISPONIVEIS = [
+  // Os 6 canais já cobertos por PREC_CANAIS
+  { id: 'lojapropria',     nome: 'Loja Própria',    emoji: '🏪', comissao: 0,    taxaFixa: 0,    matchPattern: ['loja propria','loja própria','site','ecommerce','e-commerce','proprio','própria'] },
+  { id: 'shopee',          nome: 'Shopee',          emoji: '🛒', comissao: 0.20, taxaFixa: 4.00, matchPattern: ['shopee'] },
+  { id: 'mercadolivre',    nome: 'Mercado Livre',   emoji: '🛍️', comissao: 0.19, taxaFixa: 6.75, matchPattern: ['mercado livre','mercadolivre','meli','ml '] },
+  { id: 'shein',           nome: 'Shein',           emoji: '👗', comissao: 0.20, taxaFixa: 5.00, matchPattern: ['shein'] },
+  { id: 'dafiti',          nome: 'Dafiti',          emoji: '👟', comissao: 0.25, taxaFixa: 0,    matchPattern: ['dafiti'] },
+  { id: 'tiktok',          nome: 'TikTok Shop',     emoji: '🎵', comissao: 0.12, taxaFixa: 4.00, matchPattern: ['tiktok','tik tok'] },
+  // 🆕 Canais adicionais (config by client)
+  { id: 'posthaus',        nome: 'Posthaus',        emoji: '📦', comissao: 0.16, taxaFixa: 5.00, matchPattern: ['posthaus','post haus'] },
+  { id: 'magalu',          nome: 'Magalu',          emoji: '🏬', comissao: 0.16, taxaFixa: 0,    matchPattern: ['magalu','magazine luiza','magazineluiza'] },
+  { id: 'amazon',          nome: 'Amazon',          emoji: '📦', comissao: 0.15, taxaFixa: 0,    matchPattern: ['amazon'] },
+  { id: 'americanas',      nome: 'Americanas',      emoji: '🛒', comissao: 0.16, taxaFixa: 0,    matchPattern: ['americanas','b2w'] },
+  { id: 'netshoes',        nome: 'Netshoes',        emoji: '👟', comissao: 0.20, taxaFixa: 0,    matchPattern: ['netshoes','centauro'] },
+  { id: 'olist',           nome: 'Olist',           emoji: '📦', comissao: 0.12, taxaFixa: 0,    matchPattern: ['olist'] }
+];
+
+var VELTRO_CANAIS_KEY = 'veltro_canais_ativos_';
+
+/* 🆕 Retorna IDs dos canais ativos da empresa.
+   Se nunca foi configurado: retorna TODOS (backward-compat = comportamento atual). */
+function getCanaisAtivosEmpresa(empresaId) {
+  if(!empresaId) return CANAIS_DISPONIVEIS.map(function(c){return c.id;});
+  try {
+    var raw = localStorage.getItem(VELTRO_CANAIS_KEY + empresaId);
+    if(!raw) return CANAIS_DISPONIVEIS.map(function(c){return c.id;});
+    var arr = JSON.parse(raw);
+    return Array.isArray(arr) && arr.length > 0 ? arr : CANAIS_DISPONIVEIS.map(function(c){return c.id;});
+  } catch(e) {
+    return CANAIS_DISPONIVEIS.map(function(c){return c.id;});
+  }
+}
+
+/* 🆕 Salva canais ativos da empresa */
+function setCanaisAtivosEmpresa(empresaId, canaisIds) {
+  if(!empresaId || !Array.isArray(canaisIds)) return;
+  try {
+    localStorage.setItem(VELTRO_CANAIS_KEY + empresaId, JSON.stringify(canaisIds));
+  } catch(e) { console.warn('[Veltro] Erro ao salvar canais:', e); }
+}
+
+/* 🆕 Retorna objeto de canal pelo ID */
+function getCanalById(id) {
+  return CANAIS_DISPONIVEIS.find(function(c){ return c.id === id; });
+}
 
 /* Calcular custo extra da Dafiti (mensalidade diluída) */
 function calcCustoDafitiExtra(precoVenda) {
@@ -11502,6 +11700,67 @@ function veltroGerarSenhaAuto() {
   input.type = 'text'; // mostrar pra admin copiar
 }
 
+/* 🆕 Renderiza o grid de canais com checkboxes no admin (cadastro/edição) */
+function veltroRenderCanaisGrid(canaisAtivosArr, gridId, resumoId) {
+  gridId = gridId || 'admin-canais-grid';
+  resumoId = resumoId || 'admin-canais-resumo';
+  var grid = document.getElementById(gridId);
+  if(!grid) return;
+
+  var ativosSet = new Set(canaisAtivosArr || []);
+  // Se não passou array (= primeira renderização), marca todos
+  var marcarTodos = !canaisAtivosArr;
+
+  grid.innerHTML = CANAIS_DISPONIVEIS.map(function(c) {
+    var checked = marcarTodos || ativosSet.has(c.id);
+    return '<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:var(--fmono);font-size:10px;color:var(--text)" '+
+      'data-canal-id="'+c.id+'">'+
+      '<input type="checkbox" '+(checked?'checked':'')+' onchange="_atualizarResumoCanais(\''+gridId+'\', \''+resumoId+'\')" '+
+        'style="margin:0;cursor:pointer">'+
+      '<span style="font-size:13px">'+c.emoji+'</span>'+
+      '<span style="flex:1">'+c.nome+'</span>'+
+      '</label>';
+  }).join('');
+
+  _atualizarResumoCanais(gridId, resumoId);
+}
+
+/* 🆕 Atualiza o resumo "X de Y canais ativos" quando muda checkbox */
+function _atualizarResumoCanais(gridId, resumoId) {
+  gridId = gridId || 'admin-canais-grid';
+  resumoId = resumoId || 'admin-canais-resumo';
+  var grid = document.getElementById(gridId);
+  var resumo = document.getElementById(resumoId);
+  if(!grid || !resumo) return;
+  var checkboxes = grid.querySelectorAll('input[type="checkbox"]');
+  var marcados = 0;
+  checkboxes.forEach(function(cb){ if(cb.checked) marcados++; });
+  if(marcados === checkboxes.length) {
+    resumo.textContent = '— todos ativos ('+marcados+')';
+    resumo.style.color = 'var(--muted2)';
+  } else if(marcados === 0) {
+    resumo.textContent = '— nenhum (vai usar todos)';
+    resumo.style.color = 'var(--amber)';
+  } else {
+    resumo.textContent = '— '+marcados+' de '+checkboxes.length+' ativos';
+    resumo.style.color = 'var(--accent)';
+  }
+}
+
+/* 🆕 Lê o estado atual dos checkboxes do admin e retorna array de IDs ativos */
+function _lerCanaisMarcados(gridId) {
+  gridId = gridId || 'admin-canais-grid';
+  var grid = document.getElementById(gridId);
+  if(!grid) return null;
+  var ids = [];
+  var labels = grid.querySelectorAll('label[data-canal-id]');
+  labels.forEach(function(label) {
+    var cb = label.querySelector('input[type="checkbox"]');
+    if(cb && cb.checked) ids.push(label.getAttribute('data-canal-id'));
+  });
+  return ids;
+}
+
 /* Mostra a tela de senha pra empresa que tem senha cadastrada. */
 function veltroMostrarTelaSenha(empresa) {
   // Esconder tudo o resto
@@ -12097,6 +12356,8 @@ function veltroAutenticarAdmin() {
     try{ document.getElementById('admin-auth-block').style.display = 'none'; }catch(e){}
     try{ document.getElementById('admin-painel').style.display = 'block'; }catch(e){}
     veltroRenderListaEmpresas();
+    // 🆕 Renderizar grid de canais (todos marcados por padrão)
+    try { veltroRenderCanaisGrid(); } catch(e) { console.warn('[Veltro] Erro ao renderizar canais:', e); }
   } else {
     try{ document.getElementById('admin-auth-erro').textContent = '❌ Senha incorreta'; }catch(e){}
     try{ document.getElementById('admin-senha-input').value = ''; }catch(e){}
@@ -12153,11 +12414,23 @@ async function veltroCadastrarEmpresa() {
 
   usuarios.push(novaEmpresa);
   veltroSaveUsuarios(usuarios);
+
+  // 🆕 Salvar canais ativos da empresa (se admin marcou alguns)
+  try {
+    var canaisMarcados = _lerCanaisMarcados('admin-canais-grid');
+    if(canaisMarcados && canaisMarcados.length > 0 && canaisMarcados.length < CANAIS_DISPONIVEIS.length) {
+      // Só salva se cliente customizou (escolheu menos que todos)
+      setCanaisAtivosEmpresa(id, canaisMarcados);
+    }
+  } catch(e) { console.warn('[Veltro] Erro ao salvar canais:', e); }
+
   if(erroEl) erroEl.textContent = '';
   try{ document.getElementById('admin-novo-nome').value = ''; }catch(e){}
   try{ document.getElementById('admin-novo-id').value   = ''; }catch(e){}
   try{ document.getElementById('admin-novo-senha').value = ''; }catch(e){}
   try{ document.getElementById('admin-novo-senha').type = 'text'; }catch(e){}
+  // Reset checkboxes pra próximo cadastro (todos marcados)
+  try { veltroRenderCanaisGrid(); } catch(e) {}
   veltroRenderListaEmpresas();
 
   // Mostrar link gerado direto na tela (com senha se houver)
@@ -12813,6 +13086,22 @@ window.addEventListener('load', function() {
             🔒 Com senha, link sozinho não basta — proteção extra contra acesso indevido
           </div>
         </div>
+
+        <!-- 🆕 Configuração de canais (collapse expansível) -->
+        <details id="admin-canais-config" style="margin-bottom:10px;background:rgba(110,231,183,.04);border:1px solid rgba(110,231,183,.2);border-radius:8px">
+          <summary style="cursor:pointer;padding:8px 10px;font-family:var(--fmono);font-size:10px;color:var(--accent);list-style:none;display:flex;align-items:center;gap:8px">
+            <span style="font-size:13px">🛒</span>
+            <span>Canais de venda (clique pra escolher)</span>
+            <span id="admin-canais-resumo" style="margin-left:auto;font-size:9px;color:var(--muted2)">— padrão (todos)</span>
+          </summary>
+          <div style="padding:6px 10px 12px 10px">
+            <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+              Marque APENAS os canais que essa empresa usa.<br>
+              Se não escolher nenhum, todos ficam ativos por padrão.
+            </div>
+            <div id="admin-canais-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px"></div>
+          </div>
+        </details>
 
         <div id="admin-cadastro-erro" style="font-family:'JetBrains Mono',monospace;font-size:10px;
              color:var(--red);min-height:14px;margin-bottom:6px"></div>
