@@ -5706,6 +5706,33 @@ function parseGS(text){
     return [];
   }
 }
+
+/* ─ parseGSWithHeaders: igual ao parseGS, mas também retorna os labels (headers) das colunas.
+   gviz NÃO inclui linha de headers em rows; eles vêm em obj.table.cols[i].label.
+   Retorna: { headers: [string], rows: [[]] }. Vazio se erro. ───────── */
+function parseGSWithHeaders(text){
+  try {
+    const clean = text.replace(/^[^\{]+/,'').replace(/[^\}]+$/,'');
+    const obj   = JSON.parse(clean);
+    const cols  = (obj.table.cols||[]);
+    const headers = cols.map(c => String(c.label || c.id || '').trim());
+    const rows = obj.table.rows.map(r => r.c.map((c,ci)=>{
+      if(!c) return '';
+      const colType = cols[ci] ? cols[ci].type : '';
+      if((colType==='date'||colType==='datetime'||colType==='timeofday') && c.f) return c.f;
+      if(c.v && typeof c.v === 'string' && c.v.startsWith('Date(')) {
+        const parts = c.v.replace('Date(','').replace(')','').split(',');
+        const d = new Date(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]));
+        return d.toISOString().split('T')[0];
+      }
+      return c.v!==null && c.v!==undefined ? c.v : (c.f||'');
+    }));
+    return { headers, rows };
+  } catch(e) {
+    console.error('parseGSWithHeaders error:', e);
+    return { headers: [], rows: [] };
+  }
+}
 const PRODUTOS_GID_URL = 'https://docs.google.com/spreadsheets/d/1ir9OHsj3hZ0Io9pCArefwM1EiCsleSlmC0lmkpkClqk/gviz/tq?tqx=out:json&gid=1170407159';
 const DEFAULT_URL = 'https://docs.google.com/spreadsheets/d/1ir9OHsj3hZ0Io9pCArefwM1EiCsleSlmC0lmkpkClqk/gviz/tq?tqx=out:json&gid=1435598200';
 
@@ -5807,13 +5834,21 @@ async function loadProdutos() {
       if(nome.includes('img/') || nome.includes('.png') || nome.includes('.jpg') || nome.startsWith('http')) return;
       if(nome.length < 3) return;
 
-      // Extrair tamanho: última sequência de 2-3 dígitos no nome ou código
-      var tamFromNome = nome.match(/[-\s](\d{2,3})\s*$/);
-      var tamFromCod  = cod.match(/-(\d{2,3})$/);
-      var tamanho = (tamFromNome ? tamFromNome[1] : '') || (tamFromCod ? tamFromCod[1] : '');
+      // Extrair tamanho: usa _extrairTamanho com modo da empresa (sku|nome)
+      // Primeiro carregamento ainda não tem _veltroModoTamanho; usa heurística inline.
+      var modoTamLP = (typeof window !== 'undefined' && window._veltroModoTamanho) ? window._veltroModoTamanho : null;
+      var tamanho = '';
+      if(typeof _extrairTamanho === 'function' && modoTamLP) {
+        tamanho = _extrairTamanho(modoTamLP === 'nome' ? nome : cod, modoTamLP) || '';
+      } else {
+        // Fallback: tenta nome, depois sku, range amplo (cobre infantil 0-16 + adulto 17-50)
+        var tamFromNome = nome.match(/[-\s](\d{1,3})\s*$/);
+        var tamFromCod  = cod.match(/-(\d{1,3})$/);
+        tamanho = (tamFromNome ? tamFromNome[1] : '') || (tamFromCod ? tamFromCod[1] : '');
+      }
 
-      var codBase  = cod.replace(/-\d{2,3}$/, '');
-      var nomeBase = nome.replace(/\s*[-–]\s*\d{2,3}\s*$/, '').replace(/\s+\d{2,3}\s*$/,'').trim();
+      var codBase  = cod.replace(/-\d{1,4}$/, '');
+      var nomeBase = nome.replace(/\s*[-–]\s*\d{1,3}\s*$/, '').replace(/\s+\d{1,3}\s*$/,'').trim();
 
       var qtdVal = parseFloat(r[colQtd]) || 0;
       var gmvVal = parseFloat(r[colGmv]) || 0;
@@ -5826,8 +5861,13 @@ async function loadProdutos() {
       map[codBase].gmv += gmvVal;
       map[codBase].qtd += qtdVal;
 
+      // Aceita tamanho numérico 0-99 (cobre infantil 0-16 + adulto 17-50 + roupa 36-46)
+      // OU letra (P/M/G/GG/etc.) — pra roupas
       var tamNum = parseInt(tamanho);
-      if(tamanho && !isNaN(tamNum) && tamNum >= 20 && tamNum <= 50) {
+      var tamUpper = String(tamanho||'').toUpperCase();
+      var tamValido = (!isNaN(tamNum) && tamNum >= 0 && tamNum <= 99) ||
+                      /^(PP|P|M|G|GG|XG|XL|XXL|XS|S|L)$/.test(tamUpper);
+      if(tamanho && tamValido) {
         map[codBase].tamanhos[tamanho] = (map[codBase].tamanhos[tamanho]||0) + qtdVal;
       }
       totalCarregados++;
@@ -6337,13 +6377,13 @@ async function refresh(){
     loadEstados();   // carrega GMV por estado em paralelo (mesmo padrão)
     loadProdutosVendidos(); // carrega nova planilha de produtos vendidos
     // ─── Carregamento da planilha de estoque (modo consolidado pode alimentar custoRealMap) ───
-    // Roda ANTES do loadCustoProdutos pra que, em modo consolidado, a fonte da verdade venha da planilha de estoque.
-    // O loadCustoProdutos respeita backward-compat: se já carregou via consolidado, ele só sobrescreve se
-    // o cliente realmente configurou uma URL de Custo de Produtos separada.
+    // Roda ANTES do loadCustoProdutos pra que, em modo consolidado, a fonte da verdade
+    // venha da planilha de estoque. O loadCustoProdutos respeita backward-compat:
+    // se já carregou via consolidado, ele só COMPLEMENTA (não sobrescreve).
     if(typeof loadEstoque === 'function' && localStorage.getItem(ESTOQUE_URL_KEY)) {
       loadEstoque();
     }
-    if(typeof loadCustoProdutos === 'function') loadCustoProdutos(); // custo real (legado FanClub)
+    if(typeof loadCustoProdutos === 'function') loadCustoProdutos(); // custo real (legado)
     applyFilter();
     document.getElementById('hdr-time').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     lbl.textContent=url?'AO VIVO':'EXEMPLO';
@@ -9085,23 +9125,57 @@ function toggleEstoqueConfig() {
     try{ document.getElementById('estoque-url').value = saved; }catch(e){}
   }
 }
+/* ─ CATÁLOGO UNIVERSAL DE CATEGORIAS ─────────────────────────────────
+   Suporta calçados (FanClub), roupa adulto, roupa infantil/bebê (La Luna).
+   Auto-detecção pelo nome do produto. Empresa não precisa configurar.
+   Ordem importa: categorias mais específicas primeiro (ex: "Conjunto Bebê"
+   antes de "Conjunto"). ─────────────────────────────────────────────── */
+var CATEGORIAS_KEYWORDS = [
+  // Bebê / Infantil (palavras compostas primeiro)
+  { cat: 'Bebê',         kws: ['bebe','bebê','bb ','recem nascido','recém nascido','rn ','newborn','body bebe','body bebê','macacao bebe','macacão bebê'] },
+  { cat: 'Conjuntos',    kws: ['conjunto'] },
+  { cat: 'Macacões',     kws: ['macacao','macacão','jardineira','jumper'] },
+  { cat: 'Vestidos',     kws: ['vestido','vestidinho'] },
+  { cat: 'Saias',        kws: ['saia'] },
+  { cat: 'Shorts',       kws: ['short','bermuda'] },
+  { cat: 'Calças',       kws: ['calca','calça','legging','legging','jegging'] },
+  { cat: 'Camisetas',    kws: ['camiseta','camisa','blusa','blusinha','cropped','crop top','top ','regata'] },
+  { cat: 'Casacos',      kws: ['casaco','jaqueta','blazer','sobretudo','colete','moletom','hoodie','cardiga','cardigan','sueter','suéter','trico','tricô','poncho','pijama'] },
+  { cat: 'Bodies',       kws: ['body ','bodysuit'] },
+  { cat: 'Pijamas',      kws: ['pijama'] },
+  // Acessórios / íntimos
+  { cat: 'Lingerie',     kws: ['sutia','sutiã','calcinha','cueca','lingerie'] },
+  { cat: 'Meias',        kws: ['meia ','meias','sock'] },
+  { cat: 'Acessórios',   kws: ['cinto','bolsa','mochila','carteira','chapeu','chapéu','bone','boné','tiara','laco','laço','presilha','meia ','luva ','cachecol','gorro','touca','colar','brinco','pulseira','oculos','óculos','relogio','relógio'] },
+  // Calçados (FanClub)
+  { cat: 'Tênis',        kws: ['tenis','tênis','sneaker','chunky'] },
+  { cat: 'Sandálias',    kws: ['sandalia','sandália','slide','tamanco','rasteira','rasteirinha'] },
+  { cat: 'Botas',        kws: ['bota','ankle','cano alto','coturno'] },
+  { cat: 'Sapatilhas',   kws: ['sapatilha','flat ',' flat'] },
+  { cat: 'Sapatos',      kws: ['scarpin','sapato','peep toe','mocassim','oxford'] },
+  { cat: 'Chinelos',     kws: ['chinelo','havaianas','flip flop'] },
+  // Embalagens / outros
+  { cat: 'Embalagens',   kws: ['embalagem','sacola','caixa presente','papel presente'] }
+];
+
 function detectarCategoria(nome) {
-  var n = String(nome||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  if(n.includes('tenis') || n.includes('tênis') || n.includes('sneaker') || n.includes('chunky')) return 'Tênis';
-  if(n.includes('sandalia') || n.includes('sandália') || n.includes('slide') || n.includes('tamanco')) return 'Sandálias';
-  if(n.includes('bota') || n.includes('ankle') || n.includes('cano')) return 'Botas';
-  if(n.includes('sapatilha') || n.includes('flat')) return 'Sapatilhas';
-  if(n.includes('chinelo') || n.includes('havaianas')) return 'Chinelos';
-  if(n.includes('meia') || n.includes('sock')) return 'Meias';
+  var n = String(nome||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9 ]/g,' ')
+    .replace(/\s+/g,' ').trim();
+  if(!n) return 'Outros';
+  for(var i = 0; i < CATEGORIAS_KEYWORDS.length; i++) {
+    var entrada = CATEGORIAS_KEYWORDS[i];
+    for(var j = 0; j < entrada.kws.length; j++) {
+      var kw = entrada.kws[j].toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      if(n.indexOf(kw) >= 0) return entrada.cat;
+    }
+  }
   return 'Outros';
 }
 
-/* ─ Helpers de detecção da planilha de estoque ────────────────────────
-   Suporta 3 formatos:
-   1. CONSOLIDADO (Magazord export): SKU + Nome + Marca + Qtd Disp + Custo Médio
-   2. INVENTÁRIO (FanClub legado): SKU | Nome | Situação | ... | Estoque Final
-   3. SIMPLES (legado): SKU | Nome | Estoque | Mínimo
-   Resultado: índices de coluna por nome, ou null se não conseguiu detectar. */
+/* ─ Helpers de detecção de header (gviz labels) ──────────────────────── */
 function _estoqueNorm(s) {
   return String(s||'').toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -9109,8 +9183,7 @@ function _estoqueNorm(s) {
     .replace(/\s+/g,' ').trim();
 }
 function _estoqueAcharCol(headerRow, candidatos, negativos) {
-  // Match exato primeiro, depois includes — retorna primeiro hit
-  // negativos: lista de palavras que descartam o match (ex: "id" pra evitar "Id Der.")
+  // Match exato primeiro (modo 0), depois includes (modo 1)
   for(var modo = 0; modo < 2; modo++) {
     for(var i = 0; i < headerRow.length; i++) {
       var h = _estoqueNorm(headerRow[i]);
@@ -9134,38 +9207,95 @@ function _estoqueAcharCol(headerRow, candidatos, negativos) {
 }
 function _estoqueDetectarFormato(headerRow) {
   if(!headerRow || headerRow.length < 3) return null;
-  // Buscar colunas-chave (consolidado tem TODAS as 5)
-  // Negativos pra "sku/codigo": evita "id" puro (Id Dep., Id Der.)
+  // Negativos pra "sku/codigo": evita "Id Dep.", "Id Der." (IDs internos)
   var idxSku    = _estoqueAcharCol(headerRow,
                     ['codigo der','codigo derivacao','sku','codigo','código'],
                     ['id ','id_','idp','idd']);
-  // Negativos pra "nome": evita "Id" (que matcharia "Id Der." em modo includes)
+  // Negativos pra "nome": evita "Id Der." e "Código Der."
   var idxNome   = _estoqueAcharCol(headerRow,
                     ['derivacao','derivação','nome','descricao','descrição','produto'],
                     ['id ','id_','codigo','código']);
   var idxAtivo  = _estoqueAcharCol(headerRow, ['ativo']);
   var idxMarca  = _estoqueAcharCol(headerRow, ['marca','fabricante']);
-  var idxQtd    = _estoqueAcharCol(headerRow, ['quantidade disp venda','qtd disp venda','disp venda','disponivel venda','disponível venda']);
-  // Negativo pra custo: evita "Custo Virtual" (geralmente zerado)
+  var idxQtd    = _estoqueAcharCol(headerRow,
+                    ['quantidade disp venda','qtd disp venda','disp venda','disponivel venda','disponível venda']);
+  // Negativo pra custo: evita "Custo Virtual" (geralmente zerado no Magazord)
   var idxCusto  = _estoqueAcharCol(headerRow,
                     ['custo medio de estoque','custo médio de estoque','custo medio','custo médio','custo'],
                     ['virtual']);
-  var idxMin    = _estoqueAcharCol(headerRow, ['quantidade min estoque','qtd min estoque','minimo','mínimo','estoque minimo']);
+  var idxMin    = _estoqueAcharCol(headerRow,
+                    ['quantidade min estoque','qtd min estoque','minimo','mínimo','estoque minimo']);
 
-  // CONSOLIDADO: tem marca + qtd disp + custo médio (Magazord pattern)
+  // Modo CONSOLIDADO requer pelo menos: SKU + Marca + Qtd + Custo
   if(idxMarca >= 0 && idxQtd >= 0 && idxCusto >= 0 && idxSku >= 0) {
     return {
-      modo: 'consolidado',
+      modo:   'consolidado',
       sku:    idxSku,
-      nome:   idxNome >= 0 ? idxNome : 4,  // fallback col E
-      ativo:  idxAtivo,                      // -1 se não tiver
+      nome:   idxNome >= 0 ? idxNome : 4,  // fallback col E (Magazord)
+      ativo:  idxAtivo,
       marca:  idxMarca,
       qtd:    idxQtd,
       custo:  idxCusto,
-      minimo: idxMin                          // -1 se não tiver
+      minimo: idxMin
     };
   }
-  return null; // cai no detector heurístico antigo
+  return null;
+}
+
+/* ─ Extração de tamanho por empresa ──────────────────────────────────
+   FanClub (calçados): tamanho = últimos 2 dígitos do SKU (ex: "...-37" → "37")
+   La Luna (roupas):   tamanho = fim do nome do produto (ex: "...Rosa - 2" → "2")
+   Auto-detecção: se a empresa tem palavras de roupa infantil/adulto no catálogo
+   majoritário → modo 'nome'. Senão → modo 'sku'.
+   Override manual via localStorage 'veltro_extracao_tamanho_<empresaId>'.
+   ───────────────────────────────────────────────────────────────────── */
+function _detectarModoTamanho(estoque) {
+  // 1. Override manual?
+  try {
+    var empId = (typeof veltroGetEmpresaAtual === 'function') ? veltroGetEmpresaAtual() : null;
+    if(empId) {
+      var ovr = localStorage.getItem('veltro_extracao_tamanho_' + empId);
+      if(ovr === 'sku' || ovr === 'nome') return ovr;
+    }
+  } catch(e) {}
+  // 2. Auto: amostra 200 nomes do estoque
+  if(!estoque || estoque.length === 0) return 'sku';
+  var sample = estoque.slice(0, 200);
+  var hitsRoupa = 0, hitsCalc = 0;
+  var rxRoupa = /\b(conjunto|vestido|macacao|macacão|saia|short|bermuda|calca|calça|camiseta|blusa|body|pijama|laluna)\b/i;
+  var rxCalc  = /\b(tenis|tênis|sandalia|sandália|sapato|bota|sapatilha|chinelo)\b/i;
+  for(var i = 0; i < sample.length; i++) {
+    var n = String(sample[i].nome||'');
+    if(rxRoupa.test(n)) hitsRoupa++;
+    if(rxCalc.test(n))  hitsCalc++;
+  }
+  // Heurística: se mais roupas do que calçados E pelo menos 5% da amostra é roupa
+  if(hitsRoupa > hitsCalc && hitsRoupa >= sample.length * 0.05) return 'nome';
+  return 'sku';
+}
+function _extrairTamanho(skuOrNome, modo) {
+  var s = String(skuOrNome||'').trim();
+  if(!s) return null;
+  if(modo === 'nome') {
+    // Pega o último número/letra após hífen, traço ou espaço no final do nome
+    // "Conjunto Bebê Rosa 0164 - Laluna - 2" → "2"
+    // "Vestido Floral Tam M" → "M"
+    // "Body Manga Longa - 6 meses" → "6"
+    var m = s.match(/[-–\s]+([A-Za-z0-9]{1,4})\s*$/);
+    if(m && m[1]) {
+      var t = m[1].toUpperCase();
+      // Filtra ruído: evita pegar "OK", "BR" etc — aceita só dígitos OU 1-2 letras simples (P/M/G/PP/GG/XL...)
+      if(/^\d{1,4}$/.test(t)) return t;
+      if(/^(PP|P|M|G|GG|XG|XL|XXL|XS|S|L)$/.test(t)) return t;
+    }
+    return null;
+  }
+  // modo 'sku': últimos 2 dígitos após último hífen
+  var parts = s.split(/[-_]/);
+  var last = parts[parts.length - 1] || '';
+  // Aceita 1-3 dígitos no final do SKU (37, 38, 100...)
+  var m2 = String(last).match(/^(\d{1,3})$/);
+  return m2 ? m2[1] : null;
 }
 
 async function loadEstoque() {
@@ -9182,7 +9312,6 @@ async function loadEstoque() {
 
   if(!url) {
     if(statusEl){ statusEl.textContent='⚙️ Configure a URL'; statusEl.style.color='var(--muted)'; }
-    // Abrir config automaticamente se não há URL
     var cfg = document.getElementById('estoque-config');
     if(cfg) cfg.style.display = 'block';
     return;
@@ -9208,23 +9337,41 @@ async function loadEstoque() {
     if(!res.ok) throw new Error('HTTP ' + res.status + ' — verifique se a planilha está publicada na web (Arquivo → Publicar na web)');
     var txt = await res.text();
     if(!txt.includes('"table"')) throw new Error('Formato inválido — certifique-se de publicar como página web e usar URL gviz/tq?tqx=out:json');
-    var rows = parseGS(txt);
 
-    if(!rows || rows.length === 0) throw new Error('Planilha vazia');
+    /* ─── HEADERS DO GVIZ ───────────────────────────────────────────
+       Headers vêm em obj.table.cols[i].label, NÃO em rows[0].
+       Usamos parseGSWithHeaders pra obter ambos. */
+    var parsed  = parseGSWithHeaders(txt);
+    var headers = parsed.headers || [];
+    var rows    = parsed.rows    || [];
 
-    /* ─── DETECÇÃO DE FORMATO ─────────────────────────────────────
-       Tenta consolidado (Magazord) primeiro pelos headers da linha 0.
-       Se não bater, cai no detector heurístico antigo (FanClub). */
-    var headerRow = rows[0];
-    var fmt = _estoqueDetectarFormato(headerRow);
+    if(rows.length === 0) throw new Error('Planilha vazia');
+
+    // Tentar detectar formato consolidado pelos LABELS do gviz
+    var fmt = _estoqueDetectarFormato(headers);
+
+    /* ─── SE LABELS VAZIOS, FALLBACK: TENTAR LINHA 0 COMO HEADER ────
+       Acontece quando a planilha não tem labels reais (publicada sem cabeçalho).
+       Usamos rows[0] como header e dataRows = rows.slice(1). */
+    var dataRowsConsolidado = rows;
+    if(!fmt) {
+      var headersFallback = rows[0] || [];
+      var fmtFb = _estoqueDetectarFormato(headersFallback);
+      if(fmtFb) {
+        fmt = fmtFb;
+        dataRowsConsolidado = rows.slice(1);
+        console.log('[Veltro Estoque] Headers do gviz vazios, usando linha 0 como header.');
+      }
+    }
 
     if(fmt && fmt.modo === 'consolidado') {
-      /* ─── MODO CONSOLIDADO (La Luna / Magazord) ───────────────── */
+      /* ─── MODO CONSOLIDADO (La Luna / Magazord) ─────────────────── */
       console.log('[Veltro Estoque] Modo CONSOLIDADO detectado.',
-                  'Cols → SKU:'+fmt.sku, 'Nome:'+fmt.nome, 'Marca:'+fmt.marca,
-                  'Qtd:'+fmt.qtd, 'Custo:'+fmt.custo, 'Ativo:'+fmt.ativo);
+                  'Headers:', headers.length ? headers : '(vazios — usando linha 0)',
+                  '\nCols → SKU:'+fmt.sku, 'Nome:'+fmt.nome, 'Marca:'+fmt.marca,
+                  'Qtd:'+fmt.qtd, 'Custo:'+fmt.custo, 'Ativo:'+fmt.ativo, 'Min:'+fmt.minimo);
 
-      // Helper local: parsear número R$ no formato BR ou US (mesma lógica do loadCustoProdutos)
+      // Helper local: parsear número R$ no formato BR ou US
       var parseValor = function(v) {
         if(typeof v === 'number') return isFinite(v) ? v : 0;
         if(v === null || v === undefined || v === '') return 0;
@@ -9248,8 +9395,8 @@ async function loadEstoque() {
       var ignoradosInat = 0;
       var ignoradosLin  = 0;
 
-      for(var i = 1; i < rows.length; i++) {
-        var r = rows[i];
+      for(var i = 0; i < dataRowsConsolidado.length; i++) {
+        var r = dataRowsConsolidado[i];
         if(!r) { ignoradosLin++; continue; }
         var sku  = String(r[fmt.sku]||'').trim();
         if(!sku) { ignoradosLin++; continue; }
@@ -9259,7 +9406,6 @@ async function loadEstoque() {
         // Filtro de ativos: pula se col Ativo === "Não" (ou "N", "False", etc.)
         if(fmt.ativo >= 0) {
           var ativoVal = String(r[fmt.ativo]||'').trim().toLowerCase();
-          // Aceita: sim, s, true, 1, yes, y. Rejeita: nao, não, n, false, 0, no
           if(ativoVal === 'nao' || ativoVal === 'não' || ativoVal === 'n' ||
              ativoVal === 'false' || ativoVal === '0' || ativoVal === 'no') {
             ignoradosInat++;
@@ -9270,43 +9416,39 @@ async function loadEstoque() {
         var marca = String(r[fmt.marca]||'').trim();
         var qtd   = parseInt(parseValor(r[fmt.qtd])) || 0;
         var custo = parseValor(r[fmt.custo]);
-        var minimo = fmt.minimo >= 0 ? (parseInt(parseValor(r[fmt.minimo]))||5) : 5;
+        // Mínimo: se col disponível e > 0, usa; senão default 5
+        var minVal = fmt.minimo >= 0 ? (parseInt(parseValor(r[fmt.minimo]))||0) : 0;
+        var minimo = minVal > 0 ? minVal : 5;
 
-        // 1. Alimentar estoqueData (pra módulos Estoque + Saúde do Estoque)
         novoEstoque.push({
-          sku: sku,
-          nome: nome,
-          cat: detectarCategoria(nome),
-          estoque: qtd,
-          minimo: minimo,
+          sku:       sku,
+          nome:      nome,
+          cat:       detectarCategoria(nome),
+          estoque:   qtd,
+          minimo:    minimo,
           diferenca: 0,
-          situacao: 'OK',
-          marca: marca || null  // bônus pra Saúde mostrar marca real
+          situacao:  'OK',
+          marca:     marca || null
         });
 
-        // 2. Alimentar custoRealMap + marcaPorSku (pra Precificação + Saúde Custo Real)
-        // Mesma lógica de skuBase do loadCustoProdutos pra compatibilidade
+        // Alimenta mapas de custo + marca pra Saúde + Precificação
         var skuBase = sku.replace(/-\d{1,4}$/, '');
         if(!skuBase) skuBase = sku;
 
-        // Marca: grava sempre (mesmo sem custo, igual loadCustoProdutos)
         if(marca && !novoMarcaMap[skuBase]) {
           novoMarcaMap[skuBase] = marca;
           marcasCnt[marca] = (marcasCnt[marca] || 0) + 1;
         }
-        // Também grava o SKU completo (pra match exato em produtos sem variação de tamanho)
         if(marca && !novoMarcaMap[sku]) {
           novoMarcaMap[sku] = marca;
         }
 
-        // Custo: só guarda se > 0 (zero cai no fallback ABC do FanClub)
         if(custo > 0) {
           if(!novoCustoMap[skuBase]) {
             novoCustoMap[skuBase] = {custo: custo, marca: marca, amostras: 1};
             totalCust += custo;
             cntCust++;
           } else {
-            // Múltiplas linhas (ex: tamanhos) — média ponderada (mesma lógica)
             var prev = novoCustoMap[skuBase];
             var novoTotal = prev.amostras + 1;
             novoCustoMap[skuBase] = {
@@ -9315,7 +9457,6 @@ async function loadEstoque() {
               amostras: novoTotal
             };
           }
-          // SKU completo também (pra match direto em variações)
           if(!novoCustoMap[sku]) {
             novoCustoMap[sku] = {custo: custo, marca: marca, amostras: 1};
           }
@@ -9324,9 +9465,11 @@ async function loadEstoque() {
 
       estoqueData = novoEstoque;
 
+      // Detectar modo de extração de tamanho (FanClub: 'sku' / La Luna: 'nome')
+      var modoTam = _detectarModoTamanho(novoEstoque);
+      window._veltroModoTamanho = modoTam;
+
       // Popula APIs globais usadas por Saúde + Precificação + Financeiro Modo Auto
-      // ATENÇÃO: substitui o que veio do loadCustoProdutos. A planilha de estoque
-      // consolidada é a fonte da verdade quando ambas existem.
       custoRealMap = novoCustoMap;
       marcaPorSku  = novoMarcaMap;
       _custoStats = {
@@ -9336,14 +9479,15 @@ async function loadEstoque() {
         marcas:      marcasCnt,
         carregado:   true,
         ultimaCarga: new Date(),
-        fonte:       'estoque-consolidado'  // flag p/ debug
+        fonte:       'estoque-consolidado'
       };
 
       console.log('[Veltro Estoque] ✅ Consolidado: '+novoEstoque.length+' SKUs ativos · '+
                   ignoradosInat+' inativos ignorados · '+
                   cntCust+' c/custo real · '+
                   Object.keys(marcasCnt).length+' marcas · '+
-                  'custo médio R$ '+_custoStats.custoMedio.toFixed(2));
+                  'custo médio R$ '+_custoStats.custoMedio.toFixed(2)+' · '+
+                  'tamanho via '+modoTam);
 
       renderEstoqueKPIs();
       renderEstoqueTabela();
@@ -9356,6 +9500,9 @@ async function loadEstoque() {
       if(urlEl) urlEl.style.borderColor = 'var(--green)';
       if(savedEl) savedEl.textContent = '✅ Salvo';
       try{ document.getElementById('estoque-config').style.display='none'; }catch(e){}
+
+      // Re-popular dropdown de categorias com as detectadas
+      try { _atualizarSeletorCategoriasEstoque(); } catch(e){ console.warn('[Veltro Estoque] cat dropdown:', e); }
 
       // Re-renderizar páginas dependentes se estiverem abertas
       try {
@@ -9376,8 +9523,7 @@ async function loadEstoque() {
       return;
     }
 
-    /* ─── MODO LEGADO (FanClub) ───────────────────────────────────
-       Comportamento original preservado integralmente. */
+    /* ─── MODO LEGADO (FanClub) — comportamento original preservado ───── */
     var SKIP_PREFIXES = ['filtro','inventário','inventario','data início','data inicio',
                          'situação','situacao','produtos inventariados','depósito','deposito','código','codigo'];
     var dataRows = rows.filter(function(r) {
@@ -9404,6 +9550,9 @@ async function loadEstoque() {
       }
     }).filter(Boolean);
 
+    // Detecta modo tamanho também no legado
+    window._veltroModoTamanho = _detectarModoTamanho(estoqueData);
+
     renderEstoqueKPIs();
     renderEstoqueTabela();
     renderEstoqueIndicadores();
@@ -9411,14 +9560,37 @@ async function loadEstoque() {
     if(statusEl){ statusEl.textContent='✅ '+estoqueData.length.toLocaleString('pt-BR')+' SKUs'; statusEl.style.color='var(--green)'; }
     if(urlEl) urlEl.style.borderColor = 'var(--green)';
     if(savedEl) savedEl.textContent = '✅ Salvo';
-    // Fechar config após sucesso
     try{ document.getElementById('estoque-config').style.display='none'; }catch(e){}
-    console.log('[Veltro Estoque] Modo LEGADO carregado:', estoqueData.length, '| Formato:', isInventario?'Inventário':'Simples');
+    try { _atualizarSeletorCategoriasEstoque(); } catch(e){}
+    console.log('[Veltro Estoque] Modo LEGADO carregado:', estoqueData.length, '| Formato:', isInventario?'Inventário':'Simples', '| Tamanho via:', window._veltroModoTamanho);
   } catch(e) {
     if(statusEl){ statusEl.textContent='❌ '+e.message; statusEl.style.color='var(--red)'; }
     if(urlEl) urlEl.style.borderColor = 'var(--red)';
     console.error('[Veltro Estoque]', e);
   }
+}
+
+/* ─ Atualiza dropdown de filtro de categoria com as categorias DETECTADAS ─── */
+function _atualizarSeletorCategoriasEstoque() {
+  var sel = document.getElementById('estoque-cat-filter');
+  if(!sel || !estoqueData || estoqueData.length === 0) return;
+  // Conta categorias presentes
+  var cats = {};
+  estoqueData.forEach(function(it){
+    var c = it.cat || 'Outros';
+    cats[c] = (cats[c]||0) + 1;
+  });
+  var lista = Object.keys(cats).sort(function(a,b){ return cats[b] - cats[a]; });
+  var atual = sel.value || 'todos';
+  // Reconstrói preservando a opção "TODOS"
+  var html = '<option value="todos">📋 TODOS</option>';
+  lista.forEach(function(c){
+    var lbl = c + ' ('+cats[c]+')';
+    html += '<option value="'+c+'">'+lbl+'</option>';
+  });
+  sel.innerHTML = html;
+  // Restaura seleção se ainda existir
+  try { sel.value = atual; if(sel.value !== atual) sel.value = 'todos'; } catch(e){}
 }
 
 function renderEstoqueKPIs(dados) {
@@ -10114,13 +10286,12 @@ async function loadCustoProdutos() {
       }
     }
 
-    // ─── PROTEÇÃO MODO CONSOLIDADO ─────────────────────────────────────
-    // Se a planilha de estoque consolidada já populou custoRealMap/marcaPorSku,
-    // este loadCustoProdutos (legado) APENAS COMPLEMENTA SKUs ausentes.
-    // Não sobrescreve dados vindos da fonte mais recente (planilha de estoque).
+    /* ─── PROTEÇÃO MODO CONSOLIDADO ─────────────────────────────────────
+       Se a planilha de estoque consolidada já populou custoRealMap/marcaPorSku,
+       este loadCustoProdutos (legado) APENAS COMPLEMENTA SKUs ausentes.
+       Não sobrescreve dados vindos da fonte mais recente (planilha de estoque). */
     var fonteAtual = (_custoStats && _custoStats.fonte) || null;
     if(fonteAtual === 'estoque-consolidado') {
-      // Merge: só adiciona SKUs/marcas que ainda não existem
       var addedCusto = 0, addedMarca = 0;
       Object.keys(novoMap).forEach(function(k){
         if(!custoRealMap[k]) { custoRealMap[k] = novoMap[k]; addedCusto++; }
@@ -10136,7 +10307,6 @@ async function loadCustoProdutos() {
                   '+'+addedCusto+' SKUs c/custo · +'+addedMarca+' marcas. Total: '+
                   _custoStats.comCusto+' c/custo · '+_custoStats.totalSkus+' SKUs.');
     } else {
-      // Modo legado puro: substitui (comportamento original)
       custoRealMap = novoMap;
       marcaPorSku  = novoMarca;
       _custoStats = {
@@ -10832,46 +11002,63 @@ function renderEstoqueIndicadores() {
   // ── Tamanhos mais vendidos ───────────────────────────────────
   if(!tamEl) return;
 
+  // Modo de extração por empresa: 'sku' (FanClub calçados) ou 'nome' (La Luna roupas)
+  var modoTam = window._veltroModoTamanho ||
+                (typeof _detectarModoTamanho === 'function' ? _detectarModoTamanho(estoqueData) : 'sku');
+
+  // Helper: tamanho válido = string não-vazia (numérico OU letra P/M/G/etc.)
+  // Range numérico ampliado pra cobrir infantil (0-16) E adulto (16-50) E roupa (1-99)
+  var _tamanhoValido = function(t) {
+    if(!t) return false;
+    var s = String(t).trim().toUpperCase();
+    if(/^(PP|P|M|G|GG|XG|XL|XXL|XS|S|L)$/.test(s)) return true;
+    var n = parseInt(s);
+    return !isNaN(n) && n >= 0 && n <= 99;
+  };
+
   // Agregar tamanhos de todos os produtos filtrados
   var tamCount = {};
   todosProdos.forEach(function(p) {
-    // Fonte 1: p.tamanhos{} preenchido no loadProdutos
+    // Fonte 1: p.tamanhos{} preenchido no loadProdutos (já filtrado lá)
     if(p.tamanhos && Object.keys(p.tamanhos).length > 0) {
       Object.entries(p.tamanhos).forEach(function(kv) {
         var t = kv[0], v = parseFloat(kv[1])||0;
-        if(v > 0) tamCount[t] = (tamCount[t]||0) + v;
+        if(v > 0 && _tamanhoValido(t)) tamCount[t] = (tamCount[t]||0) + v;
       });
     } else {
-      // Fonte 2: extrair do nome do produto
-      var m = p.nome.match(/[-\s](\d{2,3})\s*$/) || p.nome.match(/\b(\d{2,3})\b\s*$/);
-      if(m) {
-        var t = m[1];
-        var n = parseInt(t);
-        if(!isNaN(n) && n >= 20 && n <= 50) {
-          tamCount[t] = (tamCount[t]||0) + (p.qtd||1);
-        }
+      // Fonte 2: extrair do SKU ou nome conforme modo da empresa
+      var t = (typeof _extrairTamanho === 'function')
+        ? _extrairTamanho(modoTam === 'nome' ? p.nome : p.cod, modoTam)
+        : null;
+      if(t && _tamanhoValido(t)) {
+        tamCount[t] = (tamCount[t]||0) + (p.qtd||1);
       }
     }
   });
 
-  // Fonte 3: complementar com estoqueData se disponível
+  // Fonte 3: complementar com estoqueData se Fontes 1 e 2 falharam
   if(Object.keys(tamCount).length === 0 && estoqueData.length > 0) {
     estoqueData.forEach(function(item) {
       if(catFilter && item.cat !== catFilter) return;
-      var m = item.sku.match(/-(\d{2,3})$/) || item.nome.match(/[-\s](\d{2,3})\s*$/);
-      if(m) {
-        var t = m[1], n = parseInt(t);
-        if(!isNaN(n) && n >= 20 && n <= 50) {
-          tamCount[t] = (tamCount[t]||0) + (item.estoque||1);
-        }
+      var t = (typeof _extrairTamanho === 'function')
+        ? _extrairTamanho(modoTam === 'nome' ? item.nome : item.sku, modoTam)
+        : null;
+      if(t && _tamanhoValido(t)) {
+        tamCount[t] = (tamCount[t]||0) + (item.estoque||1);
       }
     });
   }
 
-  // Item 7: ordenar por grade de tamanho (menor → maior número)
-  var tams = Object.entries(tamCount)
-    .sort(function(a,b){ return parseInt(a[0]) - parseInt(b[0]); })
-    .slice(0,16);
+  // Ordenar: numéricos por valor crescente, alfabéticos (P/M/G) por ordem de tamanho
+  var ORDEM_LETRAS = {PP:1, P:2, S:2, M:3, G:4, L:4, GG:5, XG:6, XL:6, XXL:7};
+  var tams = Object.entries(tamCount).sort(function(a,b){
+    var na = parseInt(a[0]), nb = parseInt(b[0]);
+    var aIsNum = !isNaN(na), bIsNum = !isNaN(nb);
+    if(aIsNum && bIsNum) return na - nb;
+    if(aIsNum) return -1;
+    if(bIsNum) return 1;
+    return (ORDEM_LETRAS[a[0]]||99) - (ORDEM_LETRAS[b[0]]||99);
+  }).slice(0,20);
 
   if(tams.length === 0) {
     tamEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:13px">Sem dados de tamanho</div>';
