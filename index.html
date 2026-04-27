@@ -7971,17 +7971,69 @@ function veltroSetLojaUrl(empresaId, url) {
   } catch(e){ console.warn('[Veltro] Erro ao salvar loja URL:', e); }
 }
 
-/* Monta URL de busca de produto na loja própria.
-   Aceita 3 padrões:
-     - URL termina em /busca?q= → cola SKU no final
-     - URL termina em / ou em domínio puro → adiciona /busca?q=<sku>
-     - URL contém {sku} → substitui literal pelo SKU
+/* ─ Extrai SKU pai de uma variação (remove cor/tamanho do final).
+   Cobre os padrões observados em FanClub e La Luna:
+     KKB038-CQ08          → KKB038-CQ        (cor + 2 dígitos)
+     B9150054-01          → B9150054         (numérico simples)
+     LN0699-RS12          → LN0699-RS        (cor + dígitos sem hífen)
+     BBLN0164-RSBB02      → BBLN0164-RSBB    (cor longa + dígitos)
+     ANJ505-RSG           → ANJ505-RS        (cor + letra de tamanho)
+     ANJ505-RSRN          → ANJ505-RS        (cor + RN recém-nascido)
+     CJLENERGYACQUA01-M-M → CJLENERGYACQUA01-M (com hífen separador no tamanho)
+   SKUs sem variação reconhecível são preservados (ex: ABC-XYZ, LN0699). */
+function _extrairSkuPai(sku) {
+  if(!sku) return '';
+  var s = String(sku).trim();
+  if(!s) return s;
+  if(s.indexOf('-') < 0) return s;
+
+  // Caso 1: variação = 1-3 dígitos no final
+  var m1 = s.match(/^(.+?)(\d{1,3})$/);
+  if(m1) {
+    var pai = m1[1].replace(/-$/, '');
+    // Aceita se pai tem hífen interno (ex: KKB038-CQ) OU é longo (≥7 chars, ex: B9150054)
+    if(pai.length >= 5 && (pai.indexOf('-') >= 0 || pai.length >= 7)) {
+      return pai;
+    }
+  }
+
+  // Caso 2: variação = letras de tamanho conhecidas
+  var TAMANHOS_LETRA = ['PP','P','M','G','GG','XG','XL','XS','XXL','RN'];
+  TAMANHOS_LETRA.sort(function(a,b){ return b.length - a.length; });
+
+  for(var i = 0; i < TAMANHOS_LETRA.length; i++) {
+    var tam = TAMANHOS_LETRA[i];
+    // Padrão A: -TAMANHO no final com hífen — ex: CJLENERGYACQUA01-M-M
+    var reA = new RegExp('^(.+)-' + tam + '$', 'i');
+    var mA = s.match(reA);
+    if(mA && mA[1].indexOf('-') >= 0) return mA[1];
+
+    // Padrão B: COR+TAMANHO sem hífen — ex: ANJ505-RSG
+    var reB = new RegExp('^(.+-[A-Z]+)' + tam + '$', 'i');
+    var mB = s.match(reB);
+    if(mB && mB[1].length >= 3) {
+      var ultimoSegmento = mB[1].split('-').pop();
+      if(/^[A-Z]+$/i.test(ultimoSegmento)) return mB[1];
+    }
+  }
+
+  return s;
+}
+
+/* Monta URL de busca de produto na loja própria. SEMPRE usa o SKU pai
+   (sem cor/tamanho) pra link, porque a maioria das lojas indexa o produto pai.
+   Aceita 3 padrões de URL configurada no admin:
+     - URL contém {sku} → substitui pelo SKU pai
+     - URL termina em /busca?q= → cola SKU pai no final
+     - URL é só domínio → adiciona /busca?q=<skuPai>
    Retorna '' se não houver lojaUrl configurada. */
 function veltroBuscaProdutoUrl(sku) {
   var empId = (typeof veltroGetEmpresaAtual === 'function') ? veltroGetEmpresaAtual() : null;
   var base = veltroGetLojaUrl(empId);
   if(!base || !sku) return '';
-  var skuEnc = encodeURIComponent(sku);
+  // Sempre tenta extrair o pai (se SKU já é pai, devolve ele mesmo)
+  var skuPai = _extrairSkuPai(sku);
+  var skuEnc = encodeURIComponent(skuPai);
   if(base.indexOf('{sku}') >= 0) return base.replace(/\{sku\}/g, skuEnc);
   if(/[?&]q=$/.test(base) || /\/busca\??[?&]?q?=?$/.test(base)) return base + skuEnc;
   // Default: assume estrutura .../busca?q=<sku>
@@ -9910,10 +9962,13 @@ function renderEstoqueTabela() {
     var stColor = isZero ? 'var(--red)' : isLow ? 'var(--amber)' : 'var(--green)';
     var stLabel = isZero ? '🔴 Zerado' : isLow ? '⚠️ Baixo' : '✅ OK';
     var diffColor = item.diferenca < 0 ? 'var(--red)' : item.diferenca > 0 ? 'var(--amber)' : 'var(--muted)';
-    // SKU pai (sem variação de tamanho) pra link da loja
-    var skuPaiEstoque = (item.sku || '').replace(/-\d{2,3}$/, '') || item.nome;
+    // SKU pai: usa algoritmo que cobre FanClub (-08) e La Luna (-RS12, -RSG, etc.)
+    var skuPaiEstoque = (typeof _extrairSkuPai === 'function')
+      ? (_extrairSkuPai(item.sku) || item.nome)
+      : ((item.sku || '').replace(/-\d{2,3}$/, '') || item.nome);
     // URL dinâmica por empresa (definida no admin → editar empresa → "Link da loja")
-    // Se vazia, link fica desabilitado
+    // veltroBuscaProdutoUrl chama _extrairSkuPai internamente, mas passamos pai aqui também
+    // pra o fallback (caso a função não exista).
     var buscaUrl = (typeof veltroBuscaProdutoUrl === 'function') ? veltroBuscaProdutoUrl(skuPaiEstoque) : '';
     var temLink = !!buscaUrl;
     var skuCell = temLink
@@ -11280,26 +11335,32 @@ function renderEstoqueIndicadores() {
     var cat     = detectarCategoria(p.nome);
     var emoji   = EMOJIS[cat]||'📦';
     var nomeSKU = p.sku || p.cod || '';
-    // Usar SKU pai (sem variação de tamanho) para busca no site
-    // Remove sufixo de tamanho: 101003000-6388-28 → 101003000-6388
-    var skuPai = nomeSKU.replace(/-\d{2,3}$/, '');
+    // Extrai SKU pai (sem cor/tamanho) usando algoritmo que cobre FanClub e La Luna
+    var skuPai = (typeof _extrairSkuPai === 'function') ? _extrairSkuPai(nomeSKU) : nomeSKU;
+    // Variação = sufixo que sobra (pra mostrar discretamente ao lado)
+    var variacao = (skuPai && skuPai !== nomeSKU) ? nomeSKU.substring(skuPai.length).replace(/^-/, '') : '';
     var searchTerm = skuPai || p.nome;
-    // URL dinâmica por empresa (item 4) — fallback pra texto se sem URL configurada
+    // URL dinâmica por empresa (item 4) — veltroBuscaProdutoUrl já chama _extrairSkuPai internamente
     var searchUrl = (typeof veltroBuscaProdutoUrl === 'function') ? veltroBuscaProdutoUrl(searchTerm) : '';
     var temLink = !!searchUrl;
 
     var nomeHtml = temLink
       ? '<a href="'+searchUrl+'" target="_blank" rel="noopener" style="text-decoration:none">'+
-          '<div class="t20name" title="'+p.nome+'" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);transition:color .15s" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--text)\'">'+p.nome+'</div>'+
+          '<div class="t20name" title="'+p.nome+' · clique para abrir produto na loja" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);transition:color .15s" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--text)\'">'+p.nome+'</div>'+
         '</a>'
       : '<div class="t20name" title="'+p.nome+'" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">'+p.nome+'</div>';
+
+    // SKU exibido: pai + variação em cinza (ex: "LN0699-RS · 12")
+    var skuDisplay = variacao
+      ? '<span style="color:var(--accent)">'+skuPai+'</span><span style="color:var(--muted2)"> · '+variacao+'</span>'
+      : '<span style="color:var(--accent)">'+nomeSKU+'</span>';
 
     return '<div class="t20row" style="gap:10px;align-items:center;padding:8px 4px">'+
       '<div class="t20n '+medal+'">'+(i+1)+'<\/div>'+
       '<div style="width:34px;height:34px;border-radius:8px;flex-shrink:0;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:17px">'+emoji+'<\/div>'+
       '<div class="t20bw" style="min-width:0">'+
         nomeHtml+
-        '<div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:3px">'+nomeSKU+'<\/div>'+
+        '<div style="font-family:var(--fmono);font-size:10px;margin-bottom:3px" title="SKU pai · variação (link aponta para o pai)">'+skuDisplay+'<\/div>'+
         '<div class="t20bg"><div class="t20bar" style="width:'+barW+'%;background:'+(i<3?'var(--accent)':'var(--a2)')+'"><\/div><\/div>'+
       '<\/div>'+
       '<div style="text-align:right;flex-shrink:0">'+
