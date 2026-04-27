@@ -3240,11 +3240,13 @@ function normCanal(raw) {
   if(sl.includes('shein'))                                     return 'Shein';
   if(sl.includes('tiktok') || sl.includes('tik tok') || sl.includes('tik-tok')) return 'TikTok Shop';
   if(sl.includes('dafiti'))                                    return 'Dafiti';
-  if(sl.includes('netshoes'))                                  return 'Netshoes';
+  if(sl.includes('netshoes') || sl.includes('centauro'))       return 'Netshoes';
   if(sl.includes('amazon'))                                    return 'Amazon';
-  if(sl.includes('magalu') || sl.includes('magazine luiza'))  return 'Magalu';
-  if(sl.includes('americanas') || sl.includes('americanas.com')) return 'Americanas';
-  if(sl.includes('b2w') || sl.includes('submarino'))          return 'B2W';
+  if(sl.includes('magalu') || sl.includes('magazine luiza'))   return 'Magalu';
+  if(sl.includes('americanas') || sl.includes('b2w') || sl.includes('submarino')) return 'Americanas';
+  // 🆕 Canais adicionados (Posthaus, Olist)
+  if(sl.includes('posthaus') || sl.includes('post haus'))      return 'Posthaus';
+  if(sl.includes('olist'))                                     return 'Olist';
   // Loja própria e variações
   if(sl.includes('fanclub') || sl.includes('loja própria') ||
      sl.includes('loja propria') || sl.includes('site') ||
@@ -3420,6 +3422,32 @@ window.debugCarga = {
       console.warn('⚠️ Taxa baixa — muitas linhas estão sendo descartadas');
       console.warn('   Possível causa: data inválida, valor zero, status filtrado');
     }
+  }
+};
+
+/* 🆕 Debug e reset de colunas detectadas (canal, pagamento, loja) */
+window.debugColunas = {
+  status: function() {
+    console.log('═══ Colunas detectadas ═══');
+    console.log('canal:    col' + _colIdx.canal);
+    console.log('status:   col' + _colIdx.status);
+    console.log('data:     col' + _colIdx.data);
+    console.log('valor:    col' + _colIdx.valor);
+    console.log('frete:    col' + _colIdx.frete);
+    console.log('pag:      col' + _colIdx.pag);
+    console.log('loja:     col' + (_colIdx.loja >= 0 ? _colIdx.loja : '(não detectada)'));
+    console.log('');
+    console.log('Salvas no localStorage:');
+    console.log('  veltro_canal_col: ' + (localStorage.getItem('veltro_canal_col') || '(vazio)'));
+    console.log('  veltro_pag_col:   ' + (localStorage.getItem('veltro_pag_col')   || '(vazio)'));
+    console.log('  veltro_loja_col:  ' + (localStorage.getItem('veltro_loja_col')  || '(vazio)'));
+    return _colIdx;
+  },
+  resetar: function() {
+    localStorage.removeItem('veltro_canal_col');
+    localStorage.removeItem('veltro_pag_col');
+    localStorage.removeItem('veltro_loja_col');
+    console.log('✅ Detecções resetadas. Recarregue a página (F5) pra detectar de novo.');
   }
 };
 
@@ -5870,19 +5898,53 @@ async function loadGS(url){
   }
 
   // Estratégia A: buscar no cabeçalho palavras relacionadas a canal/marketplace
+  // PRIORIDADE: match EXATO > match no início > includes (mais específicos primeiro)
+  // 🆕 'loja' REMOVIDO da lista pra não confundir com a coluna multi-loja
   var canalPorHeader = -1;
   if(header) {
-    var KW_HEADER_CANAL = ['canal','marketplace','plataforma','origem','loja','source','ecommerce','e-commerce','integração'];
+    var KW_CANAL = ['marketplace','canal','plataforma'];
+    var KW_NEGATIVOS = ['data','identificador','status','situação','situacao','código','codigo','rastr','prazo','obs'];
+
+    var fnEhNegativo = function(hl) {
+      return KW_NEGATIVOS.some(function(kw){ return hl.includes(kw); });
+    };
+
+    // Tier 1: match EXATO ('marketplace', 'canal', 'plataforma')
     header.forEach(function(h, ci) {
       if(canalPorHeader >= 0) return;
       var hl = String(h||'').toLowerCase().trim();
-      KW_HEADER_CANAL.forEach(function(kw){ if(hl.includes(kw)) canalPorHeader = ci; });
+      if(KW_CANAL.indexOf(hl) >= 0) canalPorHeader = ci;
     });
+
+    // Tier 2: includes mas SEM contaminação (não tem palavra negativa antes)
+    if(canalPorHeader < 0) {
+      header.forEach(function(h, ci) {
+        if(canalPorHeader >= 0) return;
+        var hl = String(h||'').toLowerCase().trim();
+        // Pular cabeçalhos que tem prefixo negativo (ex: "Data Marketplace", "Identificador Marketplace")
+        if(fnEhNegativo(hl)) return;
+        KW_CANAL.forEach(function(kw){
+          if(hl.includes(kw)) canalPorHeader = ci;
+        });
+      });
+    }
+
+    // Tier 3: fallback (origem, source, etc.)
+    if(canalPorHeader < 0) {
+      var KW_TIER3 = ['origem','source','ecommerce','e-commerce','integração'];
+      header.forEach(function(h, ci) {
+        if(canalPorHeader >= 0) return;
+        var hl = String(h||'').toLowerCase().trim();
+        if(fnEhNegativo(hl)) return;
+        KW_TIER3.forEach(function(kw){ if(hl.includes(kw)) canalPorHeader = ci; });
+      });
+    }
+
     if(canalPorHeader >= 0) console.log('[Veltro] Canal encontrado no cabeçalho: col'+canalPorHeader+' = "'+header[canalPorHeader]+'"');
   }
 
   // Estratégia B: varrer dados procurando valores de marketplace conhecidos
-  var KW_CANAIS_DETECT = ['shopee','mercado livre','mercado','shein','tiktok','tik tok','dafiti','netshoes','amazon','magalu','magazine','americanas','submarino'];
+  var KW_CANAIS_DETECT = ['shopee','mercado livre','mercado','shein','tiktok','tik tok','dafiti','netshoes','amazon','magalu','magazine','americanas','submarino','posthaus','olist'];
   var canalColScore = {};
   var amostra = rows.slice(dataStart, Math.min(dataStart+50, rows.length));
   amostra.forEach(function(r) {
@@ -5911,7 +5973,7 @@ async function loadGS(url){
   // Aplicar o melhor resultado encontrado
   var novaCanalCol = canalPorHeader >= 0 ? canalPorHeader
                    : (melhorCanalCol ? parseInt(melhorCanalCol[0]) : -1);
-  
+
   if(novaCanalCol >= 0 && novaCanalCol !== _colIdx.canal) {
     console.log('[Veltro] ✅ Coluna de canal atualizada: '+_colIdx.canal+' → '+novaCanalCol);
     _colIdx.canal = novaCanalCol;
@@ -5980,18 +6042,19 @@ async function loadGS(url){
   }
 
   /* ─── DETECÇÃO DE COLUNA "LOJA" (MULTI-LOJA) ───
-     Estratégia 1: cabeçalho contém "loja" (case insensitive)
+     Estratégia 1: cabeçalho contém "loja" exato (case insensitive)
      Estratégia 2: coluna com 2-20 valores únicos curtos repetindo
+     IMPORTANTE: nunca colide com a coluna de canal (já detectada)
      Resultado salvo em _colIdx.loja (-1 se não encontrou) */
   var lojaCol = -1;
 
-  // Estratégia 1: cabeçalho
+  // Estratégia 1: cabeçalho — match EXATO de "loja"/"filial"/"unidade"
   if(header) {
     header.forEach(function(h, ci) {
       if(lojaCol >= 0) return;
       var hl = String(h||'').toLowerCase().trim();
-      // "Loja" exato, ou contém "filial"/"unidade"
-      if(hl === 'loja' || hl === 'lojas' || hl === 'filial' || hl === 'unidade' || hl === 'marca') {
+      // Match EXATO (não "includes" — pra evitar pegar "Ícone Loja")
+      if(hl === 'loja' || hl === 'lojas' || hl === 'filial' || hl === 'unidade') {
         // Validar que NÃO é a coluna canal (já detectada)
         if(ci !== _colIdx.canal) lojaCol = ci;
       }
@@ -5999,13 +6062,15 @@ async function loadGS(url){
     if(lojaCol >= 0) console.log('[Veltro] 🏪 Coluna LOJA encontrada no cabeçalho: col'+lojaCol+' = "'+header[lojaCol]+'"');
   }
 
-  // Estratégia 2: análise de valores únicos
+  // Estratégia 2: análise de valores únicos (só se não achou no header)
   if(lojaCol < 0) {
     var valoresUnicosPorCol = {};
     amostra.forEach(function(r) {
       if(!r) return;
       r.forEach(function(cell, ci) {
-        if(ci === _colIdx.canal || ci === _colIdx.status) return;
+        // 🆕 Pular: canal, status, data, valor, frete (colunas já mapeadas)
+        if(ci === _colIdx.canal || ci === _colIdx.status ||
+           ci === _colIdx.data || ci === _colIdx.valor || ci === _colIdx.frete) return;
         if(!cell) return;
         var s = String(cell).trim();
         if(s.length < 1 || s.length > 60) return;
@@ -6026,7 +6091,16 @@ async function loadGS(url){
         });
         // Match com padrão "N - Nome" (Magazord típico)
         var temPadraoMagazord = todos.some(function(v) { return /^\d+\s*-\s*\w/.test(v); });
-        if(pareceLoja || temPadraoMagazord) {
+        // 🆕 Rejeitar se tem nome de marketplace conhecido (= é coluna canal, não loja)
+        var pareceCanal = todos.some(function(v) {
+          var vl = v.toLowerCase();
+          return vl.includes('shopee') || vl.includes('mercado livre') ||
+                 vl.includes('shein') || vl.includes('amazon') ||
+                 vl.includes('dafiti') || vl.includes('posthaus') ||
+                 vl.includes('netshoes') || vl.includes('magalu') ||
+                 vl.includes('tiktok') || vl.includes('americanas');
+        });
+        if((pareceLoja || temPadraoMagazord) && !pareceCanal) {
           candidatas.push({ col: parseInt(ci), unicos: qtd, score: temPadraoMagazord ? qtd + 100 : qtd });
         }
       }
@@ -6039,17 +6113,22 @@ async function loadGS(url){
   }
 
   // Aplicar resultado
-  if(lojaCol >= 0) {
+  if(lojaCol >= 0 && lojaCol !== _colIdx.canal) {
     _colIdx.loja = lojaCol;
     try { localStorage.setItem('veltro_loja_col', lojaCol); } catch(e){}
   } else {
-    // Tentar recuperar da sessão anterior
+    // Tentar recuperar da sessão anterior — MAS validar que não é a mesma do canal
     var savedLoja = parseInt(localStorage.getItem('veltro_loja_col')||'-1');
-    if(savedLoja >= 0) {
+    if(savedLoja >= 0 && savedLoja !== _colIdx.canal) {
       _colIdx.loja = savedLoja;
       console.log('[Veltro] Usando coluna de LOJA salva: col'+savedLoja);
     } else {
       _colIdx.loja = -1; // Single-loja (modo padrão)
+      // 🆕 Se a salva colidiu com canal, limpar
+      if(savedLoja >= 0 && savedLoja === _colIdx.canal) {
+        try { localStorage.removeItem('veltro_loja_col'); } catch(e){}
+        console.log('[Veltro] Limpei veltro_loja_col salva (colidia com canal)');
+      }
     }
   }
 
