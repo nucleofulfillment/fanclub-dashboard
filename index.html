@@ -1110,6 +1110,9 @@ body.light body::before { opacity: 0; }
         <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:6px">
           Estrutura: A=Código · B=Marca · C=Valor Atual (custo)
         </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#6EE7B7;margin-top:4px;line-height:1.5">
+          💡 Opcional se sua planilha de Estoque já contém Marca e Custo Médio
+        </div>
       </div>
 
     </div>
@@ -6333,7 +6336,14 @@ async function refresh(){
     loadProdutos();  // carrega aba de produtos em paralelo
     loadEstados();   // carrega GMV por estado em paralelo (mesmo padrão)
     loadProdutosVendidos(); // carrega nova planilha de produtos vendidos
-    if(typeof loadCustoProdutos === 'function') loadCustoProdutos(); // custo real
+    // ─── Carregamento da planilha de estoque (modo consolidado pode alimentar custoRealMap) ───
+    // Roda ANTES do loadCustoProdutos pra que, em modo consolidado, a fonte da verdade venha da planilha de estoque.
+    // O loadCustoProdutos respeita backward-compat: se já carregou via consolidado, ele só sobrescreve se
+    // o cliente realmente configurou uma URL de Custo de Produtos separada.
+    if(typeof loadEstoque === 'function' && localStorage.getItem(ESTOQUE_URL_KEY)) {
+      loadEstoque();
+    }
+    if(typeof loadCustoProdutos === 'function') loadCustoProdutos(); // custo real (legado FanClub)
     applyFilter();
     document.getElementById('hdr-time').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     lbl.textContent=url?'AO VIVO':'EXEMPLO';
@@ -9086,6 +9096,78 @@ function detectarCategoria(nome) {
   return 'Outros';
 }
 
+/* ─ Helpers de detecção da planilha de estoque ────────────────────────
+   Suporta 3 formatos:
+   1. CONSOLIDADO (Magazord export): SKU + Nome + Marca + Qtd Disp + Custo Médio
+   2. INVENTÁRIO (FanClub legado): SKU | Nome | Situação | ... | Estoque Final
+   3. SIMPLES (legado): SKU | Nome | Estoque | Mínimo
+   Resultado: índices de coluna por nome, ou null se não conseguiu detectar. */
+function _estoqueNorm(s) {
+  return String(s||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[\.\-_/]/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+function _estoqueAcharCol(headerRow, candidatos, negativos) {
+  // Match exato primeiro, depois includes — retorna primeiro hit
+  // negativos: lista de palavras que descartam o match (ex: "id" pra evitar "Id Der.")
+  for(var modo = 0; modo < 2; modo++) {
+    for(var i = 0; i < headerRow.length; i++) {
+      var h = _estoqueNorm(headerRow[i]);
+      if(!h) continue;
+      // Aplicar negativos: se header contém qualquer palavra negativa, pula
+      if(negativos && negativos.length) {
+        var temNeg = false;
+        for(var k = 0; k < negativos.length; k++) {
+          if(h.indexOf(_estoqueNorm(negativos[k])) >= 0) { temNeg = true; break; }
+        }
+        if(temNeg) continue;
+      }
+      for(var j = 0; j < candidatos.length; j++) {
+        var c = _estoqueNorm(candidatos[j]);
+        if(modo === 0 && h === c) return i;
+        if(modo === 1 && h.indexOf(c) >= 0) return i;
+      }
+    }
+  }
+  return -1;
+}
+function _estoqueDetectarFormato(headerRow) {
+  if(!headerRow || headerRow.length < 3) return null;
+  // Buscar colunas-chave (consolidado tem TODAS as 5)
+  // Negativos pra "sku/codigo": evita "id" puro (Id Dep., Id Der.)
+  var idxSku    = _estoqueAcharCol(headerRow,
+                    ['codigo der','codigo derivacao','sku','codigo','código'],
+                    ['id ','id_','idp','idd']);
+  // Negativos pra "nome": evita "Id" (que matcharia "Id Der." em modo includes)
+  var idxNome   = _estoqueAcharCol(headerRow,
+                    ['derivacao','derivação','nome','descricao','descrição','produto'],
+                    ['id ','id_','codigo','código']);
+  var idxAtivo  = _estoqueAcharCol(headerRow, ['ativo']);
+  var idxMarca  = _estoqueAcharCol(headerRow, ['marca','fabricante']);
+  var idxQtd    = _estoqueAcharCol(headerRow, ['quantidade disp venda','qtd disp venda','disp venda','disponivel venda','disponível venda']);
+  // Negativo pra custo: evita "Custo Virtual" (geralmente zerado)
+  var idxCusto  = _estoqueAcharCol(headerRow,
+                    ['custo medio de estoque','custo médio de estoque','custo medio','custo médio','custo'],
+                    ['virtual']);
+  var idxMin    = _estoqueAcharCol(headerRow, ['quantidade min estoque','qtd min estoque','minimo','mínimo','estoque minimo']);
+
+  // CONSOLIDADO: tem marca + qtd disp + custo médio (Magazord pattern)
+  if(idxMarca >= 0 && idxQtd >= 0 && idxCusto >= 0 && idxSku >= 0) {
+    return {
+      modo: 'consolidado',
+      sku:    idxSku,
+      nome:   idxNome >= 0 ? idxNome : 4,  // fallback col E
+      ativo:  idxAtivo,                      // -1 se não tiver
+      marca:  idxMarca,
+      qtd:    idxQtd,
+      custo:  idxCusto,
+      minimo: idxMin                          // -1 se não tiver
+    };
+  }
+  return null; // cai no detector heurístico antigo
+}
+
 async function loadEstoque() {
   var urlEl    = document.getElementById('estoque-url');
   var statusEl = document.getElementById('estoque-status');
@@ -9128,6 +9210,174 @@ async function loadEstoque() {
     if(!txt.includes('"table"')) throw new Error('Formato inválido — certifique-se de publicar como página web e usar URL gviz/tq?tqx=out:json');
     var rows = parseGS(txt);
 
+    if(!rows || rows.length === 0) throw new Error('Planilha vazia');
+
+    /* ─── DETECÇÃO DE FORMATO ─────────────────────────────────────
+       Tenta consolidado (Magazord) primeiro pelos headers da linha 0.
+       Se não bater, cai no detector heurístico antigo (FanClub). */
+    var headerRow = rows[0];
+    var fmt = _estoqueDetectarFormato(headerRow);
+
+    if(fmt && fmt.modo === 'consolidado') {
+      /* ─── MODO CONSOLIDADO (La Luna / Magazord) ───────────────── */
+      console.log('[Veltro Estoque] Modo CONSOLIDADO detectado.',
+                  'Cols → SKU:'+fmt.sku, 'Nome:'+fmt.nome, 'Marca:'+fmt.marca,
+                  'Qtd:'+fmt.qtd, 'Custo:'+fmt.custo, 'Ativo:'+fmt.ativo);
+
+      // Helper local: parsear número R$ no formato BR ou US (mesma lógica do loadCustoProdutos)
+      var parseValor = function(v) {
+        if(typeof v === 'number') return isFinite(v) ? v : 0;
+        if(v === null || v === undefined || v === '') return 0;
+        var s = String(v).replace(/[R$\s]/g,'').trim();
+        if(!s) return 0;
+        var hasComma = s.indexOf(',') >= 0;
+        var hasDot   = s.indexOf('.') >= 0;
+        if(hasComma && hasDot)      s = s.replace(/\./g,'').replace(',','.');
+        else if(hasComma)            s = s.replace(',','.');
+        else if(hasDot && (s.match(/\./g)||[]).length > 1) s = s.replace(/\./g,'');
+        var n = parseFloat(s);
+        return isFinite(n) ? n : 0;
+      };
+
+      var novoEstoque   = [];
+      var novoCustoMap  = {};
+      var novoMarcaMap  = {};
+      var marcasCnt     = {};
+      var totalCust     = 0;
+      var cntCust       = 0;
+      var ignoradosInat = 0;
+      var ignoradosLin  = 0;
+
+      for(var i = 1; i < rows.length; i++) {
+        var r = rows[i];
+        if(!r) { ignoradosLin++; continue; }
+        var sku  = String(r[fmt.sku]||'').trim();
+        if(!sku) { ignoradosLin++; continue; }
+        var nome = String(r[fmt.nome]||'').trim();
+        if(!nome) { ignoradosLin++; continue; }
+
+        // Filtro de ativos: pula se col Ativo === "Não" (ou "N", "False", etc.)
+        if(fmt.ativo >= 0) {
+          var ativoVal = String(r[fmt.ativo]||'').trim().toLowerCase();
+          // Aceita: sim, s, true, 1, yes, y. Rejeita: nao, não, n, false, 0, no
+          if(ativoVal === 'nao' || ativoVal === 'não' || ativoVal === 'n' ||
+             ativoVal === 'false' || ativoVal === '0' || ativoVal === 'no') {
+            ignoradosInat++;
+            continue;
+          }
+        }
+
+        var marca = String(r[fmt.marca]||'').trim();
+        var qtd   = parseInt(parseValor(r[fmt.qtd])) || 0;
+        var custo = parseValor(r[fmt.custo]);
+        var minimo = fmt.minimo >= 0 ? (parseInt(parseValor(r[fmt.minimo]))||5) : 5;
+
+        // 1. Alimentar estoqueData (pra módulos Estoque + Saúde do Estoque)
+        novoEstoque.push({
+          sku: sku,
+          nome: nome,
+          cat: detectarCategoria(nome),
+          estoque: qtd,
+          minimo: minimo,
+          diferenca: 0,
+          situacao: 'OK',
+          marca: marca || null  // bônus pra Saúde mostrar marca real
+        });
+
+        // 2. Alimentar custoRealMap + marcaPorSku (pra Precificação + Saúde Custo Real)
+        // Mesma lógica de skuBase do loadCustoProdutos pra compatibilidade
+        var skuBase = sku.replace(/-\d{1,4}$/, '');
+        if(!skuBase) skuBase = sku;
+
+        // Marca: grava sempre (mesmo sem custo, igual loadCustoProdutos)
+        if(marca && !novoMarcaMap[skuBase]) {
+          novoMarcaMap[skuBase] = marca;
+          marcasCnt[marca] = (marcasCnt[marca] || 0) + 1;
+        }
+        // Também grava o SKU completo (pra match exato em produtos sem variação de tamanho)
+        if(marca && !novoMarcaMap[sku]) {
+          novoMarcaMap[sku] = marca;
+        }
+
+        // Custo: só guarda se > 0 (zero cai no fallback ABC do FanClub)
+        if(custo > 0) {
+          if(!novoCustoMap[skuBase]) {
+            novoCustoMap[skuBase] = {custo: custo, marca: marca, amostras: 1};
+            totalCust += custo;
+            cntCust++;
+          } else {
+            // Múltiplas linhas (ex: tamanhos) — média ponderada (mesma lógica)
+            var prev = novoCustoMap[skuBase];
+            var novoTotal = prev.amostras + 1;
+            novoCustoMap[skuBase] = {
+              custo: (prev.custo * prev.amostras + custo) / novoTotal,
+              marca: prev.marca || marca,
+              amostras: novoTotal
+            };
+          }
+          // SKU completo também (pra match direto em variações)
+          if(!novoCustoMap[sku]) {
+            novoCustoMap[sku] = {custo: custo, marca: marca, amostras: 1};
+          }
+        }
+      }
+
+      estoqueData = novoEstoque;
+
+      // Popula APIs globais usadas por Saúde + Precificação + Financeiro Modo Auto
+      // ATENÇÃO: substitui o que veio do loadCustoProdutos. A planilha de estoque
+      // consolidada é a fonte da verdade quando ambas existem.
+      custoRealMap = novoCustoMap;
+      marcaPorSku  = novoMarcaMap;
+      _custoStats = {
+        totalSkus:   Object.keys(novoMarcaMap).length,
+        comCusto:    cntCust,
+        custoMedio:  cntCust > 0 ? totalCust / cntCust : 0,
+        marcas:      marcasCnt,
+        carregado:   true,
+        ultimaCarga: new Date(),
+        fonte:       'estoque-consolidado'  // flag p/ debug
+      };
+
+      console.log('[Veltro Estoque] ✅ Consolidado: '+novoEstoque.length+' SKUs ativos · '+
+                  ignoradosInat+' inativos ignorados · '+
+                  cntCust+' c/custo real · '+
+                  Object.keys(marcasCnt).length+' marcas · '+
+                  'custo médio R$ '+_custoStats.custoMedio.toFixed(2));
+
+      renderEstoqueKPIs();
+      renderEstoqueTabela();
+      renderEstoqueIndicadores();
+      try{ document.getElementById('estoque-count').textContent = estoqueData.length.toLocaleString('pt-BR') + ' itens'; }catch(e){}
+      if(statusEl){
+        statusEl.textContent='✅ '+estoqueData.length.toLocaleString('pt-BR')+' SKUs · '+cntCust+' c/custo';
+        statusEl.style.color='var(--green)';
+      }
+      if(urlEl) urlEl.style.borderColor = 'var(--green)';
+      if(savedEl) savedEl.textContent = '✅ Salvo';
+      try{ document.getElementById('estoque-config').style.display='none'; }catch(e){}
+
+      // Re-renderizar páginas dependentes se estiverem abertas
+      try {
+        var saudePage = document.getElementById('page-saude');
+        if(saudePage && saudePage.classList.contains('active') && typeof saudeRecalcular === 'function') {
+          saudeRecalcular();
+        }
+      } catch(e){}
+      try {
+        var finPage = document.getElementById('page-financeiro');
+        if(finPage && finPage.classList.contains('active') && typeof atualizarResultado === 'function') {
+          atualizarResultado();
+        }
+      } catch(e){}
+      try {
+        if(typeof precAtualizarVisibilidadeBusca === 'function') precAtualizarVisibilidadeBusca();
+      } catch(e){}
+      return;
+    }
+
+    /* ─── MODO LEGADO (FanClub) ───────────────────────────────────
+       Comportamento original preservado integralmente. */
     var SKIP_PREFIXES = ['filtro','inventário','inventario','data início','data inicio',
                          'situação','situacao','produtos inventariados','depósito','deposito','código','codigo'];
     var dataRows = rows.filter(function(r) {
@@ -9163,11 +9413,11 @@ async function loadEstoque() {
     if(savedEl) savedEl.textContent = '✅ Salvo';
     // Fechar config após sucesso
     try{ document.getElementById('estoque-config').style.display='none'; }catch(e){}
-    console.log('[FanClub Estoque] Carregados:', estoqueData.length, '| Formato:', isInventario?'Inventário':'Simples');
+    console.log('[Veltro Estoque] Modo LEGADO carregado:', estoqueData.length, '| Formato:', isInventario?'Inventário':'Simples');
   } catch(e) {
     if(statusEl){ statusEl.textContent='❌ '+e.message; statusEl.style.color='var(--red)'; }
     if(urlEl) urlEl.style.borderColor = 'var(--red)';
-    console.error('[FanClub Estoque]', e);
+    console.error('[Veltro Estoque]', e);
   }
 }
 
@@ -9864,16 +10114,41 @@ async function loadCustoProdutos() {
       }
     }
 
-    custoRealMap = novoMap;
-    marcaPorSku  = novoMarca;
-    _custoStats = {
-      totalSkus:   Object.keys(novoMarca).length,
-      comCusto:    cntCust,
-      custoMedio:  cntCust > 0 ? totalCust / cntCust : 0,
-      marcas:      marcas,
-      carregado:   true,
-      ultimaCarga: new Date()
-    };
+    // ─── PROTEÇÃO MODO CONSOLIDADO ─────────────────────────────────────
+    // Se a planilha de estoque consolidada já populou custoRealMap/marcaPorSku,
+    // este loadCustoProdutos (legado) APENAS COMPLEMENTA SKUs ausentes.
+    // Não sobrescreve dados vindos da fonte mais recente (planilha de estoque).
+    var fonteAtual = (_custoStats && _custoStats.fonte) || null;
+    if(fonteAtual === 'estoque-consolidado') {
+      // Merge: só adiciona SKUs/marcas que ainda não existem
+      var addedCusto = 0, addedMarca = 0;
+      Object.keys(novoMap).forEach(function(k){
+        if(!custoRealMap[k]) { custoRealMap[k] = novoMap[k]; addedCusto++; }
+      });
+      Object.keys(novoMarca).forEach(function(k){
+        if(!marcaPorSku[k]) { marcaPorSku[k] = novoMarca[k]; addedMarca++; }
+      });
+      _custoStats.totalSkus   = Object.keys(marcaPorSku).length;
+      _custoStats.comCusto    = Object.keys(custoRealMap).length;
+      _custoStats.fonte       = 'estoque-consolidado+custo-legado';
+      _custoStats.ultimaCarga = new Date();
+      console.log('[Custo] Modo consolidado já ativo. Legado COMPLEMENTOU: '+
+                  '+'+addedCusto+' SKUs c/custo · +'+addedMarca+' marcas. Total: '+
+                  _custoStats.comCusto+' c/custo · '+_custoStats.totalSkus+' SKUs.');
+    } else {
+      // Modo legado puro: substitui (comportamento original)
+      custoRealMap = novoMap;
+      marcaPorSku  = novoMarca;
+      _custoStats = {
+        totalSkus:   Object.keys(novoMarca).length,
+        comCusto:    cntCust,
+        custoMedio:  cntCust > 0 ? totalCust / cntCust : 0,
+        marcas:      marcas,
+        carregado:   true,
+        ultimaCarga: new Date(),
+        fonte:       'custo-legado'
+      };
+    }
 
     console.log('[Custo] ✅ Carregado: '+cntCust+' SKUs com custo real · '+
                 Object.keys(novoMarca).length+' SKUs com marca · '+
