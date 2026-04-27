@@ -3059,6 +3059,42 @@ function parseGSDate(v) {
   return '';
 }
 
+/* 🆕 parseValor: normaliza números BR/EN/JSON antes de parseFloat.
+   - Já é número?  retorna direto
+   - "1.234,56"     → "1234.56"  (formato BR)
+   - "1,234.56"     → "1234.56"  (formato EN)
+   - "1234.56"      → "1234.56"  (já normalizado)
+   - "R$ 1.234,56"  → "1234.56"  (com prefixo monetário)
+   - vazio/null     → 0
+   Usado quando dados vêm de CSV (em vez de JSON tipado do gviz). */
+function parseValor(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return v;
+  var s = String(v).trim();
+  if (!s) return 0;
+  // Remove prefixos monetários e espaços
+  s = s.replace(/[R$\s]/g, '');
+  // Detectar formato: se tem vírgula DEPOIS de ponto → BR (1.234,56)
+  // Se tem ponto DEPOIS de vírgula → EN (1,234.56)
+  var temVirgula = s.indexOf(',') >= 0;
+  var temPonto = s.indexOf('.') >= 0;
+  if (temVirgula && temPonto) {
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      // BR: 1.234,56 — ponto é separador de milhar, vírgula é decimal
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // EN: 1,234.56 — vírgula é separador de milhar, ponto é decimal
+      s = s.replace(/,/g, '');
+    }
+  } else if (temVirgula) {
+    // Só vírgula: trata como decimal BR
+    s = s.replace(',', '.');
+  }
+  // Só ponto ou nenhum: parseFloat resolve direto
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    AUTO-DETECTOR DE COLUNAS
    Analisa 50 linhas e identifica, por frequência de palavras-chave,
@@ -3335,6 +3371,53 @@ window.debugPag = {
   }
 };
 
+/* 🆕 Debug do último carregamento de planilha (detecta truncamento). */
+window.debugCarga = {
+  status: function() {
+    var d = window._veltroUltimoCarregamento;
+    if(!d) {
+      console.log('Nenhum carregamento registrado ainda. Carregue dados primeiro.');
+      return;
+    }
+    console.log('═══ Debug Carregamento ═══');
+    console.log('Fonte:', d.fonte.toUpperCase(), d.fonte === 'csv' ? '✅ (formato compacto)' : '⚠️ (JSON pode truncar)');
+    console.log('Linhas carregadas:', d.linhas.toLocaleString('pt-BR'));
+    console.log('Tamanho da resposta:', d.tamanhoMB, 'MB');
+    console.log('Carregado em:', new Date(d.timestamp).toLocaleString('pt-BR'));
+    if(d.fonte === 'json' && parseFloat(d.tamanhoMB) >= 1.9) {
+      console.warn('🚨 ALERTA: JSON próximo do limite de 2 MB do Google.');
+      console.warn('   Os dados podem estar TRUNCADOS — só parte da planilha foi carregada.');
+      console.warn('   Solução: o sistema agora usa CSV automaticamente como prioridade.');
+    } else if(d.fonte === 'csv' && parseFloat(d.tamanhoMB) >= 1.9) {
+      console.warn('🚨 ALERTA: CSV também atingindo 2 MB.');
+      console.warn('   Recomendação: dividir planilha em abas mensais para escalar.');
+    } else {
+      console.log('✅ Tudo OK — sem indícios de truncamento');
+    }
+    return d;
+  },
+  // Compara linhas processadas vs linhas brutas (detecta erros de parse)
+  comparar: function() {
+    var d = window._veltroUltimoCarregamento;
+    var lp = window._lastProcessedData;
+    if(!d || !lp) {
+      console.log('Dados insuficientes. Carregue a planilha primeiro.');
+      return;
+    }
+    console.log('Linhas brutas da planilha:', d.linhas.toLocaleString('pt-BR'));
+    console.log('Pedidos processados:', (lp.qtd || 0).toLocaleString('pt-BR'));
+    console.log('GMV total:', 'R$ '+(lp.gmv || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2}));
+    var taxa = lp.qtd > 0 && d.linhas > 0
+      ? ((lp.qtd / (d.linhas - 1)) * 100).toFixed(1)  // -1 por causa do header
+      : '0';
+    console.log('Taxa de aproveitamento:', taxa + '%');
+    if(parseFloat(taxa) < 50) {
+      console.warn('⚠️ Taxa baixa — muitas linhas estão sendo descartadas');
+      console.warn('   Possível causa: data inválida, valor zero, status filtrado');
+    }
+  }
+};
+
 /* ═══════════════════════════════════════════════════════════════
    MAPEAMENTO DE LINHA RAW → OBJETO PEDIDO
 ═══════════════════════════════════════════════════════════════ */
@@ -3344,7 +3427,7 @@ function mapRow(r) {
   var ci = _colIdx;
   var data = parseGSDate(r[ci.data]);
   if (!data || data.length < 10) return null;
-  var valor = parseFloat(r[ci.valor]) || 0;
+  var valor = parseValor(r[ci.valor]);
   if (valor <= 0) return null;
   return {
     data:    data,
@@ -3356,7 +3439,7 @@ function mapRow(r) {
     canal:   normCanal(r[ci.canal]),
     status:  normStatus(r[ci.status]),
     valor:   valor,
-    frete:   parseFloat(r[ci.frete]) || 0,
+    frete:   parseValor(r[ci.frete]),
   };
 }
 
@@ -5611,10 +5694,97 @@ function _buildProdutosFromAllRows(map) {
   });
 }
 
+/* 🆕 Parser CSV simples (suporta vírgula, aspas, quebras dentro de campo).
+   Usado como fallback quando JSON do gviz é muito grande (>2MB) e trunca. */
+function _parseCSV(text) {
+  var rows = [];
+  var cur = [];
+  var field = '';
+  var inQuote = false;
+  var i = 0, len = text.length;
+  while(i < len) {
+    var ch = text.charAt(i);
+    if(inQuote) {
+      if(ch === '"') {
+        if(text.charAt(i+1) === '"') { field += '"'; i += 2; continue; }
+        inQuote = false; i++; continue;
+      }
+      field += ch; i++; continue;
+    }
+    if(ch === '"') { inQuote = true; i++; continue; }
+    if(ch === ',') { cur.push(field); field = ''; i++; continue; }
+    if(ch === '\n' || ch === '\r') {
+      if(field !== '' || cur.length > 0) { cur.push(field); rows.push(cur); }
+      cur = []; field = '';
+      // Pular \r\n
+      if(ch === '\r' && text.charAt(i+1) === '\n') i++;
+      i++;
+      continue;
+    }
+    field += ch; i++;
+  }
+  if(field !== '' || cur.length > 0) { cur.push(field); rows.push(cur); }
+  return rows;
+}
+
+/* 🆕 Tenta carregar planilha em CSV (5x menor que JSON, suporta planilhas grandes).
+   Faz parse e converte pro formato esperado pelo resto do sistema. */
+async function _tentarCSV(urlBase) {
+  // Trocar tqx=out:json por tqx=out:csv na URL
+  var urlCSV = urlBase.replace('tqx=out:json', 'tqx=out:csv');
+  // Se não tinha tqx, adiciona
+  if(!urlCSV.includes('tqx=out:csv')) {
+    urlCSV += (urlCSV.includes('?') ? '&' : '?') + 'tqx=out:csv';
+  }
+  var res = await fetch(urlCSV + '&nocache=' + Date.now());
+  if(!res.ok) throw new Error('CSV fetch failed: '+res.status);
+  var txt = await res.text();
+  if(!txt || txt.length < 10) throw new Error('CSV vazio');
+  // Detecta resposta de erro do Google (HTML em vez de CSV)
+  if(txt.charAt(0) === '<') throw new Error('Resposta não é CSV');
+  return { rows: _parseCSV(txt), tamanhoBytes: txt.length };
+}
+
 async function loadGS(url){
-  const res=await fetch(url+'&nocache='+Date.now());
-  const txt=await res.text();
-  const rows=parseGS(txt);
+  // 🆕 Estratégia híbrida: tenta CSV primeiro (5x menor), JSON como fallback
+  var rows = null;
+  var fonte = 'json';
+  var tamanhoMB = 0;
+
+  try {
+    var resultadoCSV = await _tentarCSV(url);
+    rows = resultadoCSV.rows;
+    tamanhoMB = (resultadoCSV.tamanhoBytes / 1024 / 1024).toFixed(2);
+    fonte = 'csv';
+    console.log('[Veltro] ✅ CSV carregado: '+rows.length+' linhas ('+tamanhoMB+' MB)');
+  } catch(eCSV) {
+    console.warn('[Veltro] CSV falhou ('+eCSV.message+'), tentando JSON...');
+    try {
+      const res=await fetch(url+'&nocache='+Date.now());
+      const txt=await res.text();
+      tamanhoMB = (txt.length / 1024 / 1024).toFixed(2);
+      rows = parseGS(txt);
+      fonte = 'json';
+      console.log('[Veltro] JSON carregado: '+rows.length+' linhas ('+tamanhoMB+' MB)');
+      // 🚨 ALERTA: se JSON tem ~2MB, pode ter sido truncado
+      if(parseFloat(tamanhoMB) >= 1.9) {
+        console.warn('[Veltro] ⚠️ Resposta JSON está próxima do limite do Google (2 MB) — dados podem estar TRUNCADOS!');
+        console.warn('[Veltro] ⚠️ Recomendação: usar CSV (5x menor) ou quebrar planilha em abas mensais');
+      }
+    } catch(eJSON) {
+      console.error('[Veltro] Ambos formatos falharam:', eJSON);
+      throw eJSON;
+    }
+  }
+
+  // Salvar diagnóstico global pra debug
+  window._veltroUltimoCarregamento = {
+    fonte: fonte,
+    linhas: rows.length,
+    tamanhoMB: tamanhoMB,
+    timestamp: new Date().toISOString()
+  };
+
   // Detectar cabeçalho e mapear colunas automaticamente
   var header = null;
   var dataStart = 0;
@@ -12228,6 +12398,69 @@ function _veltroFallbackCopiar(texto, callback) {
   }
 }
 
+/* 🆕 Importa arquivo .json baixado (mesma lógica de veltroImportarConfig
+   mas lê de file input, sem precisar copiar/colar código). */
+function veltroImportarArquivoBackup(event) {
+  if(!_veltroAdminAutenticado) return;
+  var file = event.target.files[0];
+  if(!file) return;
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var config = JSON.parse(e.target.result);
+      if(!config.usuarios || !Array.isArray(config.usuarios)) {
+        alert('❌ Arquivo inválido — verifique se é um backup do Veltro OS.');
+        return;
+      }
+
+      // Mesma lógica de veltroImportarConfig
+      var existentes = veltroGetUsuarios();
+      var importados = 0;
+      config.usuarios.forEach(function(u) {
+        if(!existentes.find(function(ex){ return ex.id === u.id; })) {
+          existentes.push(u);
+          importados++;
+        } else {
+          var idx = existentes.findIndex(function(ex){ return ex.id === u.id; });
+          if(idx >= 0) existentes[idx] = u;
+        }
+
+        // Importar TODOS os dados completos da empresa (formato v1.2)
+        if(config.dadosCompletos && config.dadosCompletos[u.id]) {
+          var dados = config.dadosCompletos[u.id];
+          Object.keys(dados).forEach(function(chave) {
+            try { localStorage.setItem(chave, dados[chave]); } catch(e) {}
+          });
+        }
+
+        // Compatibilidade com formato v1.1
+        if(config.links && config.links[u.id]) {
+          veltroSaveLinks(u.id, config.links[u.id]);
+        }
+        if(config.plataformas && config.plataformas[u.id]) {
+          localStorage.setItem(PLAT_KEY + u.id, config.plataformas[u.id]);
+        }
+      });
+      veltroSaveUsuarios(existentes);
+      veltroRenderListaEmpresas();
+
+      var versaoTxt = config.versao === '1.2' ? 'completo (com parâmetros e configurações)' : 'básico (só links)';
+      alert('✅ Backup importado com sucesso!\n\n' +
+            'Formato: ' + versaoTxt + '\n' +
+            importados + ' nova(s) empresa(s)\n' +
+            (config.usuarios.length - importados) + ' atualizada(s)');
+
+      // Resetar input pra permitir importar mesmo arquivo de novo
+      event.target.value = '';
+    } catch(err) {
+      alert('❌ Erro ao ler arquivo: ' + err.message);
+      event.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
 /* 🆕 Atualiza o card de resumo do admin com contadores. */
 function veltroAtualizarResumoAdmin() {
   var el = document.getElementById('admin-resumo-texto');
@@ -12262,16 +12495,13 @@ function veltroBaixarBackup() {
   if(!_veltroAdminAutenticado) return;
   try {
     var config = {
-      versao: '1.1',
+      versao: '1.2',
       exportadoEm: new Date().toISOString(),
       usuarios: veltroGetUsuarios(),
-      links: {},
-      plataformas: {}
+      dadosCompletos: {}
     };
     config.usuarios.forEach(function(u) {
-      config.links[u.id] = veltroGetLinks(u.id);
-      var plat = localStorage.getItem(PLAT_KEY + u.id);
-      if(plat) config.plataformas[u.id] = plat;
+      config.dadosCompletos[u.id] = _veltroColetarDadosEmpresa(u.id);
     });
 
     var json = JSON.stringify(config, null, 2);
@@ -12298,21 +12528,51 @@ function veltroBaixarBackup() {
     alert('❌ Erro ao gerar backup: '+e.message);
   }
 }
+/* ─ Export COMPLETO: captura todos os dados de cada empresa.
+   Inclui: usuários, links, plataforma, parâmetros financeiros,
+   parâmetros de saúde, parâmetros globais, custo de produtos,
+   colunas detectadas (canal/pag), e qualquer outra chave
+   que comece com prefixos conhecidos. */
+function _veltroColetarDadosEmpresa(empresaId) {
+  var dados = {};
+  var prefixos = [
+    'veltro_links_',          // Links das planilhas
+    'fc_fin_params_v1_',      // Parâmetros financeiros
+    'fc_saude_params_v1_',    // Parâmetros saúde estoque
+    'fc_params_globais_v1_',  // Parâmetros sincronizados
+    'plataforma_',            // Plataforma escolhida
+    'veltro_canal_col',       // Coluna canal detectada (global)
+    'veltro_pag_col',         // Coluna pagamento detectada (global)
+    'fc_custo_produtos_url'   // URL custo produtos (global)
+  ];
+
+  // Chaves específicas da empresa
+  prefixos.slice(0, 5).forEach(function(prefixo) {
+    var key = prefixo + empresaId;
+    var val = localStorage.getItem(key);
+    if(val !== null) dados[key] = val;
+  });
+
+  // Chaves globais (compartilhadas)
+  prefixos.slice(5).forEach(function(key) {
+    var val = localStorage.getItem(key);
+    if(val !== null) dados[key] = val;
+  });
+
+  return dados;
+}
+
 function veltroExportarConfig() {
   if(!_veltroAdminAutenticado) return;
-  // Serializar toda a configuração em base64
   var config = {
     usuarios: veltroGetUsuarios(),
-    links:    {},
-    plataformas: {},
-    versao:   '1.1',
+    dadosCompletos: {},  // 🆕 captura todas as chaves de cada empresa
+    versao:   '1.2',     // bump pra indicar formato com dados completos
     exportadoEm: new Date().toISOString()
   };
-  // Incluir links e plataforma de todas as empresas
+  // Coleta dados completos de cada empresa
   config.usuarios.forEach(function(u) {
-    config.links[u.id] = veltroGetLinks(u.id);
-    var plat = localStorage.getItem(PLAT_KEY + u.id);
-    if(plat) config.plataformas[u.id] = plat;
+    config.dadosCompletos[u.id] = _veltroColetarDadosEmpresa(u.id);
   });
   var json = JSON.stringify(config);
   var code = btoa(unescape(encodeURIComponent(json)));
@@ -12351,47 +12611,64 @@ function veltroImportarConfig() {
       if(!existentes.find(function(e){ return e.id === u.id; })) {
         existentes.push(u);
         importados++;
+      } else {
+        // Já existe: atualizar (sobrescrever) com dados do export
+        var idx = existentes.findIndex(function(e){ return e.id === u.id; });
+        if(idx >= 0) existentes[idx] = u;
       }
-      // Importar links mesmo se usuário já existe (atualiza links)
+
+      // 🆕 Importar TODOS os dados completos da empresa (formato v1.2)
+      if(config.dadosCompletos && config.dadosCompletos[u.id]) {
+        var dados = config.dadosCompletos[u.id];
+        Object.keys(dados).forEach(function(chave) {
+          try {
+            localStorage.setItem(chave, dados[chave]);
+          } catch(e) {
+            console.warn('[Veltro] Erro ao importar chave', chave, e);
+          }
+        });
+      }
+
+      // Compatibilidade com formato v1.1 (links + plataformas separados)
       if(config.links && config.links[u.id]) {
         veltroSaveLinks(u.id, config.links[u.id]);
       }
-      // Importar plataforma
       if(config.plataformas && config.plataformas[u.id]) {
         localStorage.setItem(PLAT_KEY + u.id, config.plataformas[u.id]);
       }
     });
     veltroSaveUsuarios(existentes);
     veltroRenderListaEmpresas();
-    
+
     // Garantir que não há sessão ativa (outro usuário pode estar logado)
     localStorage.removeItem(VELTRO_SESSAO_KEY);
-    
+
     // Fechar admin e preparar login
     veltroFecharAdmin();
-    
+
     // Se importou usuários, mostrar na tela de login
     var msg = '✅ Configuração importada com sucesso!\n\n';
     msg += importados + ' novo(s) usuário(s) adicionado(s).\n';
-    msg += 'Links de todos os usuários foram atualizados.\n\n';
-    
+    msg += 'Links e configurações foram atualizados.\n\n';
+
     // Se só tem 1 usuário, pré-preencher o campo de login
     if(existentes.length === 1) {
       msg += 'Usuário "' + existentes[0].id + '" pré-preenchido no campo de login.';
       try{ document.getElementById('veltro-login-id').value = existentes[0].id; }catch(e){}
     } else if(existentes.length > 1) {
       msg += 'Usuários disponíveis:\n' + existentes.map(function(u){ return '• ' + u.id + ' (' + u.nome + ')'; }).join('\n');
-      // Pré-preencher com o primeiro
       try{ document.getElementById('veltro-login-id').value = existentes[0].id; }catch(e){}
     }
-    // Mostrar confirmação mais amigável sem alert bloqueante
+    // Mostrar confirmação amigável sem alert bloqueante
     var confirmDiv = document.getElementById('import-confirm');
     if(confirmDiv) {
+      var versaoTxt = config.versao === '1.2' ? 'completo (com parâmetros)' : 'básico (só links)';
       confirmDiv.innerHTML =
         '<div style="background:rgba(110,231,183,.1);border:1px solid rgba(110,231,183,.3);'+
         'border-radius:8px;padding:12px;margin-top:8px;font-family:JetBrains Mono,monospace;'+
         'font-size:11px;color:var(--green)">'+
-        '✅ Importado com sucesso — ' + importados + ' usuário(s) adicionado(s).<br>'+
+        '✅ Importado com sucesso — formato '+versaoTxt+'<br>'+
+        importados + ' novo(s) usuário(s) · ' + config.usuarios.length + ' atualizados<br>'+
         'Feche o Admin e faça login com seu identificador.</div>';
     } else {
       alert(msg);
@@ -12482,11 +12759,19 @@ window.addEventListener('load', function() {
             <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Resumo</div>
             <div id="admin-resumo-texto" style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text)">—</div>
           </div>
-          <button onclick="veltroBaixarBackup()"
-            title="Baixa um arquivo .json com todas as empresas + configurações"
-            style="padding:7px 12px;background:rgba(110,231,183,.10);border:1px solid rgba(110,231,183,.25);border-radius:7px;color:var(--accent);font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">
-            💾 Baixar Backup
-          </button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="veltroBaixarBackup()"
+              title="Baixa arquivo .json com todas as empresas + configurações"
+              style="padding:7px 12px;background:rgba(110,231,183,.10);border:1px solid rgba(110,231,183,.25);border-radius:7px;color:var(--accent);font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">
+              💾 Baixar Backup
+            </button>
+            <input type="file" id="admin-import-file" accept=".json" style="display:none" onchange="veltroImportarArquivoBackup(event)">
+            <button onclick="document.getElementById('admin-import-file').click()"
+              title="Importa um arquivo .json de backup"
+              style="padding:7px 12px;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.25);border-radius:7px;color:#A78BFA;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">
+              📥 Importar Backup
+            </button>
+          </div>
         </div>
       </div>
 
