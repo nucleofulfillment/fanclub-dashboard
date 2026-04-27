@@ -2396,62 +2396,68 @@ body.light body::before { opacity: 0; }
         <span id="mkt-info"></span>
       </div>
 
-      <!-- Investimento por canal (input manual) — EXPANDIDO -->
+      <!-- Investimento por canal (input manual) — 2 fileiras: 5 cards + 4 cards
+           Linha 1 (5): Shopee, ML, TikTok, Shein, Dafiti (marketplaces)
+           Linha 2 (4): Posthaus, Meta, Google, Outros (resto + LP) -->
       <div class="slabel">investimento por canal (manual)</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px" id="mkt-inputs">
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#EE4D2D;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#EE4D2D;flex-shrink:0"></span>Shopee Ads</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-shopee" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+      <div id="mkt-inputs" style="margin-bottom:20px">
+        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:12px">
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#EE4D2D;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#EE4D2D;flex-shrink:0"></span>Shopee Ads</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-shopee" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#FFD700;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FFD700;flex-shrink:0"></span>Mercado Livre Ads</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-ml" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#69C9D0;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#69C9D0;flex-shrink:0"></span>TikTok Ads</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-tiktok" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#FF6B9D;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B9D;flex-shrink:0"></span>Shein Ads</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-shein" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#FF6900;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6900;flex-shrink:0"></span>Dafiti Ads</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-dafiti" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
         </div>
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#FFD700;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FFD700;flex-shrink:0"></span>Mercado Livre Ads</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-ml" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
-        </div>
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#69C9D0;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#69C9D0;flex-shrink:0"></span>TikTok Ads</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-tiktok" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
-        </div>
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#FF6B9D;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B9D;flex-shrink:0"></span>Shein Ads</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-shein" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
-        </div>
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#FF6900;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6900;flex-shrink:0"></span>Dafiti Ads</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-dafiti" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
-        </div>
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#A855F7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#A855F7;flex-shrink:0"></span>Posthaus Ads</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-posthaus" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
-        </div>
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#1877F2;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#1877F2;flex-shrink:0"></span>Meta Ads (Loja Própria)</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-meta" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
-        </div>
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#4285F4;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#4285F4;flex-shrink:0"></span>Google Ads (Loja Própria)</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-google" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
-        </div>
-        <div class="card" style="padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#64748B;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#64748B;flex-shrink:0"></span>Outros</div>
-          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-          <input type="number" id="mkt-inv-outros" value="0" min="0" step="100" oninput="calcMarketing()"
-            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#A855F7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#A855F7;flex-shrink:0"></span>Posthaus Ads</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-posthaus" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#1877F2;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#1877F2;flex-shrink:0"></span>Meta Ads (Loja Própria)</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-meta" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#4285F4;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#4285F4;flex-shrink:0"></span>Google Ads (Loja Própria)</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-google" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#64748B;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#64748B;flex-shrink:0"></span>Outros</div>
+            <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+            <input type="number" id="mkt-inv-outros" value="0" min="0" step="100" oninput="calcMarketing()"
+              style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+          </div>
         </div>
       </div>
 
@@ -4520,6 +4526,15 @@ function saudeAtualizarVisao() {
   saudeRenderGraficos();
 }
 
+/* ─ Helper: aplica filtro de canal (compartilhado entre KPIs e tabela).
+   Para modos especiais (__mix_mkt__/__mix_lp__/todos), o filtro é pass-through:
+   _saudeColetarProdutos já entregou só os produtos corretos via canalRegras+share.
+   Para canais específicos (Shopee, ML, etc.) compara com p.canalTop. ─── */
+function _saudePassaCanal(p, canalF) {
+  if(canalF === 'todos' || canalF === '__mix_mkt__' || canalF === '__mix_lp__') return true;
+  return p.canalTop === canalF;
+}
+
 /* ─ Lista de produtos filtrada (canal/curva/status) ───────────────
    Usada por KPIs, gráficos E tabela para garantir consistência
    visual quando o usuário filtra por canal ou curva. */
@@ -4527,7 +4542,7 @@ function _saudeProdutosFiltrados() {
   var canalF  = (document.getElementById('saude-filtro-canal')||{}).value || 'todos';
   var curvaF  = (document.getElementById('saude-filtro-curva')||{}).value || 'todas';
   return _saudeProdutos.filter(function(p){
-    if(canalF !== 'todos' && p.canalTop !== canalF) return false;
+    if(!_saudePassaCanal(p, canalF)) return false;
     if(curvaF !== 'todas' && p.curva !== curvaF) return false;
     return true;
   });
@@ -4612,7 +4627,7 @@ function saudeRenderTabela() {
   var filtrados = _saudeProdutos.filter(function(p){
     if(_saudeFiltroStatus !== 'todos' && p.statusSaude !== _saudeFiltroStatus) return false;
     if(curvaF !== 'todas' && p.curva !== curvaF) return false;
-    if(canalF !== 'todos' && p.canalTop !== canalF) return false;
+    if(!_saudePassaCanal(p, canalF)) return false;
     // Filtro de marca: 'todas' ou match exato da marca
     if(marcaF !== 'todas' && (p.marca || '—') !== marcaF) return false;
     if(busca && !(String(p.sku).toLowerCase().includes(busca) || String(p.nome).toLowerCase().includes(busca))) return false;
