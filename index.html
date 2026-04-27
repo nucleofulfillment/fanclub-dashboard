@@ -3487,8 +3487,57 @@ function mapRow(r) {
    Percorre os pedidos UMA ÚNICA VEZ e monta todas as estruturas
    necessárias para KPIs, gráficos e tabelas.
 ═══════════════════════════════════════════════════════════════ */
-/* 🆕 Atualiza o <select id="f-loja"> com base nas lojas detectadas nos pedidos.
-   Se >1 loja única, mostra o filtro. Se ≤1 (ou todas vazias), esconde. */
+/* 🆕 Atualiza o <select id="f-canal"> com contadores por canal.
+   Usa SEMPRE a base completa de pedidos (ignora filtros) pra dropdown estável.
+   Mostra apenas canais que aparecem nos dados (não polui com canais zerados). */
+function _atualizarSeletorCanais(pedidos) {
+  var sel = document.getElementById('f-canal');
+  if(!sel) return;
+
+  // Sempre usar a base COMPLETA (ignora filtros) pra manter dropdown estável
+  var fonte = pedidos;
+  try {
+    if(typeof getPedidos === 'function') {
+      var todos = getPedidos();
+      if(Array.isArray(todos) && todos.length > 0) fonte = todos;
+    }
+  } catch(e) {}
+
+  if(!Array.isArray(fonte) || fonte.length === 0) return;
+
+  // Coleta canais únicos com qtd de pedidos
+  var canaisMap = {};
+  fonte.forEach(function(p) {
+    var c = (p.canal || 'Loja Própria').trim();
+    if(!c) return;
+    canaisMap[c] = (canaisMap[c] || 0) + 1;
+  });
+  var canaisOrdenados = Object.keys(canaisMap).sort(function(a,b){
+    return canaisMap[b] - canaisMap[a];
+  });
+
+  if(canaisOrdenados.length === 0) return;
+
+  // Cache pra não re-renderizar à toa (idempotente)
+  var hashAtual = canaisOrdenados.join('|');
+  if(sel.dataset.canaisHash === hashAtual) return;
+  sel.dataset.canaisHash = hashAtual;
+
+  // Renderiza opções com contagem TOTAL (não filtrada)
+  var valorAtual = sel.value;
+  var totalPedidos = fonte.length;
+  var html = '<option value="">Todos os canais ('+totalPedidos.toLocaleString('pt-BR')+')</option>';
+  canaisOrdenados.forEach(function(canal) {
+    var qtd = canaisMap[canal];
+    html += '<option value="'+canal.replace(/"/g,'&quot;')+'">'+canal+' ('+qtd.toLocaleString('pt-BR')+')</option>';
+  });
+  sel.innerHTML = html;
+  // Restaurar seleção se ainda válida
+  if(valorAtual && canaisOrdenados.indexOf(valorAtual) >= 0) {
+    sel.value = valorAtual;
+  }
+}
+
 /* 🆕 Atualiza o <select id="f-loja"> com base nas lojas detectadas nos pedidos.
    Usa SEMPRE o conjunto COMPLETO de pedidos (não filtrados), pra que o filtro
    continue mostrando todas as lojas mesmo após filtrar uma delas.
@@ -3553,6 +3602,8 @@ function _atualizarSeletorLojas(pedidos) {
 function processarDados(pedidos) {
   // 🆕 Atualizar seletor de lojas se houver multi-loja (idempotente — só popula se mudar)
   try { _atualizarSeletorLojas(pedidos); } catch(e) {}
+  // 🆕 Atualizar seletor de canais com contagem por canal (idempotente)
+  try { _atualizarSeletorCanais(pedidos); } catch(e) {}
 
   // Acumuladores
   var total=0, frete=0;
