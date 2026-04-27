@@ -7948,6 +7948,47 @@ function getCanalById(id) {
   return CANAIS_DISPONIVEIS.find(function(c){ return c.id === id; });
 }
 
+/* ─ LOJA URL (link da loja própria por empresa) ────────────────────
+   Usado pra montar links de produtos clicáveis na tela de Estoque.
+   Antes era hardcoded pra usefanclub.com.br; agora cada cliente tem o seu.
+   Chave: veltro_loja_url_<empresaId>. Sem URL = link de produto desabilitado.
+   ──────────────────────────────────────────────────────────────────── */
+var VELTRO_LOJA_URL_KEY = 'veltro_loja_url_';
+
+function veltroGetLojaUrl(empresaId) {
+  if(!empresaId) return '';
+  try {
+    return (localStorage.getItem(VELTRO_LOJA_URL_KEY + empresaId) || '').trim();
+  } catch(e) { return ''; }
+}
+
+function veltroSetLojaUrl(empresaId, url) {
+  if(!empresaId) return;
+  try {
+    var u = String(url||'').trim();
+    if(u) localStorage.setItem(VELTRO_LOJA_URL_KEY + empresaId, u);
+    else  localStorage.removeItem(VELTRO_LOJA_URL_KEY + empresaId);
+  } catch(e){ console.warn('[Veltro] Erro ao salvar loja URL:', e); }
+}
+
+/* Monta URL de busca de produto na loja própria.
+   Aceita 3 padrões:
+     - URL termina em /busca?q= → cola SKU no final
+     - URL termina em / ou em domínio puro → adiciona /busca?q=<sku>
+     - URL contém {sku} → substitui literal pelo SKU
+   Retorna '' se não houver lojaUrl configurada. */
+function veltroBuscaProdutoUrl(sku) {
+  var empId = (typeof veltroGetEmpresaAtual === 'function') ? veltroGetEmpresaAtual() : null;
+  var base = veltroGetLojaUrl(empId);
+  if(!base || !sku) return '';
+  var skuEnc = encodeURIComponent(sku);
+  if(base.indexOf('{sku}') >= 0) return base.replace(/\{sku\}/g, skuEnc);
+  if(/[?&]q=$/.test(base) || /\/busca\??[?&]?q?=?$/.test(base)) return base + skuEnc;
+  // Default: assume estrutura .../busca?q=<sku>
+  var sep = base.endsWith('/') ? '' : '/';
+  return base + sep + 'busca?q=' + skuEnc;
+}
+
 /* Calcular custo extra da Dafiti (mensalidade diluída) */
 function calcCustoDafitiExtra(precoVenda) {
   // Mensalidade R$299 diluída sobre o faturamento do canal Dafiti
@@ -9861,12 +9902,21 @@ function renderEstoqueTabela() {
     var stColor = isZero ? 'var(--red)' : isLow ? 'var(--amber)' : 'var(--green)';
     var stLabel = isZero ? '🔴 Zerado' : isLow ? '⚠️ Baixo' : '✅ OK';
     var diffColor = item.diferenca < 0 ? 'var(--red)' : item.diferenca > 0 ? 'var(--amber)' : 'var(--muted)';
-    // Usar SKU pai (sem variação de tamanho) para link do estoque
+    // SKU pai (sem variação de tamanho) pra link da loja
     var skuPaiEstoque = (item.sku || '').replace(/-\d{2,3}$/, '') || item.nome;
-    var buscaUrl = 'https://www.usefanclub.com.br/busca?q=' + encodeURIComponent(skuPaiEstoque);
+    // URL dinâmica por empresa (definida no admin → editar empresa → "Link da loja")
+    // Se vazia, link fica desabilitado
+    var buscaUrl = (typeof veltroBuscaProdutoUrl === 'function') ? veltroBuscaProdutoUrl(skuPaiEstoque) : '';
+    var temLink = !!buscaUrl;
+    var skuCell = temLink
+      ? '<a href="'+buscaUrl+'" target="_blank" rel="noopener" style="text-decoration:none"><span style="font-family:var(--fmono);font-size:11px;color:var(--accent);transition:opacity .15s" onmouseover="this.style.opacity=\'.7\'" onmouseout="this.style.opacity=\'1\'">'+item.sku+'</span></a>'
+      : '<span style="font-family:var(--fmono);font-size:11px;color:var(--muted2)" title="Cadastre o link da loja própria no painel admin → Editar empresa">'+item.sku+'</span>';
+    var nomeCell = temLink
+      ? '<a href="'+buscaUrl+'" target="_blank" rel="noopener" style="text-decoration:none;color:inherit" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'inherit\'">'+item.nome+'</a>'
+      : item.nome;
     return '<tr>'+
-      '<td><a href="'+buscaUrl+'" target="_blank" rel="noopener" style="text-decoration:none"><span style="font-family:var(--fmono);font-size:11px;color:var(--accent);transition:opacity .15s" onmouseover="this.style.opacity=\'.7\'" onmouseout="this.style.opacity=\'1\'">'+item.sku+'</span></a></td>'+
-      '<td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+item.nome+'"><a href="'+buscaUrl+'" target="_blank" rel="noopener" style="text-decoration:none;color:inherit" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'inherit\'">'+item.nome+'</a></td>'+
+      '<td>'+skuCell+'</td>'+
+      '<td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+item.nome+'">'+nomeCell+'</td>'+
       '<td style="font-size:11px;color:var(--muted2)">'+(CAT_ICONS[item.cat]||'📦')+' '+item.cat+'</td>'+
       '<td style="text-align:center;font-family:var(--fmono);font-weight:700;color:'+stColor+'">'+item.estoque+'</td>'+
       '<td style="text-align:center;font-family:var(--fmono);color:var(--muted)">'+item.minimo+'</td>'+
@@ -13566,6 +13616,10 @@ function veltroRenderListaEmpresas() {
           (ultimoAcessoTxt ? ' · acesso '+ultimoAcessoTxt : '')+
         '</div>'+
       '</div>'+
+      '<button onclick="veltroAbrirEditarEmpresa(\''+u.id+'\')" '+
+        'title="Editar empresa (nome, senha, canais, link da loja)" '+
+        'style="padding:6px 10px;background:rgba(96,165,250,.10);border:1px solid rgba(96,165,250,.25);border-radius:6px;color:#60A5FA;font-size:11px;cursor:pointer;font-family:var(--fmono);white-space:nowrap">'+
+        '✏️ Editar</button>'+
       '<button onclick="veltroCopiarLinkCliente(\''+u.id+'\', this)" '+
         'title="Copiar link de acesso" '+
         'style="padding:6px 10px;background:rgba(110,231,183,.10);border:1px solid rgba(110,231,183,.25);border-radius:6px;color:var(--accent);font-size:11px;cursor:pointer;font-family:var(--fmono);white-space:nowrap">'+
@@ -13912,6 +13966,178 @@ function veltroRemoverEmpresa(id) {
   veltroRenderListaEmpresas();
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   ITEM 6 — Editar Empresa
+   Modal permite alterar: nome, senha, canais ativos, link da loja.
+   ID não é editável (chave primária com várias dependências).
+═══════════════════════════════════════════════════════════════ */
+function veltroAbrirEditarEmpresa(empId) {
+  if(!_veltroAdminAutenticado) {
+    alert('Faça login no admin primeiro.');
+    return;
+  }
+  var usuarios = veltroGetUsuarios();
+  var u = usuarios.find(function(x){ return x.id === empId; });
+  if(!u) { alert('Empresa não encontrada: '+empId); return; }
+
+  // Preencher campos do modal
+  try { document.getElementById('edit-id-display').textContent = u.id; } catch(e){}
+  try { document.getElementById('edit-empresa-label').textContent = 'Editando: '+(u.nome||u.id); } catch(e){}
+  try { document.getElementById('edit-nome').value = u.nome || ''; } catch(e){}
+  try {
+    var sIn = document.getElementById('edit-senha');
+    if(sIn) { sIn.value = ''; sIn.type = 'text'; }
+  } catch(e){}
+  try {
+    var st = document.getElementById('edit-senha-status');
+    if(st) {
+      st.textContent = u.senhaHash
+        ? '🔐 Esta empresa tem senha. Deixe em branco pra manter, ou digite uma nova.'
+        : '🔓 Esta empresa não tem senha. Digite uma pra adicionar proteção.';
+      st.style.color = u.senhaHash ? 'var(--accent)' : 'var(--amber)';
+    }
+  } catch(e){}
+  try { document.getElementById('edit-loja-url').value = veltroGetLojaUrl(empId); } catch(e){}
+  try { document.getElementById('edit-erro').textContent = ''; } catch(e){}
+
+  // Renderiza grid de canais com os ativos atuais marcados
+  try {
+    var ativos = getCanaisAtivosEmpresa(empId);
+    veltroRenderCanaisGrid(ativos, 'edit-canais-grid', 'edit-canais-resumo');
+  } catch(e){ console.warn('[Edit] Render canais:', e); }
+
+  // Guarda o ID em atributo do modal pra recuperar no salvar
+  try {
+    var modal = document.getElementById('veltro-edit-empresa-modal');
+    if(modal) {
+      modal.setAttribute('data-empresa-id', empId);
+      modal.style.display = 'flex';
+    }
+  } catch(e){}
+}
+
+function veltroFecharEditarEmpresa() {
+  try {
+    var modal = document.getElementById('veltro-edit-empresa-modal');
+    if(modal) {
+      modal.style.display = 'none';
+      modal.removeAttribute('data-empresa-id');
+    }
+  } catch(e){}
+  // Limpa campos
+  try { document.getElementById('edit-nome').value = ''; } catch(e){}
+  try { document.getElementById('edit-senha').value = ''; } catch(e){}
+  try { document.getElementById('edit-loja-url').value = ''; } catch(e){}
+  try { document.getElementById('edit-erro').textContent = ''; } catch(e){}
+}
+
+function veltroEditGerarSenhaAuto() {
+  try {
+    var input = document.getElementById('edit-senha');
+    if(!input) return;
+    input.value = veltroGerarSenhaForte();
+    input.type = 'text';
+  } catch(e){}
+}
+
+async function veltroSalvarEdicaoEmpresa() {
+  if(!_veltroAdminAutenticado) return;
+
+  var modal = document.getElementById('veltro-edit-empresa-modal');
+  var empId = modal ? modal.getAttribute('data-empresa-id') : null;
+  if(!empId) {
+    try { document.getElementById('edit-erro').textContent = 'ID da empresa não encontrado.'; } catch(e){}
+    return;
+  }
+
+  var nome    = ((document.getElementById('edit-nome')||{}).value||'').trim();
+  var senha   = ((document.getElementById('edit-senha')||{}).value||'').trim();
+  var lojaUrl = ((document.getElementById('edit-loja-url')||{}).value||'').trim();
+  var erroEl  = document.getElementById('edit-erro');
+
+  if(erroEl) erroEl.textContent = '';
+
+  // Validação: nome obrigatório
+  if(!nome) {
+    if(erroEl) erroEl.textContent = '✕ Nome da empresa é obrigatório';
+    return;
+  }
+  // Validação: lojaUrl deve começar com http(s):// se preenchida
+  if(lojaUrl && !/^https?:\/\//i.test(lojaUrl)) {
+    if(erroEl) erroEl.textContent = '✕ Link da loja deve começar com http:// ou https://';
+    return;
+  }
+
+  // Buscar usuário atual
+  var usuarios = veltroGetUsuarios();
+  var idx = usuarios.findIndex(function(u){ return u.id === empId; });
+  if(idx < 0) {
+    if(erroEl) erroEl.textContent = '✕ Empresa não encontrada';
+    return;
+  }
+
+  // Atualizar nome
+  usuarios[idx].nome = nome;
+
+  // Atualizar senha (se preenchida) ou manter atual
+  if(senha) {
+    try {
+      usuarios[idx].senhaHash = await _veltroHashSenha(senha);
+    } catch(e) {
+      if(erroEl) erroEl.textContent = '✕ Erro ao gerar hash de senha';
+      return;
+    }
+  }
+  // Se quiser remover senha, aceita "REMOVER" como valor especial — opcional
+  // (não implementado pra evitar acidente; cliente pode trocar por senha vazia via outra UI futura)
+
+  // Persistir usuários
+  try {
+    veltroSaveUsuarios(usuarios);
+  } catch(e) {
+    if(erroEl) erroEl.textContent = '✕ Erro ao salvar empresa';
+    return;
+  }
+
+  // Salvar canais ativos
+  try {
+    var canaisMarcados = _lerCanaisMarcados('edit-canais-grid');
+    if(Array.isArray(canaisMarcados)) {
+      // Se zero marcados, remove (volta pro padrão "todos")
+      if(canaisMarcados.length === 0) {
+        localStorage.removeItem(VELTRO_CANAIS_KEY + empId);
+      } else {
+        setCanaisAtivosEmpresa(empId, canaisMarcados);
+      }
+    }
+  } catch(e) { console.warn('[Edit] Erro canais:', e); }
+
+  // Salvar link da loja
+  try { veltroSetLojaUrl(empId, lojaUrl); } catch(e){}
+
+  // Feedback visual no botão
+  try {
+    var btn = document.getElementById('edit-salvar-btn');
+    if(btn) {
+      var antes = btn.innerHTML;
+      btn.innerHTML = '✅ Salvo!';
+      btn.style.background = 'rgba(110,231,183,.5)';
+      setTimeout(function(){
+        veltroFecharEditarEmpresa();
+        btn.innerHTML = antes;
+        btn.style.background = 'var(--accent)';
+      }, 800);
+    } else {
+      veltroFecharEditarEmpresa();
+    }
+  } catch(e) {
+    veltroFecharEditarEmpresa();
+  }
+
+  // Re-renderiza lista
+  veltroRenderListaEmpresas();
+}
+
 window.addEventListener('load', function() {
   // Ocultar app até login validado
   var sidebar = document.querySelector('.sidebar');
@@ -14173,6 +14399,115 @@ window.addEventListener('load', function() {
              color:#0A0C10;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer">
       Salvar e Recarregar
     </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MODAL EDITAR EMPRESA (admin) — Item 6
+     Permite editar: nome, senha, canais ativos, link da loja própria.
+     ID não é editável (chave primária com várias dependências).
+═══════════════════════════════════════════════════════════════ -->
+<div id="veltro-edit-empresa-modal" style="display:none;position:fixed;inset:0;z-index:99998;
+     background:rgba(0,0,0,.8);backdrop-filter:blur(6px);align-items:center;justify-content:center">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;
+              padding:28px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;margin:20px">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700">✏️ Editar Empresa</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px"
+             id="edit-empresa-label">—</div>
+      </div>
+      <button onclick="veltroFecharEditarEmpresa()"
+        style="background:transparent;border:1px solid var(--border2);border-radius:8px;
+               color:var(--muted);padding:5px 10px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+
+    <!-- ID readonly (informativo) -->
+    <div style="margin-bottom:14px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);
+           text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">
+        Identificador (não editável)
+      </div>
+      <div id="edit-id-display"
+        style="background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;
+               font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted2);user-select:all">—</div>
+    </div>
+
+    <!-- Nome -->
+    <div style="margin-bottom:14px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);
+           text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">Nome da empresa</div>
+      <input type="text" id="edit-nome"
+        style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
+               padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);
+               outline:none;color-scheme:dark;box-sizing:border-box">
+    </div>
+
+    <!-- Senha (deixa vazio pra manter, ou digita nova) -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);
+             text-transform:uppercase;letter-spacing:1px">Senha</div>
+        <a onclick="veltroEditGerarSenhaAuto()"
+          style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);cursor:pointer">
+          🎲 Gerar senha forte
+        </a>
+      </div>
+      <input type="text" id="edit-senha" placeholder="Deixe em branco pra manter a atual"
+        style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
+               padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);
+               outline:none;color-scheme:dark;box-sizing:border-box">
+      <div id="edit-senha-status" style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:5px">—</div>
+    </div>
+
+    <!-- Link da loja própria (Item 4) -->
+    <div style="margin-bottom:14px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#A78BFA;
+           text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">
+        🏪 Link da loja própria
+      </div>
+      <input type="text" id="edit-loja-url" placeholder="https://www.minhaloja.com.br"
+        style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
+               padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
+               outline:none;color-scheme:dark;box-sizing:border-box">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:5px;line-height:1.5">
+        Usado no Estoque: clicar num SKU abre busca na loja. Suporta <code style="color:var(--accent)">{sku}</code> como placeholder.<br>
+        Exemplos: <code>https://lojadalaluna.com.br</code> · <code>https://shop.com/produtos/{sku}</code>
+      </div>
+    </div>
+
+    <!-- Canais ativos -->
+    <div style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);
+             text-transform:uppercase;letter-spacing:1px">🛒 Canais de venda ativos</div>
+        <span id="edit-canais-resumo" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2)">—</span>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-bottom:8px;line-height:1.5">
+        Marque APENAS os canais que essa empresa usa. Cards de Mídia, filtros e relatórios
+        respeitam esse cadastro.
+      </div>
+      <div id="edit-canais-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px"></div>
+    </div>
+
+    <!-- Erro -->
+    <div id="edit-erro" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);
+         min-height:18px;margin-bottom:10px;text-align:center"></div>
+
+    <!-- Ações -->
+    <div style="display:flex;gap:8px">
+      <button onclick="veltroFecharEditarEmpresa()"
+        style="flex:1;padding:11px;background:transparent;border:1px solid var(--border2);border-radius:10px;
+               color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer">
+        Cancelar
+      </button>
+      <button onclick="veltroSalvarEdicaoEmpresa()" id="edit-salvar-btn"
+        style="flex:2;padding:12px;background:var(--accent);border:none;border-radius:10px;
+               color:#0A0C10;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
+        💾 Salvar Alterações
+      </button>
+    </div>
   </div>
 </div>
 
