@@ -12740,11 +12740,35 @@ function veltroSaveLinks(id, links) {
    - Se vier ID na URL, auto-cadastra (se não existir) e entra direto
    - Se não vier, segue fluxo normal (sessão salva ou tela de login) */
 function veltroInit() {
-  // 🆕 NOVO: detectar parâmetro ?empresa=xxx na URL
+  // 🆕 Detectar empresa via URL — aceita 2 formatos:
+  //   1. /laluna           → URL bonita (produção, www.veltroos.com.br)
+  //   2. ?empresa=laluna   → query string (GitHub Pages, links antigos, fallback)
   try {
+    var empresaUrl = '';
+
+    // Formato 1: pathname (ex: /laluna)
+    // SÓ funciona em domínio próprio (veltroos.com.br) — em GitHub Pages
+    // o path tem /fanclub-dashboard/ que não é nome de empresa
+    var host = (window.location.hostname || '');
+    var ehDominioProprio = /(^|\.)veltroos\.com\.br$/i.test(host);
+    if(ehDominioProprio) {
+      var path = (window.location.pathname || '').replace(/^\/+/, '');
+      var primeiroSegmento = path.split('/')[0];
+      // Ignora arquivos especiais (index.html, 404.html, CNAME)
+      if(primeiroSegmento &&
+         primeiroSegmento.length >= 2 &&
+         !/\.html?$/i.test(primeiroSegmento) &&
+         primeiroSegmento.toLowerCase() !== 'cname') {
+        empresaUrl = primeiroSegmento.toLowerCase().replace(/\s+/g,'');
+      }
+    }
+
+    // Formato 2: query string ?empresa=xxx (sobrescreve se presente — útil pra testes)
     var urlParams = new URLSearchParams(window.location.search);
-    var empresaUrl = (urlParams.get('empresa') || '').trim().toLowerCase().replace(/\s+/g,'');
-    if(empresaUrl && empresaUrl.length >= 3) {
+    var empresaQuery = (urlParams.get('empresa') || '').trim().toLowerCase().replace(/\s+/g,'');
+    if(empresaQuery) empresaUrl = empresaQuery;
+
+    if(empresaUrl && empresaUrl.length >= 2) {
       veltroAutoCadastrarELogar(empresaUrl);
       return;
     }
@@ -13585,11 +13609,30 @@ async function veltroCadastrarEmpresa() {
   try{ document.getElementById('veltro-login-id').value = id; }catch(e){}
 }
 
+/* 🆕 Helper único pra montar link de cliente.
+   Detecta automaticamente o melhor formato pelo host:
+   - Produção (www.veltroos.com.br ou veltroos.com.br): URL bonita /laluna
+   - GitHub Pages (nucleofulfillment.github.io): query string ?empresa=laluna
+   - Local/outros: query string (compat)
+   Isso permite migrar gradualmente sem quebrar links já enviados pra clientes. */
+function _veltroMontarLinkCliente(empresaId) {
+  var loc = window.location;
+  var host = loc.hostname || '';
+  // Domínio próprio (produção) — usa URL bonita
+  if(/(^|\.)veltroos\.com\.br$/i.test(host)) {
+    return loc.protocol + '//' + host +
+           (loc.port ? ':' + loc.port : '') +
+           '/' + encodeURIComponent(empresaId);
+  }
+  // Outros ambientes (GitHub Pages, localhost, etc) — usa query string
+  var url = loc.origin + loc.pathname;
+  url = url.split('?')[0].split('#')[0];
+  return url + '?empresa=' + encodeURIComponent(empresaId);
+}
+
 /* 🆕 Mostra modal/banner com o link gerado pra copiar fácil. */
 function veltroMostrarLinkGerado(empresaId, nomeEmpresa, senhaPlain) {
-  var url = window.location.origin + window.location.pathname;
-  url = url.split('?')[0].split('#')[0];
-  var linkFinal = url + '?empresa=' + encodeURIComponent(empresaId);
+  var linkFinal = _veltroMontarLinkCliente(empresaId);
 
   // Cria/atualiza banner inline (acima do form de cadastro)
   var existente = document.getElementById('admin-link-gerado-banner');
@@ -13777,10 +13820,7 @@ function veltroRenderListaEmpresas() {
 /* 🆕 Copia o link de acesso direto pro cliente.
    Detecta automaticamente o domínio atual (funciona local ou online). */
 function veltroCopiarLinkCliente(empresaId, btnEl) {
-  var url = window.location.origin + window.location.pathname;
-  // Remove query string e hash existentes
-  url = url.split('?')[0].split('#')[0];
-  var linkFinal = url + '?empresa=' + encodeURIComponent(empresaId);
+  var linkFinal = _veltroMontarLinkCliente(empresaId);
 
   var fnSucesso = function() {
     if(btnEl) {
