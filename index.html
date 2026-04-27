@@ -1506,7 +1506,18 @@ body.light body::before { opacity: 0; }
         <span id="fin-info"></span>
       </div>
 
-      <div class="slabel">visão geral financeira</div>
+      <!-- Header com botão Salvar Parâmetros (manual) -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div class="slabel" style="margin:0">visão geral financeira</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="fin-save-status" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);min-width:80px;text-align:right"></span>
+          <button onclick="finSalvarParamsManual()" class="fbtn"
+            style="background:rgba(110,231,183,.12);color:var(--accent);border:1px solid rgba(110,231,183,.3);padding:6px 14px;font-family:var(--fmono);font-size:11px;cursor:pointer;border-radius:6px"
+            title="Salva os parâmetros editáveis (custo fixo, %, alíquota, CMV) — auto-save também roda em background">
+            💾 Salvar Parâmetros
+          </button>
+        </div>
+      </div>
       <!-- ═══════════════════════════════════════════════════════════
            FILEIRA 1: VISUALIZAÇÃO (cards passivos — apenas leitura)
            Cores no padrão do Dashboard
@@ -2212,7 +2223,9 @@ body.light body::before { opacity: 0; }
         </select>
         <select id="saude-filtro-canal" onchange="saudeRecalcular()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
-          <option value="todos">Todos os canais</option>
+          <option value="todos">Todos os canais (mix completo)</option>
+          <option value="__mix_mkt__">📊 Mix Marketplaces (sem LP)</option>
+          <option value="__mix_lp__">📊 Mix Loja Própria</option>
           <option value="Shopee">Shopee</option>
           <option value="Mercado Livre">Mercado Livre</option>
           <option value="Shein">Shein</option>
@@ -2223,6 +2236,8 @@ body.light body::before { opacity: 0; }
         <select id="saude-filtro-marca" onchange="saudeRenderTabela()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
           <option value="todas">Todas as marcas</option>
+          <option value="__mkt__">🛒 Consolidado Marketplaces</option>
+          <option value="__lp__">🏪 Loja Própria</option>
         </select>
         <select id="saude-ordem" onchange="saudeRenderTabela()"
           style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
@@ -2254,6 +2269,7 @@ body.light body::before { opacity: 0; }
               <th style="text-align:left">Produto</th>
               <th style="text-align:left" title="Marca extraída da planilha de Custo de Produtos">Marca</th>
               <th style="text-align:center">Curva</th>
+              <th style="text-align:right" title="Quantidade vendida no período · Estoque atual disponível">Vendido / Estoque</th>
               <th style="text-align:right">Preço Médio</th>
               <th style="text-align:right" title="🟢 = custo real (planilha) · 🟡 = estimado por curva ABC">Custo</th>
               <th style="text-align:left">Canal Top</th>
@@ -2262,7 +2278,7 @@ body.light body::before { opacity: 0; }
               <th style="text-align:center">Saúde</th>
             </tr></thead>
             <tbody id="saude-tbody">
-              <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">
+              <tr><td colspan="12" style="text-align:center;color:var(--muted);padding:30px">
                 Carregando dados de produtos vendidos...
               </td></tr>
             </tbody>
@@ -3930,6 +3946,9 @@ function _saudeColetarProdutos() {
   // Canal de análise selecionado (read-only nesta função; coleta usa pra ponderação)
   var canalAnalise = (document.getElementById('saude-filtro-canal')||{}).value || 'todos';
 
+  // Cache de estoque por SKU (lazy build na primeira leitura) — usado pra coluna Vendido/Estoque
+  var _estoqueIndexBySku = null;
+
   // === FONTE PRIMÁRIA: produtosVendidosMap ===
   var temMap = (typeof produtosVendidosMap === 'object' && produtosVendidosMap && Object.keys(produtosVendidosMap).length > 0);
 
@@ -3961,10 +3980,32 @@ function _saudeColetarProdutos() {
     totalQtdPedidos += 1;
   });
 
+  // Helper: detecta se canal é de marketplace (não-Loja Própria)
+  var _ehMkt = function(c) { return c && c !== 'Loja Própria' && c !== '__media__' && c !== '__media_mkt__' && c !== '__media_lp__'; };
+  var _gmvMkt = 0, _qtdMkt = 0, _gmvLp = 0, _qtdLp = 0;
+  Object.keys(canaisGlobais).forEach(function(c){
+    if(c === 'Loja Própria') {
+      _gmvLp += canaisGlobais[c].gmv;
+      _qtdLp += canaisGlobais[c].qtd;
+    } else {
+      _gmvMkt += canaisGlobais[c].gmv;
+      _qtdMkt += canaisGlobais[c].qtd;
+    }
+  });
+
   // Share do canal selecionado (usado pra ponderar GMV/qtd por SKU)
-  // Quando 'todos' → share = 1 (não pondera). Quando canal específico → share = % do canal.
+  // 'todos' → share = 1 (sem ponderação)
+  // '__mix_mkt__' → share = % marketplaces no total
+  // '__mix_lp__'  → share = % loja própria no total
+  // canal específico → share = % desse canal
   var shareCanalGmv = 1, shareCanalQtd = 1;
-  if(canalAnalise !== 'todos' && canaisGlobais[canalAnalise]) {
+  if(canalAnalise === '__mix_mkt__') {
+    shareCanalGmv = totalGmvPedidos > 0 ? _gmvMkt / totalGmvPedidos : 0;
+    shareCanalQtd = totalQtdPedidos > 0 ? _qtdMkt / totalQtdPedidos : 0;
+  } else if(canalAnalise === '__mix_lp__') {
+    shareCanalGmv = totalGmvPedidos > 0 ? _gmvLp / totalGmvPedidos : 0;
+    shareCanalQtd = totalQtdPedidos > 0 ? _qtdLp / totalQtdPedidos : 0;
+  } else if(canalAnalise !== 'todos' && canaisGlobais[canalAnalise]) {
     shareCanalGmv = totalGmvPedidos > 0 ? canaisGlobais[canalAnalise].gmv / totalGmvPedidos : 0;
     shareCanalQtd = totalQtdPedidos > 0 ? canaisGlobais[canalAnalise].qtd / totalQtdPedidos : 0;
   } else if(canalAnalise !== 'todos') {
@@ -4022,23 +4063,32 @@ function _saudeColetarProdutos() {
 
       // Canal e regras:
       // - Se canal específico: usa regras desse canal
-      // - Se 'todos': calcula média PONDERADA pelo share de cada canal nas vendas
-      //   (mais justo do que escolher só o canal #1)
+      // - Se 'todos': média PONDERADA por TODOS os canais (mix completo)
+      // - Se '__mix_mkt__': média PONDERADA só dos marketplaces (sem LP)
+      // - Se '__mix_lp__': aplica regras de Loja Própria
       var canalRegras = canalAnalise;
+      var canalTopLabel = canalAnalise;
       if(canalAnalise === 'todos') {
-        canalRegras = '__media__';  // sinal para _saudeCalcularMargem fazer média
+        canalRegras = '__media__';
+        canalTopLabel = 'Mix de canais';
+      } else if(canalAnalise === '__mix_mkt__') {
+        canalRegras = '__media_mkt__';
+        canalTopLabel = 'Mix MKT';
+      } else if(canalAnalise === '__mix_lp__') {
+        canalRegras = 'Loja Própria';
+        canalTopLabel = 'Loja Própria';
       }
 
       var produto = {
         sku: p.sku || p.cod || '—',
         nome: p.nome,
-        qtd: canalAnalise === 'todos' ? qtdPeriodo : Math.round(qtdCanal),
-        gmv: canalAnalise === 'todos' ? gmvPeriodo : gmvCanal,
+        qtd: (canalAnalise === 'todos') ? qtdPeriodo : Math.round(qtdCanal),
+        gmv: (canalAnalise === 'todos') ? gmvPeriodo : gmvCanal,
         precoMedio: precoMedio,
         canalAnalise: canalAnalise,
         canalRegras:  canalRegras,
-        canalTop:     canalAnalise === 'todos' ? 'Mix de canais' : canalAnalise,
-        canalTopPct:  (canalAnalise !== 'todos' && totalGmvPedidos > 0)
+        canalTop:     canalTopLabel,
+        canalTopPct:  (canalAnalise !== 'todos' && canalAnalise !== '__mix_mkt__' && canalAnalise !== '__mix_lp__' && totalGmvPedidos > 0)
                         ? (canaisGlobais[canalAnalise] ? canaisGlobais[canalAnalise].gmv/totalGmvPedidos : 0)
                         : 0,
         canaisGlobais: canaisGlobais,        // referência para média ponderada
@@ -4052,6 +4102,40 @@ function _saudeColetarProdutos() {
         if(typeof getMarcaProduto === 'function') {
           var m = getMarcaProduto(produto.sku);
           if(m) produto.marca = m;
+        }
+      } catch(e){}
+      // Enriquecer com estoque atual a partir de estoqueData (planilha de Estoque)
+      // Tenta SKU completo primeiro, depois SKU base (sem sufixo de tamanho).
+      try {
+        if(typeof estoqueData !== 'undefined' && Array.isArray(estoqueData) && estoqueData.length > 0) {
+          if(!_estoqueIndexBySku) {
+            _estoqueIndexBySku = {};
+            estoqueData.forEach(function(it){
+              if(it && it.sku) {
+                _estoqueIndexBySku[String(it.sku).trim()] = it.estoque || 0;
+                var skuBaseE = String(it.sku).replace(/-\d{1,4}$/,'');
+                if(skuBaseE && _estoqueIndexBySku[skuBaseE] === undefined) {
+                  _estoqueIndexBySku[skuBaseE] = it.estoque || 0;
+                }
+              }
+            });
+          }
+          var skuP = String(produto.sku||'').trim();
+          var estTotal = _estoqueIndexBySku[skuP];
+          if(estTotal === undefined) {
+            var skuBaseP = skuP.replace(/-\d{1,4}$/,'');
+            estTotal = _estoqueIndexBySku[skuBaseP];
+            // Se ainda undefined, soma todas as variações de tamanho desse SKU base
+            if(estTotal === undefined && skuBaseP) {
+              estTotal = 0;
+              estoqueData.forEach(function(it){
+                if(!it || !it.sku) return;
+                if(String(it.sku).indexOf(skuBaseP) === 0) estTotal += (it.estoque||0);
+              });
+              if(estTotal === 0) estTotal = undefined;
+            }
+          }
+          produto.estoqueAtual = (estTotal !== undefined) ? estTotal : null;
         }
       } catch(e){}
       arr.push(produto);
@@ -4191,14 +4275,24 @@ function _saudeCalcularMargem(produto, params) {
   var custoExtraDafiti = 0;
   var canalLabel = canal;  // texto pra info
 
-  if(canal === '__media__') {
+  if(canal === '__media__' || canal === '__media_mkt__') {
     // MÉDIA PONDERADA: aplicar regras de cada canal proporcionalmente ao share
-    // de vendas. Reflete a realidade quando "Todos os canais" está selecionado.
+    // de vendas. __media__ = todos os canais. __media_mkt__ = só marketplaces (exclui LP).
     var canais = produto.canaisGlobais || {};
     var totalGmv = produto.totalGmvPedidos || 0;
-    if(totalGmv > 0) {
+    // Se for mix de marketplaces, calcula GMV TOTAL só dos canais marketplaces
+    var totalGmvBase = totalGmv;
+    if(canal === '__media_mkt__') {
+      totalGmvBase = 0;
       Object.keys(canais).forEach(function(c){
-        var share = canais[c].gmv / totalGmv;
+        if(c !== 'Loja Própria') totalGmvBase += canais[c].gmv;
+      });
+    }
+    if(totalGmvBase > 0) {
+      Object.keys(canais).forEach(function(c){
+        // Em __media_mkt__, ignora Loja Própria
+        if(canal === '__media_mkt__' && c === 'Loja Própria') return;
+        var share = canais[c].gmv / totalGmvBase;
         if(share <= 0) return;
         var info = (typeof PREC_CANAIS !== 'undefined' && PREC_CANAIS[c]) ? PREC_CANAIS[c] : null;
         if(!info) return;
@@ -4208,11 +4302,10 @@ function _saudeCalcularMargem(produto, params) {
         taxaFixaRS  += taxaC * share;
       });
     } else {
-      // Sem GMV no período → não há como ponderar; deixa zero (extra será aplicado depois)
       comCanalPct = 0;
       taxaFixaRS = 0;
     }
-    canalLabel = 'Mix ponderado';
+    canalLabel = (canal === '__media_mkt__') ? 'Mix MKT (sem LP)' : 'Mix ponderado';
   } else if(canalInfo) {
     if(canal === 'Shopee' && typeof calcComissaoShopee === 'function') {
       comCanalPct = calcComissaoShopee(preco);
@@ -4353,6 +4446,7 @@ function saudeRecalcular() {
   _saudeProdutos = produtos;
 
   // Popular dropdown de marcas dinamicamente — preserva seleção atual se ainda válida
+  // Mantém SEMPRE as 2 opções especiais no topo: Consolidado MKT + Loja Própria
   try {
     var selM = document.getElementById('saude-filtro-marca');
     if(selM) {
@@ -4362,14 +4456,22 @@ function saudeRecalcular() {
         var m = p.marca && String(p.marca).trim();
         if(m) marcasUnicas[m] = (marcasUnicas[m]||0) + 1;
       });
-      var opts = ['<option value="todas">Todas as marcas</option>'];
+      var opts = [
+        '<option value="todas">Todas as marcas</option>',
+        '<option value="__mkt__">🛒 Consolidado Marketplaces</option>',
+        '<option value="__lp__">🏪 Loja Própria</option>'
+      ];
       Object.keys(marcasUnicas).sort().forEach(function(m){
         var sel = (m === atual) ? ' selected' : '';
         opts.push('<option value="'+_saudeEsc(m)+'"'+sel+'>'+_saudeEsc(m)+' ('+marcasUnicas[m]+')</option>');
       });
       selM.innerHTML = opts.join('');
-      // Se o usuário tinha 'X marca' selecionada e ela sumiu, voltar para 'todas'
-      if(atual !== 'todas' && !marcasUnicas[atual]) selM.value = 'todas';
+      // Restaurar seleção: aceita 'todas', '__mkt__', '__lp__' ou marca real existente
+      if(atual === 'todas' || atual === '__mkt__' || atual === '__lp__' || marcasUnicas[atual]) {
+        selM.value = atual;
+      } else {
+        selM.value = 'todas';
+      }
     }
   } catch(e){}
 
@@ -4462,7 +4564,7 @@ function saudeRenderTabela() {
   var info  = document.getElementById('saude-tabela-info');
 
   if(_saudeProdutos.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:30px">Sem produtos vendidos no período filtrado</td></tr>';
     if(info) info.textContent = '—';
     return;
   }
@@ -4478,7 +4580,18 @@ function saudeRenderTabela() {
     if(_saudeFiltroStatus !== 'todos' && p.statusSaude !== _saudeFiltroStatus) return false;
     if(curvaF !== 'todas' && p.curva !== curvaF) return false;
     if(canalF !== 'todos' && p.canalTop !== canalF) return false;
-    if(marcaF !== 'todas' && (p.marca || '—') !== marcaF) return false;
+    // Filtro de marca COM opções especiais:
+    //   '__mkt__' = só produtos cujo canal top NÃO é Loja Própria (consolidado de marketplaces)
+    //   '__lp__'  = só produtos cujo canal top É Loja Própria
+    //   'todas'   = sem filtro
+    //   '<marca>' = match exato da marca
+    if(marcaF === '__mkt__') {
+      if(p.canalTop === 'Loja Própria') return false;
+    } else if(marcaF === '__lp__') {
+      if(p.canalTop !== 'Loja Própria') return false;
+    } else if(marcaF !== 'todas') {
+      if((p.marca || '—') !== marcaF) return false;
+    }
     if(busca && !(String(p.sku).toLowerCase().includes(busca) || String(p.nome).toLowerCase().includes(busca))) return false;
     return true;
   });
@@ -4579,12 +4692,29 @@ function saudeRenderTabela() {
       ? '<span style="color:var(--muted2);font-size:10px">—</span>'
       : '<span style="font-size:10px;color:var(--muted);font-family:var(--fmono);background:rgba(251,191,36,.10);padding:2px 6px;border-radius:4px;border:1px solid rgba(251,191,36,.2)">'+_saudeEsc(marca)+'</span>';
 
+    // Célula Vendido / Estoque
+    var qtdVendida = p.qtd || 0;
+    var estoqueA = (p.estoqueAtual !== undefined && p.estoqueAtual !== null) ? p.estoqueAtual : null;
+    var estoqueLbl = (estoqueA === null) ? '—' : Number(estoqueA).toLocaleString('pt-BR');
+    var estoqueCor = 'var(--muted2)';
+    if(estoqueA !== null) {
+      if(estoqueA <= 0)        estoqueCor = 'var(--red)';
+      else if(estoqueA < qtdVendida) estoqueCor = '#F59E0B';
+      else                     estoqueCor = 'var(--green)';
+    }
+    var celVendidoEstoque = '<div style="font-family:var(--fmono);font-size:11px;line-height:1.4;text-align:right">'+
+      '<span style="color:var(--text);font-weight:700">'+(qtdVendida.toLocaleString('pt-BR'))+'</span>'+
+      ' <span style="color:var(--muted2)">/</span> '+
+      '<span style="color:'+estoqueCor+'">'+estoqueLbl+'</span>'+
+    '</div>';
+
     var linhaPai = '<tr'+linhaStyle+'>'+
       '<td style="text-align:center;padding:4px 0">'+btnInfo+'</td>'+
       '<td style="font-family:var(--fmono);font-size:11px;color:var(--muted2)">'+_saudeEsc(p.sku)+'</td>'+
       '<td style="font-size:12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_saudeEsc(p.nome)+'">'+_saudeEsc(p.nome)+'</td>'+
       '<td>'+celMarca+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+cv.bg+';color:'+cv.cor+'">'+p.curva+'</span></td>'+
+      '<td style="text-align:right" title="Vendido no período / Estoque atual disponível">'+celVendidoEstoque+'</td>'+
       '<td style="text-align:right;font-family:var(--fmono);font-size:12px">'+celPreco+'</td>'+
       '<td style="text-align:right">'+celCusto+'</td>'+
       '<td style="font-size:11px;color:var(--muted2)" title="'+_saudeEsc(p.regrasInfo||'')+'">'+canalLabel+'</td>'+
@@ -4596,7 +4726,7 @@ function saudeRenderTabela() {
     // Linha expandida com breakdown (lazy: só renderiza se aberto)
     var linhaBreakdown = '';
     if(aberto) {
-      linhaBreakdown = '<tr><td colspan="11" style="padding:0;border-bottom:1px solid var(--border)">'+_saudeRenderBreakdown(p)+'</td></tr>';
+      linhaBreakdown = '<tr><td colspan="12" style="padding:0;border-bottom:1px solid var(--border)">'+_saudeRenderBreakdown(p)+'</td></tr>';
     }
 
     // Variações (tamanhos) — só se toggle ativo e produto tem tamanhos registrados
@@ -4611,7 +4741,7 @@ function saudeRenderTabela() {
           '<td style="font-family:var(--fmono);font-size:10px;color:var(--muted);padding-left:24px">↳ '+_saudeEsc(p.sku)+'-'+t+'</td>'+
           '<td colspan="3" style="font-size:10px;color:var(--muted)">Tamanho '+_saudeEsc(t)+'</td>'+
           '<td colspan="3" style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:right">'+qVar+' un · '+pctVar+'% das vendas</td>'+
-          '<td colspan="3" style="text-align:right;font-family:var(--fmono);font-size:10px;color:var(--muted)">— mesmas margens do produto pai —</td>'+
+          '<td colspan="4" style="text-align:right;font-family:var(--fmono);font-size:10px;color:var(--muted)">— mesmas margens do produto pai —</td>'+
         '</tr>';
       });
     }
@@ -9943,12 +10073,23 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
             novoMap[skuBase].precoMedioPesoQtd  = (novoMap[skuBase].precoMedioPesoQtd ||0) + qtd;
           }
 
-          // Tamanhos: extrair de SKU ou nome
-          var tamM = sku.match(/-(\d{2,3})$/) || nome.match(/[-\s](\d{2,3})\s*$/);
-          if(tamM) {
-            var t = tamM[1], n = parseInt(t);
-            if(!isNaN(n) && n >= 14 && n <= 50) {
-              novoMap[skuBase].tamanhos[t] = (novoMap[skuBase].tamanhos[t]||0) + qtd;
+          // Tamanhos: usar _extrairTamanho com modo da empresa (sku|nome)
+          // Aceita números 0-99 (cobre infantil 0-16 + adulto 17-50) E letras P/M/G/etc.
+          var modoTamPV = (typeof window !== 'undefined' && window._veltroModoTamanho) ? window._veltroModoTamanho : null;
+          var tamPV = '';
+          if(typeof _extrairTamanho === 'function' && modoTamPV) {
+            tamPV = _extrairTamanho(modoTamPV === 'nome' ? nome : sku, modoTamPV) || '';
+          } else {
+            // Fallback: tenta sku, depois nome
+            var tamM = sku.match(/-(\d{1,3})$/) || nome.match(/[-–\s]+([A-Za-z0-9]{1,4})\s*$/);
+            tamPV = tamM ? String(tamM[1]).toUpperCase() : '';
+          }
+          if(tamPV) {
+            var nPV = parseInt(tamPV);
+            var validoPV = (!isNaN(nPV) && nPV >= 0 && nPV <= 99) ||
+                           /^(PP|P|M|G|GG|XG|XL|XXL|XS|S|L)$/.test(tamPV);
+            if(validoPV) {
+              novoMap[skuBase].tamanhos[tamPV] = (novoMap[skuBase].tamanhos[tamPV]||0) + qtd;
             }
           }
           linhasValidas++;
@@ -10006,8 +10147,21 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
               var skuBase=sku.replace(/-\d{2,4}$/,'');
               if(!novoMap[skuBase]) novoMap[skuBase]={nome:nome,sku:skuBase,cod:skuBase,gmv:0,qtd:0,tamanhos:{},por_mes:{}};
               novoMap[skuBase].qtd+=qtd;
-              var tamM=sku.match(/-(\d{2,3})$/)||nome.match(/[-\s](\d{2,3})\s*$/);
-              if(tamM){var t=tamM[1],n=parseInt(t);if(!isNaN(n)&&n>=20&&n<=50)novoMap[skuBase].tamanhos[t]=(novoMap[skuBase].tamanhos[t]||0)+qtd;}
+              // Tamanho: usar _extrairTamanho (modo da empresa) com range amplo
+              var modoTamG = (typeof window !== 'undefined' && window._veltroModoTamanho) ? window._veltroModoTamanho : null;
+              var tamG = '';
+              if(typeof _extrairTamanho === 'function' && modoTamG) {
+                tamG = _extrairTamanho(modoTamG === 'nome' ? nome : sku, modoTamG) || '';
+              } else {
+                var tmG = sku.match(/-(\d{1,3})$/) || nome.match(/[-–\s]+([A-Za-z0-9]{1,4})\s*$/);
+                tamG = tmG ? String(tmG[1]).toUpperCase() : '';
+              }
+              if(tamG) {
+                var nG = parseInt(tamG);
+                if((!isNaN(nG) && nG >= 0 && nG <= 99) || /^(PP|P|M|G|GG|XG|XL|XXL|XS|S|L)$/.test(tamG)) {
+                  novoMap[skuBase].tamanhos[tamG] = (novoMap[skuBase].tamanhos[tamG]||0) + qtd;
+                }
+              }
             });
             abasEncontradas.push('GID:'+gidMatch[1]);
             abasOk++;
@@ -12191,6 +12345,45 @@ function finSalvarParams() {
       });
     } catch(e){ console.warn('[Fin] erro ao salvar params:', e); }
   }, 500);
+}
+
+/* ─ Salva manualmente os parâmetros do Financeiro com feedback visual.
+   Cancela o debounce e persiste imediatamente. ─────────────────────── */
+function finSalvarParamsManual() {
+  var status = document.getElementById('fin-save-status');
+  try {
+    // Cancela debounce e salva imediato
+    clearTimeout(_finSalvarTimeout);
+    var localParams = {
+      custoFixo:     (document.getElementById('fin-custo-fixo')||{}).value || '',
+      mktPct:        (document.getElementById('fin-mkt-pct')||{}).value || '',
+      taxRate:       (document.getElementById('tax-rate')||{}).value || '',
+      cmvPct:        (document.getElementById('fin-cmv-pct')||{}).value || '',
+      cmvAuto:       !!((document.getElementById('fin-cmv-toggle')||{}).checked),
+      taxaFixaPgto:  (document.getElementById('fin-taxa-fixa-pgto-rs')||{}).value || ''
+    };
+    localStorage.setItem(_finKey(), JSON.stringify(localParams));
+    paramsGlobaisSet({
+      plataformaPct: parseFloat((document.getElementById('fin-plataforma-pct')||{}).value) || 0,
+      taxaPgtoPct:   parseFloat((document.getElementById('fin-taxa-pgto-pct')||{}).value) || 0,
+      perdasPct:     parseFloat((document.getElementById('fin-perdas-pct')||{}).value) || 0,
+      financeiroPct: parseFloat((document.getElementById('fin-financeiro-pct')||{}).value) || 0
+    });
+    if(status) {
+      status.textContent = '✅ Salvo';
+      status.style.color = 'var(--green)';
+      setTimeout(function(){
+        if(status){ status.textContent = ''; status.style.color = 'var(--muted2)'; }
+      }, 2500);
+    }
+    console.log('[Fin] Parâmetros salvos manualmente.');
+  } catch(e) {
+    console.error('[Fin] Erro ao salvar manual:', e);
+    if(status) {
+      status.textContent = '❌ Erro';
+      status.style.color = 'var(--red)';
+    }
+  }
 }
 
 function finRestaurarParams() {
