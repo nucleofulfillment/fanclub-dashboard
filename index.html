@@ -943,18 +943,30 @@ body.light body::before { opacity: 0; }
 <!-- ══ VELTRO ONBOARDING ══ -->
 <div id="veltro-onboarding" style="display:none;position:fixed;inset:0;z-index:9998;background:var(--bg);
      overflow-y:auto;padding:40px 20px">
-  <div style="max-width:640px;margin:0 auto">
-    <div style="text-align:center;margin-bottom:32px">
-      <svg width="40" height="40" viewBox="0 0 28 28" style="margin-bottom:10px">
+  <div style="max-width:680px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:28px">
+      <svg width="48" height="48" viewBox="0 0 28 28" style="margin-bottom:12px">
         <circle cx="14" cy="14" r="13" fill="none" stroke="#6EE7B7" stroke-width="1.5"/>
         <path d="M7 14 L12 9 L17 14 L12 19Z" fill="#6EE7B7" opacity=".9"/>
         <path d="M13 14 L18 9 L23 14 L18 19Z" fill="#6EE7B7" opacity=".5"/>
       </svg>
-      <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--text)">
-        Olá, <span id="onb-nome-empresa" style="color:var(--accent)">empresa</span>! 👋
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:var(--text)">
+        Bem-vindo, <span id="onb-nome-empresa" style="color:var(--accent)">empresa</span>! 👋
       </div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:6px">
-        Configure as fontes de dados para iniciar o dashboard
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">
+        Vamos conectar suas planilhas ao <strong style="color:var(--text)">Veltro <span style="color:var(--accent)">OS</span></strong><br>
+        <span style="color:var(--muted2)">Apenas a primeira é obrigatória — as outras você pode adicionar depois</span>
+      </div>
+    </div>
+
+    <!-- 🆕 Barra de progresso visual -->
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Progresso</div>
+        <div id="onb-progresso-txt" style="font-family:var(--fmono);font-size:10px;color:var(--accent);font-weight:600">0 de 6 planilhas</div>
+      </div>
+      <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden">
+        <div id="onb-progresso-bar" style="height:100%;background:linear-gradient(90deg,var(--accent),#34D399);width:0%;transition:width .3s"></div>
       </div>
     </div>
 
@@ -976,55 +988,74 @@ body.light body::before { opacity: 0; }
     <!-- Links de planilhas -->
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
 
-      <div class="card" style="padding:16px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);
-             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📊 Planilha Principal (Pedidos) *</div>
-        <input type="text" id="onb-url-principal" placeholder="Cole a URL do Google Sheets"
+      <div class="card" style="padding:16px;border:2px solid rgba(110,231,183,.35);background:rgba(110,231,183,.04)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);
+               text-transform:uppercase;letter-spacing:1px">📊 Planilha Principal — Pedidos</div>
+          <span style="font-family:var(--fmono);font-size:9px;color:var(--accent);background:rgba(110,231,183,.15);padding:2px 7px;border-radius:3px;font-weight:600">OBRIGATÓRIO</span>
+        </div>
+        <input type="text" id="onb-url-principal" placeholder="Cole a URL do Google Sheets aqui"
+          oninput="_onbAtualizarProgresso()"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
-                 padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
+                 padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
                  outline:none;color-scheme:dark;box-sizing:border-box">
+        <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:6px;line-height:1.5">
+          💡 A planilha precisa estar pública (qualquer pessoa com o link pode visualizar)
+        </div>
       </div>
 
-      <div class="card" style="padding:16px">
+      <!-- Cabeçalho seção opcional -->
+      <div style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Opcionais — adicione depois se quiser</div>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+
+      <div class="card" style="padding:14px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--amber);
-             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Planilha de Estoque</div>
-        <input type="text" id="onb-url-estoque" placeholder="Cole a URL do Google Sheets (opcional)"
+             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Estoque</div>
+        <input type="text" id="onb-url-estoque" placeholder="Cole a URL (opcional)"
+          oninput="_onbAtualizarProgresso()"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
                  padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
                  outline:none;color-scheme:dark;box-sizing:border-box">
       </div>
 
-      <div class="card" style="padding:16px">
+      <div class="card" style="padding:14px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#818CF8;
-             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🗺️ Planilha GMV por Estado</div>
-        <input type="text" id="onb-url-estados" placeholder="Cole a URL do Google Sheets (opcional)"
+             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🗺️ GMV por Estado</div>
+        <input type="text" id="onb-url-estados" placeholder="Cole a URL (opcional)"
+          oninput="_onbAtualizarProgresso()"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
                  padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
                  outline:none;color-scheme:dark;box-sizing:border-box">
       </div>
 
-      <div class="card" style="padding:16px">
+      <div class="card" style="padding:14px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#F472B6;
-             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Planilha Produtos Vendidos</div>
-        <input type="text" id="onb-url-produtos" placeholder="Cole a URL do Google Sheets (opcional)"
+             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Produtos Vendidos</div>
+        <input type="text" id="onb-url-produtos" placeholder="Cole a URL (opcional)"
+          oninput="_onbAtualizarProgresso()"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
                  padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
                  outline:none;color-scheme:dark;box-sizing:border-box">
       </div>
 
-      <div class="card" style="padding:16px">
+      <div class="card" style="padding:14px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#34D399;
-             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💵 Planilha Fluxo de Caixa</div>
-        <input type="text" id="onb-url-fluxo" placeholder="Cole a URL do Google Sheets (opcional)"
+             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💵 Fluxo de Caixa</div>
+        <input type="text" id="onb-url-fluxo" placeholder="Cole a URL (opcional)"
+          oninput="_onbAtualizarProgresso()"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
                  padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
                  outline:none;color-scheme:dark;box-sizing:border-box">
       </div>
 
-      <div class="card" style="padding:16px">
+      <div class="card" style="padding:14px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#FBBF24;
-             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💰 Planilha Custo de Produtos</div>
-        <input type="text" id="onb-url-custo" placeholder="Cole a URL do Google Sheets (opcional)"
+             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💰 Custo dos Produtos</div>
+        <input type="text" id="onb-url-custo" placeholder="Cole a URL (opcional)"
+          oninput="_onbAtualizarProgresso()"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
                  padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
                  outline:none;color-scheme:dark;box-sizing:border-box">
@@ -11146,11 +11177,26 @@ function veltroSaveLinks(id, links) {
   localStorage.setItem('veltro_links_'+id, JSON.stringify(links));
 }
 
-/* ─ Inicialização ─ */
+/* ─ Inicialização ─
+   Suporta acesso via URL: ?empresa=fanclub2019
+   - Se vier ID na URL, auto-cadastra (se não existir) e entra direto
+   - Se não vier, segue fluxo normal (sessão salva ou tela de login) */
 function veltroInit() {
+  // 🆕 NOVO: detectar parâmetro ?empresa=xxx na URL
+  try {
+    var urlParams = new URLSearchParams(window.location.search);
+    var empresaUrl = (urlParams.get('empresa') || '').trim().toLowerCase().replace(/\s+/g,'');
+    if(empresaUrl && empresaUrl.length >= 3) {
+      veltroAutoCadastrarELogar(empresaUrl);
+      return;
+    }
+  } catch(e) {
+    console.warn('[Veltro] Erro ao ler URL:', e);
+  }
+
+  // Fluxo original — sessão salva
   var sessao = veltroGetEmpresaAtual();
   if(sessao) {
-    // Já logado — verificar se empresa ainda existe
     var usuarios = veltroGetUsuarios();
     var empresa = usuarios.find(function(u){ return u.id === sessao; });
     if(empresa) {
@@ -11159,14 +11205,49 @@ function veltroInit() {
     }
     localStorage.removeItem(VELTRO_SESSAO_KEY);
   }
-  // Verificar se é primeiro acesso (sem nenhuma empresa cadastrada)
+  _mostrarLogin();
+}
+
+/* 🆕 Auto-cadastra empresa vinda da URL e entra direto.
+   Se já existe localmente, só entra. Se não existe, cadastra primeiro. */
+function veltroAutoCadastrarELogar(empresaId) {
   var usuarios = veltroGetUsuarios();
-  if(usuarios.length === 0) {
-    // Primeiro uso — mostrar login com instrução
-    _mostrarLogin();
+  var empresa = usuarios.find(function(u){ return u.id === empresaId; });
+
+  if(!empresa) {
+    // Auto-cadastro: cria entrada local com nome = ID (cliente pode editar depois)
+    var nomeAutomatico = empresaId.charAt(0).toUpperCase() + empresaId.slice(1);
+    empresa = {
+      id: empresaId,
+      nome: nomeAutomatico,
+      criadoEm: new Date().toLocaleDateString('pt-BR'),
+      autoCadastrado: true  // marca pra eventual revisão
+    };
+    usuarios.push(empresa);
+    veltroSaveUsuarios(usuarios);
+    console.log('[Veltro] ✅ Empresa "'+empresaId+'" auto-cadastrada via URL');
   } else {
-    _mostrarLogin();
+    console.log('[Veltro] ✅ Empresa "'+empresaId+'" reconhecida');
   }
+
+  // Marca último acesso (pra status no admin)
+  veltroMarcarUltimoAcesso(empresaId);
+
+  // Salva sessão e entra
+  localStorage.setItem(VELTRO_SESSAO_KEY, empresa.id);
+  veltroEntrarDashboard(empresa);
+}
+
+/* 🆕 Marca último acesso da empresa (timestamp). Útil pra status no admin. */
+function veltroMarcarUltimoAcesso(empresaId) {
+  try {
+    var usuarios = veltroGetUsuarios();
+    var idx = usuarios.findIndex(function(u){ return u.id === empresaId; });
+    if(idx >= 0) {
+      usuarios[idx].ultimoAcesso = new Date().toISOString();
+      veltroSaveUsuarios(usuarios);
+    }
+  } catch(e) {}
 }
 
 function _mostrarLogin() {
@@ -11191,6 +11272,9 @@ function veltroLogin() {
     if(erroEl) erroEl.textContent = '❌ Empresa não encontrada. Contate o administrador.';
     return;
   }
+
+  // 🆕 Marca último acesso
+  veltroMarcarUltimoAcesso(empresa.id);
 
   // Login ok
   localStorage.setItem(VELTRO_SESSAO_KEY, empresa.id);
@@ -11247,6 +11331,26 @@ function veltroMostrarOnboarding(empresa) {
   try{ document.getElementById('onb-url-produtos').value  = links.produtos||'';  }catch(e){}
   try{ document.getElementById('onb-url-fluxo').value     = links.fluxo||'';     }catch(e){}
   try{ document.getElementById('onb-url-custo').value     = links.custo||'';     }catch(e){}
+  // 🆕 Atualizar barra de progresso conforme campos preenchidos
+  try { _onbAtualizarProgresso(); } catch(e) {}
+}
+
+/* 🆕 Atualiza a barra de progresso do onboarding conforme planilhas preenchidas. */
+function _onbAtualizarProgresso() {
+  var ids = ['onb-url-principal', 'onb-url-estoque', 'onb-url-estados',
+             'onb-url-produtos', 'onb-url-fluxo', 'onb-url-custo'];
+  var preenchidos = 0;
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if(el && el.value && el.value.trim().length > 5) preenchidos++;
+  });
+  var pct = Math.round((preenchidos / ids.length) * 100);
+  try {
+    var bar = document.getElementById('onb-progresso-bar');
+    var txt = document.getElementById('onb-progresso-txt');
+    if(bar) bar.style.width = pct + '%';
+    if(txt) txt.textContent = preenchidos + ' de ' + ids.length + ' planilha' + (preenchidos===1?'':'s');
+  } catch(e) {}
 }
 
 
@@ -11583,6 +11687,11 @@ function veltroCadastrarEmpresa() {
 
   if(!nome || !id) { if(erroEl) erroEl.textContent = '❌ Preencha nome e identificador'; return; }
   if(id.length < 4) { if(erroEl) erroEl.textContent = '❌ Identificador muito curto (mín. 4 chars)'; return; }
+  // 🆕 Validar caracteres válidos no ID (só letras, números, hífen, underscore)
+  if(!/^[a-z0-9_-]+$/.test(id)) {
+    if(erroEl) erroEl.textContent = '❌ ID só pode ter letras minúsculas, números, hífen ou underscore';
+    return;
+  }
 
   var usuarios = veltroGetUsuarios();
   if(usuarios.find(function(u){return u.id===id;})) {
@@ -11596,16 +11705,94 @@ function veltroCadastrarEmpresa() {
   try{ document.getElementById('admin-novo-nome').value = ''; }catch(e){}
   try{ document.getElementById('admin-novo-id').value   = ''; }catch(e){}
   veltroRenderListaEmpresas();
-  // Mostrar confirmação
-  if(erroEl) {
-    erroEl.style.color = 'var(--green)';
-    erroEl.textContent = '✅ "'+nome+'" cadastrada! Use o identificador: '+id;
-    setTimeout(function(){ if(erroEl){ erroEl.textContent=''; erroEl.style.color='var(--red)'; }}, 4000);
-  }
+
+  // 🆕 Mostrar link gerado direto na tela com botão de copiar grande
+  veltroMostrarLinkGerado(id, nome);
+
   // Pré-preencher campo de login com o novo identificador
   try{ document.getElementById('veltro-login-id').value = id; }catch(e){}
 }
+
+/* 🆕 Mostra modal/banner com o link gerado pra copiar fácil. */
+function veltroMostrarLinkGerado(empresaId, nomeEmpresa) {
+  var url = window.location.origin + window.location.pathname;
+  url = url.split('?')[0].split('#')[0];
+  var linkFinal = url + '?empresa=' + encodeURIComponent(empresaId);
+
+  // Cria/atualiza banner inline (acima do form de cadastro)
+  var existente = document.getElementById('admin-link-gerado-banner');
+  if(existente) existente.remove();
+
+  var banner = document.createElement('div');
+  banner.id = 'admin-link-gerado-banner';
+  banner.style.cssText = 'background:linear-gradient(135deg,rgba(110,231,183,.12),rgba(110,231,183,.04));border:1px solid rgba(110,231,183,.35);border-radius:10px;padding:14px;margin-bottom:14px;animation:fadeIn .3s';
+
+  banner.innerHTML =
+    '<div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">✅ Empresa cadastrada</div>'+
+    '<div style="font-family:var(--fhead);font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px">'+nomeEmpresa+' (id: '+empresaId+')</div>'+
+    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:6px">Link de acesso para enviar ao cliente:</div>'+
+    '<div style="display:flex;gap:6px;align-items:stretch">'+
+      '<input id="admin-link-gerado-input" readonly value="'+linkFinal+'" '+
+        'style="flex:1;background:var(--s3);border:1px solid var(--border2);border-radius:6px;'+
+        'padding:8px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;'+
+        'color-scheme:dark;box-sizing:border-box">'+
+      '<button onclick="veltroCopiarLinkGerado(this)" '+
+        'style="padding:8px 14px;background:var(--accent);border:none;border-radius:6px;color:#0A0C10;'+
+        'font-family:var(--fmono);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">'+
+        '📋 Copiar Link</button>'+
+    '</div>'+
+    '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:8px;line-height:1.5">'+
+      '💡 Envie esse link pelo WhatsApp/email. O cliente clica e cai direto no sistema.<br>'+
+      '🔒 Qualquer pessoa com o link entra — só envie pra quem você confia.'+
+    '</div>';
+
+  // Insere antes do form de cadastrar empresa
+  var painel = document.getElementById('admin-painel');
+  var primeiroFilho = painel ? painel.children[1] : null; // depois do resumo
+  if(painel && primeiroFilho) {
+    painel.insertBefore(banner, primeiroFilho);
+  }
+
+  // Auto-remove após 30 segundos
+  setTimeout(function(){
+    if(banner && banner.parentNode) {
+      banner.style.transition = 'opacity .5s';
+      banner.style.opacity = '0';
+      setTimeout(function(){ if(banner.parentNode) banner.remove(); }, 500);
+    }
+  }, 30000);
+}
+
+/* 🆕 Copia o link gerado (botão dentro do banner). */
+function veltroCopiarLinkGerado(btnEl) {
+  var input = document.getElementById('admin-link-gerado-input');
+  if(!input) return;
+  var link = input.value;
+
+  var fnSucesso = function() {
+    var antes = btnEl.innerHTML;
+    btnEl.innerHTML = '✅ Copiado!';
+    btnEl.style.background = 'rgba(110,231,183,.4)';
+    btnEl.style.color = 'var(--text)';
+    setTimeout(function(){
+      btnEl.innerHTML = antes;
+      btnEl.style.background = 'var(--accent)';
+      btnEl.style.color = '#0A0C10';
+    }, 2000);
+  };
+
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(fnSucesso).catch(function(){
+      _veltroFallbackCopiar(link, fnSucesso);
+    });
+  } else {
+    _veltroFallbackCopiar(link, fnSucesso);
+  }
+}
 function veltroRenderListaEmpresas() {
+  // 🆕 Atualizar resumo de status
+  veltroAtualizarResumoAdmin();
+
   var el = document.getElementById('admin-lista-empresas');
   if(!el) return;
   var usuarios = veltroGetUsuarios();
@@ -11616,16 +11803,176 @@ function veltroRenderListaEmpresas() {
   el.innerHTML = usuarios.map(function(u, i) {
     var links = veltroGetLinks(u.id);
     var temPrincipal = !!links.principal;
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s2);border-radius:8px;margin-bottom:6px">'+
+    var temUltimoAcesso = !!u.ultimoAcesso;
+
+    // Status visual: 🔴 nunca acessou | 🟡 acessou mas sem links | 🟢 tudo ok
+    var status, statusCor, statusTxt;
+    if(!temUltimoAcesso) {
+      status = '🔴'; statusCor = 'var(--red)'; statusTxt = 'nunca acessou';
+    } else if(!temPrincipal) {
+      status = '🟡'; statusCor = 'var(--amber)'; statusTxt = 'sem planilhas';
+    } else {
+      status = '🟢'; statusCor = 'var(--green)'; statusTxt = 'configurado';
+    }
+
+    // Formatar último acesso
+    var ultimoAcessoTxt = '';
+    if(u.ultimoAcesso) {
+      try {
+        var dt = new Date(u.ultimoAcesso);
+        var diff = Date.now() - dt.getTime();
+        var mins = Math.floor(diff / 60000);
+        var horas = Math.floor(mins / 60);
+        var dias = Math.floor(horas / 24);
+        if(mins < 1)       ultimoAcessoTxt = 'agora há pouco';
+        else if(mins < 60) ultimoAcessoTxt = 'há '+mins+' min';
+        else if(horas < 24) ultimoAcessoTxt = 'há '+horas+'h';
+        else if(dias === 1) ultimoAcessoTxt = 'ontem';
+        else if(dias < 7)   ultimoAcessoTxt = 'há '+dias+' dias';
+        else                ultimoAcessoTxt = dt.toLocaleDateString('pt-BR');
+      } catch(e) {}
+    }
+
+    var badgeAuto = u.autoCadastrado
+      ? '<span style="font-size:9px;color:#A78BFA;background:rgba(167,139,250,.10);padding:1px 5px;border-radius:3px;margin-left:6px">via link</span>'
+      : '';
+
+    return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">'+
+      '<div style="font-size:18px">'+status+'</div>'+
       '<div style="flex:1;min-width:0">'+
-        '<div style="font-family:var(--fhead);font-size:12px;font-weight:600">'+u.nome+'</div>'+
-        '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted)">'+u.id+' · criado '+u.criadoEm+
-        ' · <span style="color:'+(temPrincipal?'var(--green)':'var(--amber)')+'">'+
-        (temPrincipal?'✅ configurado':'⚠️ sem links')+'</span></div>'+
+        '<div style="font-family:var(--fhead);font-size:13px;font-weight:600">'+u.nome+badgeAuto+'</div>'+
+        '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">'+
+          '<span style="color:var(--muted2)">id:</span> <span style="color:var(--text)">'+u.id+'</span> · '+
+          '<span style="color:'+statusCor+'">'+statusTxt+'</span>'+
+          (ultimoAcessoTxt ? ' · acesso '+ultimoAcessoTxt : '')+
+        '</div>'+
       '</div>'+
-      '<button onclick="veltroRemoverEmpresa(\''+u.id+'\')" style="padding:4px 8px;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.2);border-radius:6px;color:var(--red);font-size:11px;cursor:pointer">🗑</button>'+
+      '<button onclick="veltroCopiarLinkCliente(\''+u.id+'\', this)" '+
+        'title="Copiar link de acesso" '+
+        'style="padding:6px 10px;background:rgba(110,231,183,.10);border:1px solid rgba(110,231,183,.25);border-radius:6px;color:var(--accent);font-size:11px;cursor:pointer;font-family:var(--fmono);white-space:nowrap">'+
+        '📋 Link</button>'+
+      '<button onclick="veltroRemoverEmpresa(\''+u.id+'\')" '+
+        'title="Remover empresa" '+
+        'style="padding:6px 8px;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.2);border-radius:6px;color:var(--red);font-size:11px;cursor:pointer">🗑</button>'+
     '</div>';
   }).join('');
+}
+
+/* 🆕 Copia o link de acesso direto pro cliente.
+   Detecta automaticamente o domínio atual (funciona local ou online). */
+function veltroCopiarLinkCliente(empresaId, btnEl) {
+  var url = window.location.origin + window.location.pathname;
+  // Remove query string e hash existentes
+  url = url.split('?')[0].split('#')[0];
+  var linkFinal = url + '?empresa=' + encodeURIComponent(empresaId);
+
+  var fnSucesso = function() {
+    if(btnEl) {
+      var textoAntes = btnEl.innerHTML;
+      btnEl.innerHTML = '✅ Copiado!';
+      btnEl.style.background = 'rgba(110,231,183,.25)';
+      setTimeout(function(){
+        btnEl.innerHTML = textoAntes;
+        btnEl.style.background = 'rgba(110,231,183,.10)';
+      }, 1500);
+    }
+  };
+
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(linkFinal).then(fnSucesso).catch(function(){
+      _veltroFallbackCopiar(linkFinal, fnSucesso);
+    });
+  } else {
+    _veltroFallbackCopiar(linkFinal, fnSucesso);
+  }
+}
+
+/* Fallback quando clipboard API não está disponível (HTTPS only). */
+function _veltroFallbackCopiar(texto, callback) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    if(callback) callback();
+  } catch(e) {
+    prompt('Copie o link manualmente:', texto);
+  }
+}
+
+/* 🆕 Atualiza o card de resumo do admin com contadores. */
+function veltroAtualizarResumoAdmin() {
+  var el = document.getElementById('admin-resumo-texto');
+  if(!el) return;
+  var usuarios = veltroGetUsuarios();
+  if(usuarios.length === 0) {
+    el.innerHTML = '<span style="color:var(--muted)">Nenhuma empresa cadastrada ainda</span>';
+    return;
+  }
+
+  var ativas = 0, semLinks = 0, nuncaAcessou = 0;
+  usuarios.forEach(function(u) {
+    var links = veltroGetLinks(u.id);
+    var temLink = !!links.principal;
+    var temAcesso = !!u.ultimoAcesso;
+    if(temLink && temAcesso) ativas++;
+    else if(temAcesso && !temLink) semLinks++;
+    else if(!temAcesso) nuncaAcessou++;
+  });
+
+  el.innerHTML =
+    '<span style="color:var(--text)">'+usuarios.length+' empresa'+(usuarios.length>1?'s':'')+'</span>' +
+    ' · ' +
+    '<span style="color:var(--green)">'+ativas+' ativa'+(ativas!==1?'s':'')+'</span>' +
+    (semLinks > 0 ? ' · <span style="color:var(--amber)">'+semLinks+' sem links</span>' : '') +
+    (nuncaAcessou > 0 ? ' · <span style="color:var(--red)">'+nuncaAcessou+' nunca acessou</span>' : '');
+}
+
+/* 🆕 Baixa um arquivo .json com todas as empresas + configurações.
+   Usa para backup do admin entre máquinas (importante caso limpe cache). */
+function veltroBaixarBackup() {
+  if(!_veltroAdminAutenticado) return;
+  try {
+    var config = {
+      versao: '1.1',
+      exportadoEm: new Date().toISOString(),
+      usuarios: veltroGetUsuarios(),
+      links: {},
+      plataformas: {}
+    };
+    config.usuarios.forEach(function(u) {
+      config.links[u.id] = veltroGetLinks(u.id);
+      var plat = localStorage.getItem(PLAT_KEY + u.id);
+      if(plat) config.plataformas[u.id] = plat;
+    });
+
+    var json = JSON.stringify(config, null, 2);
+    var blob = new Blob([json], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var dt = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    var hr = new Date().toTimeString().slice(0,5).replace(':','');
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'veltroos_backup_'+dt+'_'+hr+'.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    // Feedback visual
+    var btn = document.querySelector('button[onclick="veltroBaixarBackup()"]');
+    if(btn) {
+      var antes = btn.innerHTML;
+      btn.innerHTML = '✅ Baixado!';
+      setTimeout(function(){ btn.innerHTML = antes; }, 2000);
+    }
+  } catch(e) {
+    alert('❌ Erro ao gerar backup: '+e.message);
+  }
 }
 function veltroExportarConfig() {
   if(!_veltroAdminAutenticado) return;
@@ -11804,6 +12151,21 @@ window.addEventListener('load', function() {
 
     <!-- Painel admin (após autenticação) -->
     <div id="admin-painel" style="display:none">
+      <!-- 🆕 Resumo de status (cabeçalho) -->
+      <div id="admin-resumo-status" style="background:linear-gradient(135deg,rgba(110,231,183,.06),rgba(167,139,250,.04));border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Resumo</div>
+            <div id="admin-resumo-texto" style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text)">—</div>
+          </div>
+          <button onclick="veltroBaixarBackup()"
+            title="Baixa um arquivo .json com todas as empresas + configurações"
+            style="padding:7px 12px;background:rgba(110,231,183,.10);border:1px solid rgba(110,231,183,.25);border-radius:7px;color:var(--accent);font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">
+            💾 Baixar Backup
+          </button>
+        </div>
+      </div>
+
       <!-- Cadastrar nova empresa -->
       <div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:16px">
         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);
