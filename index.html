@@ -5903,25 +5903,31 @@ async function loadGS(url){
   var canalPorHeader = -1;
   if(header) {
     var KW_CANAL = ['marketplace','canal','plataforma'];
-    var KW_NEGATIVOS = ['data','identificador','status','situação','situacao','código','codigo','rastr','prazo','obs'];
+    var KW_NEGATIVOS = ['data','identificador','status','situação','situacao','código','codigo','rastr','prazo','obs','ícone','icone','tipo','forma'];
 
     var fnEhNegativo = function(hl) {
       return KW_NEGATIVOS.some(function(kw){ return hl.includes(kw); });
     };
 
-    // Tier 1: match EXATO ('marketplace', 'canal', 'plataforma')
+    // 🆕 Tier 0: prioridade absoluta — match EXATO mesmo SEM filtro negativo
+    // Pega "Marketplace" puro antes de qualquer coisa
     header.forEach(function(h, ci) {
       if(canalPorHeader >= 0) return;
       var hl = String(h||'').toLowerCase().trim();
-      if(KW_CANAL.indexOf(hl) >= 0) canalPorHeader = ci;
+      if(hl === 'marketplace' || hl === 'canal' || hl === 'plataforma' || hl === 'canal de venda' || hl === 'canal venda') {
+        canalPorHeader = ci;
+      }
     });
 
-    // Tier 2: includes mas SEM contaminação (não tem palavra negativa antes)
+    // Tier 1: match EXATO já no Tier 0, então este pode pular
+    // (mantido por segurança — se houver edge case)
+
+    // Tier 2: includes mas SEM contaminação negativa
     if(canalPorHeader < 0) {
       header.forEach(function(h, ci) {
         if(canalPorHeader >= 0) return;
         var hl = String(h||'').toLowerCase().trim();
-        // Pular cabeçalhos que tem prefixo negativo (ex: "Data Marketplace", "Identificador Marketplace")
+        // Pular cabeçalhos que tem prefixo negativo (ex: "Data Marketplace", "Identificador Marketplace", "Ícone Loja")
         if(fnEhNegativo(hl)) return;
         KW_CANAL.forEach(function(kw){
           if(hl.includes(kw)) canalPorHeader = ci;
@@ -5940,7 +5946,7 @@ async function loadGS(url){
       });
     }
 
-    if(canalPorHeader >= 0) console.log('[Veltro] Canal encontrado no cabeçalho: col'+canalPorHeader+' = "'+header[canalPorHeader]+'"');
+    if(canalPorHeader >= 0) console.log('[Veltro] ✅ Canal encontrado no cabeçalho: col'+canalPorHeader+' = "'+header[canalPorHeader]+'"');
   }
 
   // Estratégia B: varrer dados procurando valores de marketplace conhecidos
