@@ -2206,57 +2206,63 @@ body.light body::before { opacity: 0; }
         </div>
       </div>
 
-      <!-- ── Filtros da tabela ───────────────────────────────────── -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
-        <button class="ftab on" onclick="saudeFiltroStatus('todos',this)">Todos</button>
-        <button class="ftab" onclick="saudeFiltroStatus('verde',this)" style="color:var(--green)">🟢 Saudáveis</button>
-        <button class="ftab" onclick="saudeFiltroStatus('amarelo',this)" style="color:#F59E0B">🟡 Atenção</button>
-        <button class="ftab" onclick="saudeFiltroStatus('vermelho',this)" style="color:var(--red)">🔴 Críticos</button>
-        <button class="ftab" onclick="saudeFiltroStatus('sem-vendas',this)" style="color:var(--muted2)">⚪ Sem vendas</button>
-        <div class="fsep"></div>
-        <select id="saude-filtro-curva" onchange="saudeAtualizarVisao()"
-          style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
-          <option value="todas">Todas as curvas</option>
-          <option value="A">🅰️ Curva A</option>
-          <option value="B">🅱️ Curva B</option>
-          <option value="C">🅲 Curva C</option>
-        </select>
-        <select id="saude-filtro-canal" onchange="saudeRecalcular()"
-          style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
-          <option value="todos">Todos os canais (mix completo)</option>
-          <option value="__mix_mkt__">📊 Mix Marketplaces (sem LP)</option>
-          <option value="__mix_lp__">📊 Mix Loja Própria</option>
-          <option value="Shopee">Shopee</option>
-          <option value="Mercado Livre">Mercado Livre</option>
-          <option value="Shein">Shein</option>
-          <option value="TikTok Shop">TikTok Shop</option>
-          <option value="Dafiti">Dafiti</option>
-          <option value="Loja Própria">Loja Própria</option>
-        </select>
-        <select id="saude-filtro-marca" onchange="saudeRenderTabela()"
-          style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
-          <option value="todas">Todas as marcas</option>
-          <option value="__mkt__">🛒 Consolidado Marketplaces</option>
-          <option value="__lp__">🏪 Loja Própria</option>
-        </select>
-        <select id="saude-ordem" onchange="saudeRenderTabela()"
-          style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
-          <option value="margem-asc">Margem ↑ (piores primeiro)</option>
-          <option value="margem-desc">Margem ↓ (melhores primeiro)</option>
-          <option value="status">Status (críticos primeiro)</option>
-          <option value="gmv-desc" selected>GMV ↓ (mais vendidos)</option>
-          <option value="qtd-desc">Quantidade vendida ↓</option>
-          <option value="preco-desc">Preço ↓ (mais caros)</option>
-          <option value="preco-asc">Preço ↑ (mais baratos)</option>
-          <option value="nome-asc">Nome A-Z</option>
-        </select>
-        <label style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;color:var(--muted);cursor:pointer;user-select:none">
-          <input type="checkbox" id="saude-mostrar-variacoes" onchange="saudeRenderTabela()" style="margin:0;cursor:pointer">
-          Mostrar variações
-        </label>
-        <input type="text" id="saude-busca" placeholder="Buscar SKU ou nome..."
-          oninput="saudeRenderTabela()"
-          style="margin-left:auto;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;width:220px">
+      <!-- ── Filtros da tabela ─────────────────────────────────────
+           Linha 1: filtros de STATUS (botões ftab)
+           Linha 2: dropdowns + variações + busca
+           Cada linha usa flex-wrap só como fallback se a tela for muito estreita -->
+      <div style="margin-bottom:10px">
+        <!-- Linha 1: status -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <button class="ftab on" onclick="saudeFiltroStatus('todos',this)">Todos</button>
+          <button class="ftab" onclick="saudeFiltroStatus('verde',this)" style="color:var(--green)">🟢 Saudáveis</button>
+          <button class="ftab" onclick="saudeFiltroStatus('amarelo',this)" style="color:#F59E0B">🟡 Atenção</button>
+          <button class="ftab" onclick="saudeFiltroStatus('vermelho',this)" style="color:var(--red)">🔴 Críticos</button>
+          <button class="ftab" onclick="saudeFiltroStatus('sem-vendas',this)" style="color:var(--muted2)">⚪ Sem vendas</button>
+        </div>
+        <!-- Linha 2: dropdowns + opções + busca -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <select id="saude-filtro-curva" onchange="saudeAtualizarVisao()"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
+            <option value="todas">Todas as curvas</option>
+            <option value="A">🅰️ Curva A</option>
+            <option value="B">🅱️ Curva B</option>
+            <option value="C">🅲 Curva C</option>
+          </select>
+          <select id="saude-filtro-canal" onchange="saudeRecalcular()"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
+            <option value="todos">Todos os canais (mix completo)</option>
+            <option value="__mix_mkt__">📊 Mix Marketplaces (sem LP)</option>
+            <option value="__mix_lp__">📊 Mix Loja Própria</option>
+            <option value="Shopee">Shopee</option>
+            <option value="Mercado Livre">Mercado Livre</option>
+            <option value="Shein">Shein</option>
+            <option value="TikTok Shop">TikTok Shop</option>
+            <option value="Dafiti">Dafiti</option>
+            <option value="Loja Própria">Loja Própria</option>
+          </select>
+          <select id="saude-filtro-marca" onchange="saudeRenderTabela()"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
+            <option value="todas">Todas as marcas</option>
+          </select>
+          <select id="saude-ordem" onchange="saudeRenderTabela()"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;cursor:pointer">
+            <option value="margem-asc">Margem ↑ (piores primeiro)</option>
+            <option value="margem-desc">Margem ↓ (melhores primeiro)</option>
+            <option value="status">Status (críticos primeiro)</option>
+            <option value="gmv-desc" selected>GMV ↓ (mais vendidos)</option>
+            <option value="qtd-desc">Quantidade vendida ↓</option>
+            <option value="preco-desc">Preço ↓ (mais caros)</option>
+            <option value="preco-asc">Preço ↑ (mais baratos)</option>
+            <option value="nome-asc">Nome A-Z</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:10px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap">
+            <input type="checkbox" id="saude-mostrar-variacoes" onchange="saudeRenderTabela()" style="margin:0;cursor:pointer">
+            Mostrar variações
+          </label>
+          <input type="text" id="saude-busca" placeholder="Buscar SKU ou nome..."
+            oninput="saudeRenderTabela()"
+            style="margin-left:auto;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;color-scheme:dark;min-width:200px;flex:1;max-width:300px">
+        </div>
       </div>
 
       <!-- ── Tabela ─────────────────────────────────────────────── -->
@@ -2269,7 +2275,7 @@ body.light body::before { opacity: 0; }
               <th style="text-align:left">Produto</th>
               <th style="text-align:left" title="Marca extraída da planilha de Custo de Produtos">Marca</th>
               <th style="text-align:center">Curva</th>
-              <th style="text-align:right" title="Quantidade vendida no período · Estoque atual disponível">Vendido / Estoque</th>
+              <th style="text-align:center" title="Quantidade vendida no período · Estoque atual disponível">Vendido / Estoque</th>
               <th style="text-align:right">Preço Médio</th>
               <th style="text-align:right" title="🟢 = custo real (planilha) · 🟡 = estimado por curva ABC">Custo</th>
               <th style="text-align:left">Canal Top</th>
@@ -2421,6 +2427,12 @@ body.light body::before { opacity: 0; }
           <div style="font-family:var(--fmono);font-size:10px;color:#FF6900;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6900;flex-shrink:0"></span>Dafiti Ads</div>
           <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
           <input type="number" id="mkt-inv-dafiti" value="0" min="0" step="100" oninput="calcMarketing()"
+            style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
+        </div>
+        <div class="card" style="padding:14px">
+          <div style="font-family:var(--fmono);font-size:10px;color:#A855F7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#A855F7;flex-shrink:0"></span>Posthaus Ads</div>
+          <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
+          <input type="number" id="mkt-inv-posthaus" value="0" min="0" step="100" oninput="calcMarketing()"
             style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
         </div>
         <div class="card" style="padding:14px">
@@ -4082,8 +4094,12 @@ function _saudeColetarProdutos() {
       var produto = {
         sku: p.sku || p.cod || '—',
         nome: p.nome,
-        qtd: (canalAnalise === 'todos') ? qtdPeriodo : Math.round(qtdCanal),
-        gmv: (canalAnalise === 'todos') ? gmvPeriodo : gmvCanal,
+        // Mix MKT/LP usam GMV total (sem ponderação por share na qtd) —
+        // a ponderação acontece depois em _saudeCalcular via canalRegras='__media_mkt__'/'Loja Própria'
+        qtd: (canalAnalise === 'todos' || canalAnalise === '__mix_mkt__' || canalAnalise === '__mix_lp__')
+              ? qtdPeriodo : Math.round(qtdCanal),
+        gmv: (canalAnalise === 'todos' || canalAnalise === '__mix_mkt__' || canalAnalise === '__mix_lp__')
+              ? gmvPeriodo : gmvCanal,
         precoMedio: precoMedio,
         canalAnalise: canalAnalise,
         canalRegras:  canalRegras,
@@ -4144,8 +4160,15 @@ function _saudeColetarProdutos() {
     // FALLBACK: agrupar pedidos brutos
     if(todosPedidos.length === 0) return [];
     var map = {};
+    // Helper: pedido pertence ao canal selecionado?
+    var _pedidoNoCanal = function(canalPedido) {
+      if(canalAnalise === 'todos') return true;
+      if(canalAnalise === '__mix_mkt__') return canalPedido !== 'Loja Própria';
+      if(canalAnalise === '__mix_lp__')  return canalPedido === 'Loja Própria';
+      return canalPedido === canalAnalise;
+    };
     todosPedidos.forEach(function(p){
-      if(canalAnalise !== 'todos' && p.canal !== canalAnalise) return;  // filtra por canal
+      if(!_pedidoNoCanal(p.canal)) return;
       var sku  = p.sku || p.produto || '—';
       var nome = p.produto || p.nome || sku;
       if(!map[sku]) map[sku] = { sku: sku, nome: nome, qtd: 0, gmv: 0 };
@@ -4155,9 +4178,24 @@ function _saudeColetarProdutos() {
     arr = Object.values(map).map(function(p){
       p.precoMedio = p.qtd > 0 ? p.gmv / p.qtd : 0;
       p.canalAnalise = canalAnalise;
-      p.canalRegras  = canalAnalise === 'todos' ? 'Loja Própria' : canalAnalise;
-      p.canalTop     = p.canalRegras;
+      // Regras aplicadas conforme modo:
+      if(canalAnalise === 'todos') {
+        p.canalRegras = '__media__';
+        p.canalTop    = 'Mix de canais';
+      } else if(canalAnalise === '__mix_mkt__') {
+        p.canalRegras = '__media_mkt__';
+        p.canalTop    = 'Mix MKT';
+      } else if(canalAnalise === '__mix_lp__') {
+        p.canalRegras = 'Loja Própria';
+        p.canalTop    = 'Loja Própria';
+      } else {
+        p.canalRegras = canalAnalise;
+        p.canalTop    = canalAnalise;
+      }
       p.canalTopPct  = 0;
+      // canaisGlobais é necessário pra _saudeCalcular fazer média ponderada
+      p.canaisGlobais   = canaisGlobais;
+      p.totalGmvPedidos = totalGmvPedidos;
       try { p.categoria = (typeof detectarCategoria === 'function') ? detectarCategoria(p.nome) : 'Outros'; }
       catch(e){ p.categoria = 'Outros'; }
       return p;
@@ -4446,7 +4484,6 @@ function saudeRecalcular() {
   _saudeProdutos = produtos;
 
   // Popular dropdown de marcas dinamicamente — preserva seleção atual se ainda válida
-  // Mantém SEMPRE as 2 opções especiais no topo: Consolidado MKT + Loja Própria
   try {
     var selM = document.getElementById('saude-filtro-marca');
     if(selM) {
@@ -4456,18 +4493,14 @@ function saudeRecalcular() {
         var m = p.marca && String(p.marca).trim();
         if(m) marcasUnicas[m] = (marcasUnicas[m]||0) + 1;
       });
-      var opts = [
-        '<option value="todas">Todas as marcas</option>',
-        '<option value="__mkt__">🛒 Consolidado Marketplaces</option>',
-        '<option value="__lp__">🏪 Loja Própria</option>'
-      ];
+      var opts = ['<option value="todas">Todas as marcas</option>'];
       Object.keys(marcasUnicas).sort().forEach(function(m){
         var sel = (m === atual) ? ' selected' : '';
         opts.push('<option value="'+_saudeEsc(m)+'"'+sel+'>'+_saudeEsc(m)+' ('+marcasUnicas[m]+')</option>');
       });
       selM.innerHTML = opts.join('');
-      // Restaurar seleção: aceita 'todas', '__mkt__', '__lp__' ou marca real existente
-      if(atual === 'todas' || atual === '__mkt__' || atual === '__lp__' || marcasUnicas[atual]) {
+      // Restaurar seleção: aceita 'todas' ou marca real existente
+      if(atual === 'todas' || marcasUnicas[atual]) {
         selM.value = atual;
       } else {
         selM.value = 'todas';
@@ -4580,18 +4613,8 @@ function saudeRenderTabela() {
     if(_saudeFiltroStatus !== 'todos' && p.statusSaude !== _saudeFiltroStatus) return false;
     if(curvaF !== 'todas' && p.curva !== curvaF) return false;
     if(canalF !== 'todos' && p.canalTop !== canalF) return false;
-    // Filtro de marca COM opções especiais:
-    //   '__mkt__' = só produtos cujo canal top NÃO é Loja Própria (consolidado de marketplaces)
-    //   '__lp__'  = só produtos cujo canal top É Loja Própria
-    //   'todas'   = sem filtro
-    //   '<marca>' = match exato da marca
-    if(marcaF === '__mkt__') {
-      if(p.canalTop === 'Loja Própria') return false;
-    } else if(marcaF === '__lp__') {
-      if(p.canalTop !== 'Loja Própria') return false;
-    } else if(marcaF !== 'todas') {
-      if((p.marca || '—') !== marcaF) return false;
-    }
+    // Filtro de marca: 'todas' ou match exato da marca
+    if(marcaF !== 'todas' && (p.marca || '—') !== marcaF) return false;
     if(busca && !(String(p.sku).toLowerCase().includes(busca) || String(p.nome).toLowerCase().includes(busca))) return false;
     return true;
   });
@@ -4702,10 +4725,11 @@ function saudeRenderTabela() {
       else if(estoqueA < qtdVendida) estoqueCor = '#F59E0B';
       else                     estoqueCor = 'var(--green)';
     }
-    var celVendidoEstoque = '<div style="font-family:var(--fmono);font-size:11px;line-height:1.4;text-align:right">'+
-      '<span style="color:var(--text);font-weight:700">'+(qtdVendida.toLocaleString('pt-BR'))+'</span>'+
-      ' <span style="color:var(--muted2)">/</span> '+
-      '<span style="color:'+estoqueCor+'">'+estoqueLbl+'</span>'+
+    // Layout em grid: [vendido] [/] [estoque] — separador centralizado, números alinhados
+    var celVendidoEstoque = '<div style="display:inline-grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;font-family:var(--fmono);font-size:11px;line-height:1.4;min-width:90px">'+
+      '<span style="color:var(--text);font-weight:700;text-align:right">'+(qtdVendida.toLocaleString('pt-BR'))+'</span>'+
+      '<span style="color:var(--muted2)">/</span>'+
+      '<span style="color:'+estoqueCor+';text-align:left">'+estoqueLbl+'</span>'+
     '</div>';
 
     var linhaPai = '<tr'+linhaStyle+'>'+
@@ -4714,7 +4738,7 @@ function saudeRenderTabela() {
       '<td style="font-size:12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_saudeEsc(p.nome)+'">'+_saudeEsc(p.nome)+'</td>'+
       '<td>'+celMarca+'</td>'+
       '<td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+cv.bg+';color:'+cv.cor+'">'+p.curva+'</span></td>'+
-      '<td style="text-align:right" title="Vendido no período / Estoque atual disponível">'+celVendidoEstoque+'</td>'+
+      '<td style="text-align:center" title="Vendido no período / Estoque atual disponível">'+celVendidoEstoque+'</td>'+
       '<td style="text-align:right;font-family:var(--fmono);font-size:12px">'+celPreco+'</td>'+
       '<td style="text-align:right">'+celCusto+'</td>'+
       '<td style="font-size:11px;color:var(--muted2)" title="'+_saudeEsc(p.regrasInfo||'')+'">'+canalLabel+'</td>'+
@@ -6703,6 +6727,7 @@ var MKT_CANAL_MAP = {
   'Shein':        'mkt-inv-outros',
   'Dafiti':       'mkt-inv-outros',
   'Netshoes':     'mkt-inv-outros',
+  'Posthaus':     'mkt-inv-posthaus',
   'Loja Própria': 'mkt-inv-meta'     // Venda direta geralmente vem de Meta/Google
 };
 
@@ -6713,15 +6738,16 @@ function setPresetMkt(p, btn) {
 
 function calcMarketing() {
   // ── Investimentos manuais por canal de ads ──────────────────
-  var invShopee = parseFloat((document.getElementById('mkt-inv-shopee')||{}).value)||0;
-  var invML     = parseFloat((document.getElementById('mkt-inv-ml')||{}).value)||0;
-  var invTikTok = parseFloat((document.getElementById('mkt-inv-tiktok')||{}).value)||0;
-  var invShein  = parseFloat((document.getElementById('mkt-inv-shein')||{}).value)||0;
-  var invDafiti = parseFloat((document.getElementById('mkt-inv-dafiti')||{}).value)||0;
-  var invMeta   = parseFloat((document.getElementById('mkt-inv-meta')||{}).value)||0;
-  var invGoogle = parseFloat((document.getElementById('mkt-inv-google')||{}).value)||0;
-  var invOutros = parseFloat((document.getElementById('mkt-inv-outros')||{}).value)||0;
-  var totalInv  = invShopee + invML + invTikTok + invShein + invDafiti + invMeta + invGoogle + invOutros;
+  var invShopee   = parseFloat((document.getElementById('mkt-inv-shopee')||{}).value)||0;
+  var invML       = parseFloat((document.getElementById('mkt-inv-ml')||{}).value)||0;
+  var invTikTok   = parseFloat((document.getElementById('mkt-inv-tiktok')||{}).value)||0;
+  var invShein    = parseFloat((document.getElementById('mkt-inv-shein')||{}).value)||0;
+  var invDafiti   = parseFloat((document.getElementById('mkt-inv-dafiti')||{}).value)||0;
+  var invPosthaus = parseFloat((document.getElementById('mkt-inv-posthaus')||{}).value)||0;
+  var invMeta     = parseFloat((document.getElementById('mkt-inv-meta')||{}).value)||0;
+  var invGoogle   = parseFloat((document.getElementById('mkt-inv-google')||{}).value)||0;
+  var invOutros   = parseFloat((document.getElementById('mkt-inv-outros')||{}).value)||0;
+  var totalInv    = invShopee + invML + invTikTok + invShein + invDafiti + invPosthaus + invMeta + invGoogle + invOutros;
 
   // Mapeamento: canal de venda → campo de investimento
   // Shopee Ads → investimento da Shopee
@@ -6735,7 +6761,8 @@ function calcMarketing() {
     'TikTok Shop':  invTikTok,
     'Shein':        invShein,
     'Dafiti':       invDafiti,
-    'Netshoes':     0,           // sem campo próprio
+    'Posthaus':     invPosthaus,
+    'Netshoes':     0,
     'Loja Própria': invMeta + invGoogle  // tráfego da loja própria
   };
 
@@ -6884,7 +6911,7 @@ function calcMarketing() {
   // ── Dados para IA ────────────────────────────────────────
   window._mktDataIA = {
     periodo:{from,to},
-    investimento:{shopee:invShopee,ml:invML,tiktok:invTikTok,shein:invShein,dafiti:invDafiti,meta:invMeta,google:invGoogle,outros:invOutros,total:totalInv},pctMidia:pctMidia,
+    investimento:{shopee:invShopee,ml:invML,tiktok:invTikTok,shein:invShein,dafiti:invDafiti,posthaus:invPosthaus,meta:invMeta,google:invGoogle,outros:invOutros,total:totalInv},pctMidia:pctMidia,
     receita:{gmv:totalGMV,pedidos:totalQtd,roas:roasGlobal,cpc:cpcGlobal},
     porCanal:canalEntries.map(function(e){
       var ci=canalInvMap[e[0]]||0;  // sem fallback proporcional
@@ -7035,7 +7062,7 @@ async function salvarResumo() {
   var mkt = 0;
   var mktFonte = 'nenhuma';
   var _camposMkt = ['mkt-inv-shopee', 'mkt-inv-ml', 'mkt-inv-tiktok', 'mkt-inv-shein',
-                    'mkt-inv-dafiti', 'mkt-inv-meta', 'mkt-inv-google', 'mkt-inv-outros'];
+                    'mkt-inv-dafiti', 'mkt-inv-posthaus', 'mkt-inv-meta', 'mkt-inv-google', 'mkt-inv-outros'];
   var somaDireta = 0;
   _camposMkt.forEach(function(id){
     var v = parseFloat((document.getElementById(id)||{}).value) || 0;
