@@ -12618,6 +12618,9 @@ function veltroInit() {
     var usuarios = veltroGetUsuarios();
     var empresa = usuarios.find(function(u){ return u.id === sessao; });
     if(empresa) {
+      // 🆕 BUG FIX: marca último acesso também quando entra via sessão salva
+      // Antes, só marcava no auto-cadastro via URL ou no login com formulário
+      veltroMarcarUltimoAcesso(sessao);
       veltroEntrarDashboard(empresa);
       return;
     }
@@ -14041,12 +14044,15 @@ function veltroEditGerarSenhaAuto() {
 }
 
 async function veltroSalvarEdicaoEmpresa() {
-  if(!_veltroAdminAutenticado) return;
+  // Nota: a checagem de autenticação acontece em veltroAbrirEditarEmpresa.
+  // Aqui não checamos novamente porque o usuário pode ter fechado o admin
+  // pra ver o modal de edição (não fecha auto), e isso resetava _veltroAdminAutenticado.
 
   var modal = document.getElementById('veltro-edit-empresa-modal');
   var empId = modal ? modal.getAttribute('data-empresa-id') : null;
   if(!empId) {
-    try { document.getElementById('edit-erro').textContent = 'ID da empresa não encontrado.'; } catch(e){}
+    try { document.getElementById('edit-erro').textContent = '✕ ID da empresa não encontrado.'; } catch(e){}
+    console.error('[Edit] data-empresa-id ausente no modal');
     return;
   }
 
@@ -14094,7 +14100,9 @@ async function veltroSalvarEdicaoEmpresa() {
   // Persistir usuários
   try {
     veltroSaveUsuarios(usuarios);
+    console.log('[Edit] ✅ Usuário '+empId+' atualizado: nome="'+nome+'"'+(senha?' (senha alterada)':''));
   } catch(e) {
+    console.error('[Edit] Erro ao salvar usuários:', e);
     if(erroEl) erroEl.textContent = '✕ Erro ao salvar empresa';
     return;
   }
@@ -14106,14 +14114,19 @@ async function veltroSalvarEdicaoEmpresa() {
       // Se zero marcados, remove (volta pro padrão "todos")
       if(canaisMarcados.length === 0) {
         localStorage.removeItem(VELTRO_CANAIS_KEY + empId);
+        console.log('[Edit] Canais resetados pro padrão (todos)');
       } else {
         setCanaisAtivosEmpresa(empId, canaisMarcados);
+        console.log('[Edit] '+canaisMarcados.length+' canais ativos:', canaisMarcados.join(', '));
       }
     }
   } catch(e) { console.warn('[Edit] Erro canais:', e); }
 
   // Salvar link da loja
-  try { veltroSetLojaUrl(empId, lojaUrl); } catch(e){}
+  try {
+    veltroSetLojaUrl(empId, lojaUrl);
+    console.log('[Edit] Loja URL: "'+lojaUrl+'"');
+  } catch(e){ console.warn('[Edit] Erro lojaUrl:', e); }
 
   // Feedback visual no botão
   try {
@@ -14407,8 +14420,8 @@ window.addEventListener('load', function() {
      Permite editar: nome, senha, canais ativos, link da loja própria.
      ID não é editável (chave primária com várias dependências).
 ═══════════════════════════════════════════════════════════════ -->
-<div id="veltro-edit-empresa-modal" style="display:none;position:fixed;inset:0;z-index:99998;
-     background:rgba(0,0,0,.8);backdrop-filter:blur(6px);align-items:center;justify-content:center">
+<div id="veltro-edit-empresa-modal" style="display:none;position:fixed;inset:0;z-index:100000;
+     background:rgba(0,0,0,.85);backdrop-filter:blur(8px);align-items:center;justify-content:center">
   <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;
               padding:28px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;margin:20px">
 
