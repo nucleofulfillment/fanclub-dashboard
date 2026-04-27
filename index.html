@@ -9840,16 +9840,21 @@ function _atualizarSeletorCategoriasEstoque() {
     cats[c] = (cats[c]||0) + 1;
   });
   var lista = Object.keys(cats).sort(function(a,b){ return cats[b] - cats[a]; });
-  var atual = sel.value || 'todos';
-  // Reconstrói preservando a opção "TODOS"
-  var html = '<option value="todos">📋 TODOS</option>';
+  var atual = sel.value || '';
+  // Reconstrói preservando a opção "TODOS" com value="" (igual ao HTML original)
+  // Antes esse código gerava value="todos", o que quebrava o filtro de tabela
+  // (renderEstoqueTabela espera "" como "sem filtro")
+  var html = '<option value="">📋 TODOS</option>';
   lista.forEach(function(c){
     var lbl = c + ' ('+cats[c]+')';
     html += '<option value="'+c+'">'+lbl+'</option>';
   });
   sel.innerHTML = html;
-  // Restaura seleção se ainda existir
-  try { sel.value = atual; if(sel.value !== atual) sel.value = 'todos'; } catch(e){}
+  // Restaura seleção se ainda existir; senão volta pra "" (todos)
+  try {
+    sel.value = atual;
+    if(sel.value !== atual) sel.value = '';
+  } catch(e){ sel.value = ''; }
 }
 
 function renderEstoqueKPIs(dados) {
@@ -9877,6 +9882,9 @@ function renderEstoqueTabela() {
   var catFilter = (document.getElementById('estoque-cat-filter')||{}).value||'';
   var stFilter  = (document.getElementById('estoque-status-filter')||{}).value||'';
   var skuLower  = skuFilter.toLowerCase();
+
+  // Defensivo: trata "todos" e "" como "sem filtro"
+  if(catFilter === 'todos') catFilter = '';
 
   var filtered = estoqueData.filter(function(item) {
     if(skuFilter && !item.sku.toLowerCase().includes(skuLower) && !item.nome.toLowerCase().includes(skuLower)) return false;
@@ -11167,6 +11175,8 @@ function _popularSeletorMesProd() {
 /* ─ Aplicar filtro de categoria — atualiza tudo ─ */
 function aplicarFiltroEstoque() {
   var catFilter = (document.getElementById('estoque-cat-filter')||{}).value || '';
+  // Defensivo: "todos" tratado igual a "" (sem filtro)
+  if(catFilter === 'todos') catFilter = '';
   // KPIs com dados filtrados
   var dadosFiltrados = catFilter
     ? estoqueData.filter(function(i){ return i.cat === catFilter; })
@@ -11177,6 +11187,8 @@ function aplicarFiltroEstoque() {
 }
 function renderEstoqueIndicadores() {
   var catFilter = (document.getElementById('estoque-cat-filter')||{}).value || '';
+  // Defensivo: "todos" igual a "" (sem filtro)
+  if(catFilter === 'todos') catFilter = '';
 
   var t20el = document.getElementById('t20-estoque');
   var tamEl = document.getElementById('r-tam-estoque');
@@ -11272,15 +11284,21 @@ function renderEstoqueIndicadores() {
     // Remove sufixo de tamanho: 101003000-6388-28 → 101003000-6388
     var skuPai = nomeSKU.replace(/-\d{2,3}$/, '');
     var searchTerm = skuPai || p.nome;
-    var searchUrl = 'https://www.usefanclub.com.br/busca?q=' + encodeURIComponent(searchTerm);
+    // URL dinâmica por empresa (item 4) — fallback pra texto se sem URL configurada
+    var searchUrl = (typeof veltroBuscaProdutoUrl === 'function') ? veltroBuscaProdutoUrl(searchTerm) : '';
+    var temLink = !!searchUrl;
+
+    var nomeHtml = temLink
+      ? '<a href="'+searchUrl+'" target="_blank" rel="noopener" style="text-decoration:none">'+
+          '<div class="t20name" title="'+p.nome+'" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);transition:color .15s" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--text)\'">'+p.nome+'</div>'+
+        '</a>'
+      : '<div class="t20name" title="'+p.nome+'" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">'+p.nome+'</div>';
 
     return '<div class="t20row" style="gap:10px;align-items:center;padding:8px 4px">'+
       '<div class="t20n '+medal+'">'+(i+1)+'<\/div>'+
       '<div style="width:34px;height:34px;border-radius:8px;flex-shrink:0;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:17px">'+emoji+'<\/div>'+
       '<div class="t20bw" style="min-width:0">'+
-        '<a href="'+searchUrl+'" target="_blank" rel="noopener" style="text-decoration:none">'+
-          '<div class="t20name" title="'+p.nome+'" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);transition:color .15s" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--text)\'">'+p.nome+'<\/div>'+
-        '<\/a>'+
+        nomeHtml+
         '<div style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-bottom:3px">'+nomeSKU+'<\/div>'+
         '<div class="t20bg"><div class="t20bar" style="width:'+barW+'%;background:'+(i<3?'var(--accent)':'var(--a2)')+'"><\/div><\/div>'+
       '<\/div>'+
