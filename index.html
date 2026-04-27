@@ -940,6 +940,54 @@ body.light body::before { opacity: 0; }
   </button>
 </div>
 
+<!-- ══ VELTRO TELA DE SENHA DO CLIENTE ══ -->
+<div id="veltro-senha-cliente" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);
+     align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:420px;width:100%">
+    <div style="text-align:center;margin-bottom:24px">
+      <svg width="52" height="52" viewBox="0 0 28 28" style="margin-bottom:12px">
+        <circle cx="14" cy="14" r="13" fill="none" stroke="#6EE7B7" stroke-width="1.5"/>
+        <path d="M7 14 L12 9 L17 14 L12 19Z" fill="#6EE7B7" opacity=".9"/>
+        <path d="M13 14 L18 9 L23 14 L18 19Z" fill="#6EE7B7" opacity=".5"/>
+      </svg>
+      <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:700;letter-spacing:-1px;color:var(--text)">Veltro<span style="color:var(--accent);margin-left:4px">OS</span></div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:4px">Sistema operacional do e-commerce</div>
+    </div>
+
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:24px">
+      <div style="text-align:center;margin-bottom:18px">
+        <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Acesso protegido</div>
+        <div id="veltro-senha-empresa-nome" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:600;color:var(--text);margin-top:4px">—</div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:6px">🔐 Digite a senha de acesso</div>
+        <input type="password" id="veltro-senha-input" placeholder="Senha enviada pelo administrador"
+          autocomplete="off"
+          onkeydown="if(event.key==='Enter') veltroValidarSenhaCliente()"
+          style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;
+                 padding:11px 14px;font-family:var(--fmono);font-size:14px;color:var(--text);
+                 outline:none;color-scheme:dark;box-sizing:border-box;letter-spacing:.5px">
+      </div>
+
+      <div id="veltro-senha-erro" style="font-family:var(--fmono);font-size:11px;color:var(--red);min-height:16px;margin-bottom:10px;text-align:center"></div>
+
+      <button onclick="veltroValidarSenhaCliente()"
+        style="width:100%;padding:13px;background:var(--accent);border:none;border-radius:10px;
+               color:#0A0C10;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.3px">
+        Entrar →
+      </button>
+
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);text-align:center">
+        <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);line-height:1.6">
+          🔒 Esqueceu a senha? Solicite ao administrador<br>
+          que enviou seu link de acesso.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ VELTRO ONBOARDING ══ -->
 <div id="veltro-onboarding" style="display:none;position:fixed;inset:0;z-index:9998;background:var(--bg);
      overflow-y:auto;padding:40px 20px">
@@ -11230,12 +11278,211 @@ function veltroAutoCadastrarELogar(empresaId) {
     console.log('[Veltro] ✅ Empresa "'+empresaId+'" reconhecida');
   }
 
-  // Marca último acesso (pra status no admin)
-  veltroMarcarUltimoAcesso(empresaId);
+  // 🆕 Se a empresa tem senha cadastrada, exigir senha (a menos que sessão válida)
+  if(empresa.senhaHash && !veltroSessaoSenhaValida(empresaId)) {
+    veltroMostrarTelaSenha(empresa);
+    return;
+  }
 
-  // Salva sessão e entra
+  // Sem senha ou sessão válida: entra direto
+  veltroMarcarUltimoAcesso(empresaId);
   localStorage.setItem(VELTRO_SESSAO_KEY, empresa.id);
   veltroEntrarDashboard(empresa);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   🆕 SISTEMA DE SENHA POR CLIENTE
+   - Hash SHA-256 (não armazena senha em texto puro)
+   - Bloqueio após 5 tentativas erradas (30 min)
+   - Sessão válida por 30 dias (cliente não digita toda hora)
+═══════════════════════════════════════════════════════════════ */
+
+var VELTRO_SENHA_TENTATIVAS_KEY = 'veltro_senha_tentativas_v1';
+var VELTRO_SENHA_SESSAO_PREFIX  = 'veltro_senha_sessao_';
+var VELTRO_SESSAO_DURACAO_DIAS  = 30;
+var VELTRO_MAX_TENTATIVAS       = 5;
+var VELTRO_BLOQUEIO_MINUTOS     = 30;
+
+/* Gera hash SHA-256 de uma string (usa Web Crypto API nativa do navegador). */
+async function _veltroHashSenha(senha) {
+  var encoder = new TextEncoder();
+  var data = encoder.encode('veltroos:' + senha); // salt fixo simples
+  var hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  var hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+
+/* Gera senha forte automática no formato XXX-NNNN-XXXX (12 chars). */
+function veltroGerarSenhaForte() {
+  var letras = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // sem I e O pra evitar confusão
+  var nums = '23456789'; // sem 0 e 1
+  var part = function(n, src) {
+    var s = '';
+    for(var i = 0; i < n; i++) s += src.charAt(Math.floor(Math.random() * src.length));
+    return s;
+  };
+  return part(3, letras) + '-' + part(4, nums) + '-' + part(4, letras);
+}
+
+/* Botão "🎲 Gerar senha forte" no admin: preenche o campo de senha. */
+function veltroGerarSenhaAuto() {
+  var input = document.getElementById('admin-novo-senha');
+  if(!input) return;
+  input.value = veltroGerarSenhaForte();
+  input.type = 'text'; // mostrar pra admin copiar
+}
+
+/* Mostra a tela de senha pra empresa que tem senha cadastrada. */
+function veltroMostrarTelaSenha(empresa) {
+  // Esconder tudo o resto
+  try { document.getElementById('veltro-login').style.display = 'none'; } catch(e) {}
+  try { document.getElementById('veltro-onboarding').style.display = 'none'; } catch(e) {}
+  var app = document.querySelector('.app-wrapper') || document.querySelector('.sidebar');
+  if(app) app.style.visibility = 'hidden';
+
+  var tela = document.getElementById('veltro-senha-cliente');
+  if(tela) {
+    tela.style.display = 'flex';
+    var nomeEl = document.getElementById('veltro-senha-empresa-nome');
+    if(nomeEl) nomeEl.textContent = empresa.nome || empresa.id;
+    var input = document.getElementById('veltro-senha-input');
+    if(input) { input.value = ''; setTimeout(function(){ input.focus(); }, 100); }
+    var erro = document.getElementById('veltro-senha-erro');
+    if(erro) erro.textContent = '';
+
+    // Verificar se está bloqueado
+    var bloqueio = veltroVerificarBloqueio(empresa.id);
+    if(bloqueio.bloqueado) {
+      if(erro) erro.textContent = '🚫 Bloqueado por ' + bloqueio.minutosRestantes + ' min (excesso de tentativas)';
+      if(input) input.disabled = true;
+    } else if(input) {
+      input.disabled = false;
+    }
+
+    // Salvar empresa atual na variável global pra validar depois
+    window._veltroSenhaEmpresaAtual = empresa;
+  }
+}
+
+/* Verifica se a empresa está bloqueada por excesso de tentativas. */
+function veltroVerificarBloqueio(empresaId) {
+  try {
+    var dados = JSON.parse(localStorage.getItem(VELTRO_SENHA_TENTATIVAS_KEY) || '{}');
+    var info = dados[empresaId];
+    if(!info) return { bloqueado: false };
+    if(info.tentativas >= VELTRO_MAX_TENTATIVAS) {
+      var diff = Date.now() - info.bloqueadoEm;
+      var minPassados = Math.floor(diff / 60000);
+      if(minPassados < VELTRO_BLOQUEIO_MINUTOS) {
+        return {
+          bloqueado: true,
+          minutosRestantes: VELTRO_BLOQUEIO_MINUTOS - minPassados
+        };
+      }
+      // Bloqueio expirou: resetar contador
+      delete dados[empresaId];
+      localStorage.setItem(VELTRO_SENHA_TENTATIVAS_KEY, JSON.stringify(dados));
+    }
+    return { bloqueado: false };
+  } catch(e) {
+    return { bloqueado: false };
+  }
+}
+
+/* Registra uma tentativa errada de senha. */
+function _veltroRegistrarTentativaErrada(empresaId) {
+  try {
+    var dados = JSON.parse(localStorage.getItem(VELTRO_SENHA_TENTATIVAS_KEY) || '{}');
+    if(!dados[empresaId]) dados[empresaId] = { tentativas: 0 };
+    dados[empresaId].tentativas++;
+    if(dados[empresaId].tentativas >= VELTRO_MAX_TENTATIVAS) {
+      dados[empresaId].bloqueadoEm = Date.now();
+    }
+    localStorage.setItem(VELTRO_SENHA_TENTATIVAS_KEY, JSON.stringify(dados));
+    return dados[empresaId].tentativas;
+  } catch(e) { return 0; }
+}
+
+/* Reseta contador de tentativas após sucesso. */
+function _veltroResetarTentativas(empresaId) {
+  try {
+    var dados = JSON.parse(localStorage.getItem(VELTRO_SENHA_TENTATIVAS_KEY) || '{}');
+    delete dados[empresaId];
+    localStorage.setItem(VELTRO_SENHA_TENTATIVAS_KEY, JSON.stringify(dados));
+  } catch(e) {}
+}
+
+/* Verifica se a sessão de senha do cliente ainda é válida (30 dias). */
+function veltroSessaoSenhaValida(empresaId) {
+  try {
+    var key = VELTRO_SENHA_SESSAO_PREFIX + empresaId;
+    var raw = localStorage.getItem(key);
+    if(!raw) return false;
+    var sessao = JSON.parse(raw);
+    if(!sessao.timestamp) return false;
+    var diasPassados = (Date.now() - sessao.timestamp) / (1000 * 60 * 60 * 24);
+    return diasPassados < VELTRO_SESSAO_DURACAO_DIAS;
+  } catch(e) { return false; }
+}
+
+/* Marca sessão de senha como válida (após login com senha correta). */
+function _veltroSalvarSessaoSenha(empresaId) {
+  try {
+    var key = VELTRO_SENHA_SESSAO_PREFIX + empresaId;
+    localStorage.setItem(key, JSON.stringify({ timestamp: Date.now() }));
+  } catch(e) {}
+}
+
+/* Valida a senha digitada pelo cliente. */
+async function veltroValidarSenhaCliente() {
+  var empresa = window._veltroSenhaEmpresaAtual;
+  if(!empresa) return;
+
+  var input = document.getElementById('veltro-senha-input');
+  var erro = document.getElementById('veltro-senha-erro');
+  var senha = input ? input.value : '';
+
+  if(!senha) {
+    if(erro) erro.textContent = '❌ Digite a senha';
+    return;
+  }
+
+  // Verificar bloqueio antes
+  var bloqueio = veltroVerificarBloqueio(empresa.id);
+  if(bloqueio.bloqueado) {
+    if(erro) erro.textContent = '🚫 Bloqueado por ' + bloqueio.minutosRestantes + ' min';
+    return;
+  }
+
+  // Calcular hash da senha digitada e comparar
+  try {
+    var hashDigitado = await _veltroHashSenha(senha);
+    if(hashDigitado === empresa.senhaHash) {
+      // ✅ Senha correta
+      _veltroResetarTentativas(empresa.id);
+      _veltroSalvarSessaoSenha(empresa.id);
+
+      // Esconder tela de senha e seguir fluxo normal
+      try { document.getElementById('veltro-senha-cliente').style.display = 'none'; } catch(e) {}
+
+      veltroMarcarUltimoAcesso(empresa.id);
+      localStorage.setItem(VELTRO_SESSAO_KEY, empresa.id);
+      veltroEntrarDashboard(empresa);
+    } else {
+      // ❌ Senha errada
+      var tentativas = _veltroRegistrarTentativaErrada(empresa.id);
+      var restantes = VELTRO_MAX_TENTATIVAS - tentativas;
+      if(restantes <= 0) {
+        if(erro) erro.textContent = '🚫 Bloqueado por ' + VELTRO_BLOQUEIO_MINUTOS + ' min (excesso de tentativas)';
+        if(input) input.disabled = true;
+      } else {
+        if(erro) erro.textContent = '❌ Senha incorreta — ' + restantes + ' tentativa' + (restantes>1?'s':'') + ' restante' + (restantes>1?'s':'');
+        if(input) { input.value = ''; input.focus(); }
+      }
+    }
+  } catch(e) {
+    if(erro) erro.textContent = '❌ Erro ao validar: ' + e.message;
+  }
 }
 
 /* 🆕 Marca último acesso da empresa (timestamp). Útil pra status no admin. */
@@ -11273,7 +11520,13 @@ function veltroLogin() {
     return;
   }
 
-  // 🆕 Marca último acesso
+  // 🆕 Se tem senha cadastrada e sessão expirou, exigir senha
+  if(empresa.senhaHash && !veltroSessaoSenhaValida(empresa.id)) {
+    veltroMostrarTelaSenha(empresa);
+    return;
+  }
+
+  // Marca último acesso
   veltroMarcarUltimoAcesso(empresa.id);
 
   // Login ok
@@ -11679,17 +11932,23 @@ function veltroAutenticarAdmin() {
     try{ document.getElementById('admin-senha-input').value = ''; }catch(e){}
   }
 }
-function veltroCadastrarEmpresa() {
+async function veltroCadastrarEmpresa() {
   if(!_veltroAdminAutenticado) return;
   var nome = ((document.getElementById('admin-novo-nome')||{}).value||'').trim();
   var id   = ((document.getElementById('admin-novo-id')||{}).value||'').trim().toLowerCase().replace(/\s+/g,'');
+  var senha = ((document.getElementById('admin-novo-senha')||{}).value||'').trim();
   var erroEl = document.getElementById('admin-cadastro-erro');
 
   if(!nome || !id) { if(erroEl) erroEl.textContent = '❌ Preencha nome e identificador'; return; }
   if(id.length < 4) { if(erroEl) erroEl.textContent = '❌ Identificador muito curto (mín. 4 chars)'; return; }
-  // 🆕 Validar caracteres válidos no ID (só letras, números, hífen, underscore)
+  // Validar caracteres válidos no ID (só letras, números, hífen, underscore)
   if(!/^[a-z0-9_-]+$/.test(id)) {
     if(erroEl) erroEl.textContent = '❌ ID só pode ter letras minúsculas, números, hífen ou underscore';
+    return;
+  }
+  // 🆕 Validar senha se fornecida (mínimo 6 chars)
+  if(senha && senha.length < 6) {
+    if(erroEl) erroEl.textContent = '❌ Senha muito curta (mín. 6 caracteres)';
     return;
   }
 
@@ -11699,22 +11958,47 @@ function veltroCadastrarEmpresa() {
     return;
   }
 
-  usuarios.push({id: id, nome: nome, criadoEm: new Date().toLocaleDateString('pt-BR')});
+  // 🆕 Se senha foi fornecida, calcular hash
+  var senhaHash = null;
+  var senhaPlain = null;
+  if(senha) {
+    try {
+      senhaHash = await _veltroHashSenha(senha);
+      senhaPlain = senha; // pra mostrar pro admin no banner (não salva!)
+    } catch(e) {
+      if(erroEl) erroEl.textContent = '❌ Erro ao processar senha: ' + e.message;
+      return;
+    }
+  }
+
+  var novaEmpresa = {
+    id: id,
+    nome: nome,
+    criadoEm: new Date().toLocaleDateString('pt-BR')
+  };
+  if(senhaHash) {
+    novaEmpresa.senhaHash = senhaHash;
+    novaEmpresa.temSenha = true;
+  }
+
+  usuarios.push(novaEmpresa);
   veltroSaveUsuarios(usuarios);
   if(erroEl) erroEl.textContent = '';
   try{ document.getElementById('admin-novo-nome').value = ''; }catch(e){}
   try{ document.getElementById('admin-novo-id').value   = ''; }catch(e){}
+  try{ document.getElementById('admin-novo-senha').value = ''; }catch(e){}
+  try{ document.getElementById('admin-novo-senha').type = 'text'; }catch(e){}
   veltroRenderListaEmpresas();
 
-  // 🆕 Mostrar link gerado direto na tela com botão de copiar grande
-  veltroMostrarLinkGerado(id, nome);
+  // Mostrar link gerado direto na tela (com senha se houver)
+  veltroMostrarLinkGerado(id, nome, senhaPlain);
 
   // Pré-preencher campo de login com o novo identificador
   try{ document.getElementById('veltro-login-id').value = id; }catch(e){}
 }
 
 /* 🆕 Mostra modal/banner com o link gerado pra copiar fácil. */
-function veltroMostrarLinkGerado(empresaId, nomeEmpresa) {
+function veltroMostrarLinkGerado(empresaId, nomeEmpresa, senhaPlain) {
   var url = window.location.origin + window.location.pathname;
   url = url.split('?')[0].split('#')[0];
   var linkFinal = url + '?empresa=' + encodeURIComponent(empresaId);
@@ -11727,10 +12011,31 @@ function veltroMostrarLinkGerado(empresaId, nomeEmpresa) {
   banner.id = 'admin-link-gerado-banner';
   banner.style.cssText = 'background:linear-gradient(135deg,rgba(110,231,183,.12),rgba(110,231,183,.04));border:1px solid rgba(110,231,183,.35);border-radius:10px;padding:14px;margin-bottom:14px;animation:fadeIn .3s';
 
+  var blocoSenha = senhaPlain
+    ? '<div style="margin-top:10px;padding:10px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:8px">'+
+        '<div style="font-family:var(--fmono);font-size:9px;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">🔐 SENHA DE ACESSO</div>'+
+        '<div style="display:flex;gap:6px;align-items:stretch">'+
+          '<input id="admin-senha-gerada-input" readonly value="'+senhaPlain.replace(/"/g,'&quot;')+'" '+
+            'style="flex:1;background:var(--s3);border:1px solid var(--border2);border-radius:6px;'+
+            'padding:7px 10px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;'+
+            'color-scheme:dark;box-sizing:border-box;letter-spacing:.5px;font-weight:600">'+
+          '<button onclick="veltroCopiarSenhaGerada(this)" '+
+            'style="padding:7px 12px;background:rgba(251,191,36,.15);border:1px solid rgba(251,191,36,.3);border-radius:6px;color:var(--amber);'+
+            'font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">'+
+            '📋 Copiar</button>'+
+        '</div>'+
+        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:6px;line-height:1.5">'+
+          '⚠️ Copie agora! Por segurança, a senha NÃO é mostrada novamente após fechar essa tela.'+
+        '</div>'+
+      '</div>'
+    : '<div style="margin-top:10px;padding:8px 10px;background:rgba(244,63,94,.06);border:1px solid rgba(244,63,94,.2);border-radius:6px;font-family:var(--fmono);font-size:10px;color:var(--red);line-height:1.5">'+
+        '⚠️ Esta empresa foi cadastrada SEM SENHA — qualquer pessoa com o link entra. Recomendado adicionar senha.'+
+      '</div>';
+
   banner.innerHTML =
     '<div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">✅ Empresa cadastrada</div>'+
     '<div style="font-family:var(--fhead);font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px">'+nomeEmpresa+' (id: '+empresaId+')</div>'+
-    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:6px">Link de acesso para enviar ao cliente:</div>'+
+    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:6px">🔗 Link de acesso:</div>'+
     '<div style="display:flex;gap:6px;align-items:stretch">'+
       '<input id="admin-link-gerado-input" readonly value="'+linkFinal+'" '+
         'style="flex:1;background:var(--s3);border:1px solid var(--border2);border-radius:6px;'+
@@ -11741,10 +12046,12 @@ function veltroMostrarLinkGerado(empresaId, nomeEmpresa) {
         'font-family:var(--fmono);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">'+
         '📋 Copiar Link</button>'+
     '</div>'+
+    blocoSenha+
     '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:8px;line-height:1.5">'+
-      '💡 Envie esse link pelo WhatsApp/email. O cliente clica e cai direto no sistema.<br>'+
-      '🔒 Qualquer pessoa com o link entra — só envie pra quem você confia.'+
-    '</div>';
+      '💡 Envie o link <strong>e a senha</strong> em mensagens separadas (WhatsApp/email).<br>'+
+      (senhaPlain ? '🔒 Sem a senha, ninguém entra — proteção extra ativa.' : '⚠️ Sem senha, qualquer pessoa com o link entra.')+
+    '</div>'+
+    '<button onclick="this.parentElement.remove()" style="margin-top:10px;width:100%;padding:6px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:var(--fmono);font-size:10px;cursor:pointer">Fechar</button>';
 
   // Insere antes do form de cadastrar empresa
   var painel = document.getElementById('admin-painel');
@@ -11752,15 +12059,27 @@ function veltroMostrarLinkGerado(empresaId, nomeEmpresa) {
   if(painel && primeiroFilho) {
     painel.insertBefore(banner, primeiroFilho);
   }
+}
 
-  // Auto-remove após 30 segundos
-  setTimeout(function(){
-    if(banner && banner.parentNode) {
-      banner.style.transition = 'opacity .5s';
-      banner.style.opacity = '0';
-      setTimeout(function(){ if(banner.parentNode) banner.remove(); }, 500);
-    }
-  }, 30000);
+/* 🆕 Copia senha gerada do banner. */
+function veltroCopiarSenhaGerada(btnEl) {
+  var input = document.getElementById('admin-senha-gerada-input');
+  if(!input) return;
+  var senha = input.value;
+
+  var fnSucesso = function() {
+    var antes = btnEl.innerHTML;
+    btnEl.innerHTML = '✅ Copiado!';
+    setTimeout(function(){ btnEl.innerHTML = antes; }, 1500);
+  };
+
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(senha).then(fnSucesso).catch(function(){
+      _veltroFallbackCopiar(senha, fnSucesso);
+    });
+  } else {
+    _veltroFallbackCopiar(senha, fnSucesso);
+  }
 }
 
 /* 🆕 Copia o link gerado (botão dentro do banner). */
@@ -11837,10 +12156,15 @@ function veltroRenderListaEmpresas() {
       ? '<span style="font-size:9px;color:#A78BFA;background:rgba(167,139,250,.10);padding:1px 5px;border-radius:3px;margin-left:6px">via link</span>'
       : '';
 
+    // 🆕 Badge de senha
+    var badgeSenha = u.senhaHash
+      ? '<span title="Protegida por senha" style="font-size:11px;margin-left:6px">🔐</span>'
+      : '<span title="Sem senha — qualquer um com o link entra" style="font-size:11px;margin-left:6px;opacity:.5">🔓</span>';
+
     return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">'+
       '<div style="font-size:18px">'+status+'</div>'+
       '<div style="flex:1;min-width:0">'+
-        '<div style="font-family:var(--fhead);font-size:13px;font-weight:600">'+u.nome+badgeAuto+'</div>'+
+        '<div style="font-family:var(--fhead);font-size:13px;font-weight:600">'+u.nome+badgeSenha+badgeAuto+'</div>'+
         '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">'+
           '<span style="color:var(--muted2)">id:</span> <span style="color:var(--text)">'+u.id+'</span> · '+
           '<span style="color:'+statusCor+'">'+statusTxt+'</span>'+
@@ -12186,6 +12510,25 @@ window.addEventListener('load', function() {
                      color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
           </div>
         </div>
+
+        <!-- 🆕 Campo de senha com gerador -->
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)">Senha de acesso (recomendado)</div>
+            <button onclick="veltroGerarSenhaAuto()" type="button"
+              style="background:transparent;border:none;font-family:var(--fmono);font-size:9px;color:var(--accent);cursor:pointer;text-decoration:underline">
+              🎲 Gerar senha forte
+            </button>
+          </div>
+          <input type="text" id="admin-novo-senha" placeholder="Deixe em branco pra acesso só com link (sem senha)"
+            style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:6px;
+                   padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;
+                   color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
+          <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px;line-height:1.5">
+            🔒 Com senha, link sozinho não basta — proteção extra contra acesso indevido
+          </div>
+        </div>
+
         <div id="admin-cadastro-erro" style="font-family:'JetBrains Mono',monospace;font-size:10px;
              color:var(--red);min-height:14px;margin-bottom:6px"></div>
         <button onclick="veltroCadastrarEmpresa()"
@@ -12195,48 +12538,50 @@ window.addEventListener('load', function() {
         </button>
       </div>
 
-      <!-- Exportar/Importar configuração -->
-      <div style="background:rgba(129,140,248,.08);border:1px solid rgba(129,140,248,.2);border-radius:10px;padding:12px;margin-bottom:14px">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#818CF8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🔄 Configuração Multi-Dispositivo</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.6">
-          <strong style="color:#818CF8">Como usar em outro dispositivo/navegador:</strong><br>
-          1. Aqui → clique <strong>📤 Exportar Código</strong><br>
-          2. Clique em <strong>📋 Copiar Código</strong> para copiar<br>
-          3. No outro navegador/dispositivo → acesse o sistema<br>
-          4. Clique em <strong>Admin</strong> → senha admin → <strong>📥 Importar Código</strong><br>
-          5. Cole o código → faça login com seu identificador de empresa
+      <!-- Multi-Dispositivo (compacto, expansível) -->
+      <details style="background:rgba(129,140,248,.05);border:1px solid rgba(129,140,248,.15);border-radius:10px;padding:0;margin-bottom:14px">
+        <summary style="cursor:pointer;padding:10px 14px;font-family:var(--fmono);font-size:10px;color:#818CF8;text-transform:uppercase;letter-spacing:1px;list-style:none;display:flex;align-items:center;gap:8px">
+          <span style="font-size:14px">🔄</span>
+          <span>Migrar pra outro PC (avançado)</span>
+          <span style="margin-left:auto;font-size:12px;opacity:.6">▼</span>
+        </summary>
+        <div style="padding:0 14px 14px 14px">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+            Para a maioria dos casos, use <strong style="color:var(--accent)">💾 Baixar Backup</strong> acima.<br>
+            Esta opção avançada é útil pra copiar configurações por texto (sem arquivo).
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <button onclick="veltroExportarConfig()"
+              style="flex:1;padding:7px 10px;background:rgba(129,140,248,.15);border:1px solid rgba(129,140,248,.3);border-radius:7px;color:#818CF8;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer">
+              📤 Exportar Código
+            </button>
+            <button onclick="veltroImportarConfig()"
+              style="flex:1;padding:7px 10px;background:rgba(110,231,183,.1);border:1px solid rgba(110,231,183,.2);border-radius:7px;color:var(--accent);font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer">
+              📥 Importar Código
+            </button>
+          </div>
+          <div id="import-area" style="margin-top:8px">
+            <textarea id="admin-import-textarea"
+              style="width:100%;height:50px;background:var(--s3);border:1px solid var(--border2);
+                     border-radius:6px;padding:6px;font-family:var(--fmono);
+                     font-size:9px;color:var(--text);resize:none;outline:none;
+                     color-scheme:dark;box-sizing:border-box"
+              placeholder="Cole aqui o código de importação..."></textarea>
+          </div>
+          <div id="import-confirm" style="margin-top:6px"></div>
+          <div id="admin-export-code" style="display:none;margin-top:10px">
+            <textarea id="admin-export-textarea" readonly
+              style="width:100%;height:60px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;
+                     padding:6px;font-family:var(--fmono);font-size:9px;color:var(--text);
+                     resize:none;outline:none;color-scheme:dark;box-sizing:border-box"
+              placeholder="Código de exportação..."></textarea>
+            <button onclick="veltroCopirarCodigo()"
+              style="width:100%;margin-top:5px;padding:5px;background:var(--s2);border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-family:var(--fmono);font-size:9px;cursor:pointer">
+              📋 Copiar Código
+            </button>
+          </div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="veltroExportarConfig()"
-            style="flex:1;padding:7px 10px;background:rgba(129,140,248,.15);border:1px solid rgba(129,140,248,.3);border-radius:7px;color:#818CF8;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;cursor:pointer">
-            📤 Exportar Código
-          </button>
-          <button onclick="veltroImportarConfig()"
-            style="flex:1;padding:7px 10px;background:rgba(110,231,183,.1);border:1px solid rgba(110,231,183,.2);border-radius:7px;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;cursor:pointer">
-            📥 Importar Código
-          </button>
-        </div>
-        <div id="import-area" style="margin-top:8px">
-          <textarea id="admin-import-textarea"
-            style="width:100%;height:55px;background:var(--s3);border:1px solid var(--border2);
-                   border-radius:6px;padding:6px;font-family:'JetBrains Mono',monospace;
-                   font-size:9px;color:var(--text);resize:none;outline:none;
-                   color-scheme:dark;box-sizing:border-box"
-            placeholder="Cole aqui o código de importação..."></textarea>
-        </div>
-        <div id="import-confirm" style="margin-top:6px"></div>
-        <div id="admin-export-code" style="display:none;margin-top:10px">
-          <textarea id="admin-export-textarea" readonly
-            style="width:100%;height:60px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;
-                   padding:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text);
-                   resize:none;outline:none;color-scheme:dark;box-sizing:border-box"
-            placeholder="Código de exportação..."></textarea>
-          <button onclick="veltroCopirarCodigo()"
-            style="width:100%;margin-top:5px;padding:5px;background:var(--s2);border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:9px;cursor:pointer">
-            📋 Copiar Código
-          </button>
-        </div>
-      </div>
+      </details>
 
       <!-- Lista de empresas -->
       <div>
