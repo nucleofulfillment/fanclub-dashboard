@@ -5,35 +5,54 @@
   <title>Carregando... · Veltro OS</title>
   <script>
     // ═══════════════════════════════════════════════════════════════
-    // 404.html → Redirecionador pra URLs bonitas estilo /laluna
+    // 404.html → Roteador SPA pro Veltro OS
     //
-    // Como funciona:
-    // 1. GitHub Pages serve este arquivo quando a URL não existe
-    //    (ex: www.veltroos.com.br/laluna)
-    // 2. Capturamos o path "/laluna" e guardamos
-    // 3. Redirecionamos pro index.html (raiz) com query string
-    // 4. O index.html lê o parâmetro e abre a empresa correta
-    //
-    // Isso simula URLs bonitas sem precisar de servidor backend.
-    // Inspirado em: https://github.com/rafgraph/spa-github-pages
+    // GitHub Pages serve este arquivo quando a URL não existe.
+    // Estrutura desejada:
+    //   /              → site institucional (index.html, GitHub serve direto)
+    //   /app           → tela de login do sistema (app.html)
+    //   /laluna        → dashboard La Luna (app.html?empresa=laluna)
+    //   /fanclub       → dashboard FanClub (app.html?empresa=fanclub)
+    //   /qualquer      → dashboard <qualquer> (app.html?empresa=qualquer)
     // ═══════════════════════════════════════════════════════════════
     (function() {
       var l = window.location;
-      // Path completo da URL (ex: "/laluna" ou "/laluna/algo")
-      var path = l.pathname;
-      // Remove a barra inicial e pega só o primeiro segmento
-      var empresaId = (path.replace(/^\/+/, '').split('/')[0] || '').toLowerCase();
-      // Validação básica: ID precisa ter pelo menos 2 chars
-      if(empresaId && empresaId.length >= 2) {
-        // Redireciona pra raiz com ?empresa=ID — index.html cuida do resto
-        l.replace(l.protocol + '//' + l.hostname +
-                  (l.port ? ':' + l.port : '') +
-                  '/?empresa=' + encodeURIComponent(empresaId) + l.hash);
-      } else {
-        // Sem ID válido — manda pra raiz (tela de login)
+      var path = (l.pathname || '').replace(/^\/+/, '').replace(/\/+$/, '');
+      var primeiro = (path.split('/')[0] || '').toLowerCase();
+
+      // Sem path → manda pra home (defensivo, raramente acontece)
+      if(!primeiro) {
         l.replace(l.protocol + '//' + l.hostname +
                   (l.port ? ':' + l.port : '') + '/');
+        return;
       }
+
+      // Acesso ao sistema (login admin)
+      if(primeiro === 'app' || primeiro === 'app.html') {
+        l.replace(l.protocol + '//' + l.hostname +
+                  (l.port ? ':' + l.port : '') + '/app.html' + l.search + l.hash);
+        return;
+      }
+
+      // Path com extensão (ex: /algo.html, /imagem.png) — não é empresa, manda pra home
+      if(/\./.test(primeiro)) {
+        l.replace(l.protocol + '//' + l.hostname +
+                  (l.port ? ':' + l.port : '') + '/');
+        return;
+      }
+
+      // Caso padrão: trata como ID de empresa (ex: /laluna, /fanclub)
+      // Validação: ID precisa ter 2+ chars e ser alfanumérico simples
+      if(primeiro.length >= 2 && /^[a-z0-9_-]+$/i.test(primeiro)) {
+        l.replace(l.protocol + '//' + l.hostname +
+                  (l.port ? ':' + l.port : '') +
+                  '/app.html?empresa=' + encodeURIComponent(primeiro) + l.hash);
+        return;
+      }
+
+      // Qualquer outra coisa estranha → home
+      l.replace(l.protocol + '//' + l.hostname +
+                (l.port ? ':' + l.port : '') + '/');
     })();
   </script>
   <style>
