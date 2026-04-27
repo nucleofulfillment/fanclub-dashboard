@@ -2398,61 +2398,63 @@ body.light body::before { opacity: 0; }
 
       <!-- Investimento por canal (input manual) — 2 fileiras: 5 cards + 4 cards
            Linha 1 (5): Shopee, ML, TikTok, Shein, Dafiti (marketplaces)
-           Linha 2 (4): Posthaus, Meta, Google, Outros (resto + LP) -->
+           Linha 2 (4): Posthaus, Meta, Google, Outros (resto + LP)
+           Cada card tem data-canal-id para visibilidade dinâmica por empresa
+           (canais ativos do painel admin) -->
       <div class="slabel">investimento por canal (manual)</div>
       <div id="mkt-inputs" style="margin-bottom:20px">
-        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:12px">
-          <div class="card" style="padding:14px">
+        <div id="mkt-grid-linha1" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:12px">
+          <div class="card mkt-canal-card" data-canal-id="shopee" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#EE4D2D;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#EE4D2D;flex-shrink:0"></span>Shopee Ads</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-shopee" value="0" min="0" step="100" oninput="calcMarketing()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
           </div>
-          <div class="card" style="padding:14px">
+          <div class="card mkt-canal-card" data-canal-id="mercadolivre" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#FFD700;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FFD700;flex-shrink:0"></span>Mercado Livre Ads</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-ml" value="0" min="0" step="100" oninput="calcMarketing()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
           </div>
-          <div class="card" style="padding:14px">
+          <div class="card mkt-canal-card" data-canal-id="tiktok" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#69C9D0;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#69C9D0;flex-shrink:0"></span>TikTok Ads</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-tiktok" value="0" min="0" step="100" oninput="calcMarketing()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
           </div>
-          <div class="card" style="padding:14px">
+          <div class="card mkt-canal-card" data-canal-id="shein" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#FF6B9D;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B9D;flex-shrink:0"></span>Shein Ads</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-shein" value="0" min="0" step="100" oninput="calcMarketing()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
           </div>
-          <div class="card" style="padding:14px">
+          <div class="card mkt-canal-card" data-canal-id="dafiti" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#FF6900;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6900;flex-shrink:0"></span>Dafiti Ads</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-dafiti" value="0" min="0" step="100" oninput="calcMarketing()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
-          <div class="card" style="padding:14px">
+        <div id="mkt-grid-linha2" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+          <div class="card mkt-canal-card" data-canal-id="posthaus" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#A855F7;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#A855F7;flex-shrink:0"></span>Posthaus Ads</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-posthaus" value="0" min="0" step="100" oninput="calcMarketing()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
           </div>
-          <div class="card" style="padding:14px">
+          <div class="card mkt-canal-card" data-canal-id="lojapropria" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#1877F2;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#1877F2;flex-shrink:0"></span>Meta Ads (Loja Própria)</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-meta" value="0" min="0" step="100" oninput="calcMarketing()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
           </div>
-          <div class="card" style="padding:14px">
+          <div class="card mkt-canal-card" data-canal-id="lojapropria" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#4285F4;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#4285F4;flex-shrink:0"></span>Google Ads (Loja Própria)</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-google" value="0" min="0" step="100" oninput="calcMarketing()"
               style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--fdisplay);font-size:15px;font-weight:600;color:var(--text);outline:none;color-scheme:dark"></div>
           </div>
-          <div class="card" style="padding:14px">
+          <div class="card mkt-canal-card" data-canal-id="__outros__" style="padding:14px">
             <div style="font-family:var(--fmono);font-size:10px;color:#64748B;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:#64748B;flex-shrink:0"></span>Outros</div>
             <div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
             <input type="number" id="mkt-inv-outros" value="0" min="0" step="100" oninput="calcMarketing()"
@@ -6972,7 +6974,51 @@ function renderMarketing() {
     var now = new Date();
     if(mf && !mf.value) mf.value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';
   }catch(e){}
+  // Filtrar cards de canais que a empresa não usa (configurado no admin via canais ativos)
+  try { _mktAtualizarVisibilidadeCards(); } catch(e){ console.warn('[Mkt] Visibilidade cards:', e); }
   calcMarketing();
+}
+
+/* ─ Mostra/oculta cards de investimento conforme canais ativos da empresa.
+   Canais ativos vêm do painel admin (getCanaisAtivosEmpresa).
+   Se empresa nunca configurou: mostra todos (backward-compat).
+   Cards "Outros" (data-canal-id='__outros__') sempre visíveis (catch-all).
+   Cards de Loja Própria (Meta + Google) compartilham id 'lojapropria'. ── */
+function _mktAtualizarVisibilidadeCards() {
+  var cards = document.querySelectorAll('.mkt-canal-card[data-canal-id]');
+  if(!cards || cards.length === 0) return;
+
+  // Se a função getCanaisAtivosEmpresa não existir, mantém todos visíveis
+  if(typeof getCanaisAtivosEmpresa !== 'function') return;
+
+  var empId = (typeof veltroGetEmpresaAtual === 'function') ? veltroGetEmpresaAtual() : null;
+  var ativos = getCanaisAtivosEmpresa(empId);
+  var ativosSet = {};
+  (ativos||[]).forEach(function(id){ ativosSet[id] = true; });
+
+  // Conta visíveis por linha pra ajustar o template-columns dinamicamente
+  var visLinha1 = 0, visLinha2 = 0;
+  cards.forEach(function(card){
+    var id = card.getAttribute('data-canal-id');
+    // "__outros__" sempre visível (catch-all genérico)
+    var visivel = (id === '__outros__') || !!ativosSet[id];
+    card.style.display = visivel ? '' : 'none';
+    if(visivel) {
+      // Detecta a qual linha pertence (procurando o grid pai)
+      var grid = card.parentElement;
+      if(grid && grid.id === 'mkt-grid-linha1') visLinha1++;
+      else if(grid && grid.id === 'mkt-grid-linha2') visLinha2++;
+    }
+  });
+
+  // Ajusta o número de colunas pra caber só os visíveis (evita coluna vazia)
+  // Mantém máximo de 5 (linha 1) e 4 (linha 2) — se tem menos, encolhe
+  try {
+    var g1 = document.getElementById('mkt-grid-linha1');
+    var g2 = document.getElementById('mkt-grid-linha2');
+    if(g1) g1.style.gridTemplateColumns = 'repeat('+Math.max(1, Math.min(5, visLinha1))+',minmax(0,1fr))';
+    if(g2) g2.style.gridTemplateColumns = 'repeat('+Math.max(1, Math.min(4, visLinha2))+',minmax(0,1fr))';
+  } catch(e){}
 }
 
 /* ─ Sidebar colapsar/expandir ─ */
