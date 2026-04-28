@@ -3359,7 +3359,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX8';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX9';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -18769,9 +18769,9 @@ function _raioxDesenharChart(dadosDiarios) {
 
   // Quantos pontos do final ficam no DESTAQUE
   var nDestaque;
-  if(janela === '24h') nDestaque = 1;       // Último dia (hoje)
-  else if(janela === '10d') nDestaque = 10; // Últimos 10 dias
-  else nDestaque = keys30.length;            // Tudo (sem distinção fade)
+  if(janela === '24h') nDestaque = 3;        // 🆕 Últimos 3 dias (foco em "tempo atual" mas com largura visível)
+  else if(janela === '10d') nDestaque = 10;  // Últimos 10 dias
+  else nDestaque = keys30.length;             // Tudo (sem distinção fade)
 
   var keys = keys30;
   var idxInicioDestaque = Math.max(0, keys.length - nDestaque);
@@ -18846,10 +18846,17 @@ function _raioxDesenharChart(dadosDiarios) {
     //   2) Destaque (últimas 24h/10d) — verde sólido + fill em degradê
     // ──────────────────────────────────────────────────
 
-    // Cria array com null nas posições "fora da janela" pra cada dataset
+    // Cria array com null nas posições "fora da janela"
+    // Overlap de 1 ponto entre histórico e destaque pra ligar visualmente as linhas
     function _splitData(arr, idxInicio) {
-      var historico = arr.map(function(v, i){ return i <= idxInicio ? v : null; });
-      var destaque  = arr.map(function(v, i){ return i >= idxInicio ? v : null; });
+      // Histórico: do início até idxInicio (inclusive) — vai até "encostar" no destaque
+      var historico = arr.map(function(v, i){
+        return i <= idxInicio ? v : null;
+      });
+      // Destaque: de idxInicio (inclusive) até o fim
+      var destaque = arr.map(function(v, i){
+        return i >= idxInicio ? v : null;
+      });
       return { historico: historico, destaque: destaque };
     }
     var splitVendas = _splitData(dadosVendas, idxInicioDestaque);
@@ -18865,7 +18872,7 @@ function _raioxDesenharChart(dadosDiarios) {
     datasets.push({
       label: '📊 Vendas (histórico)',
       data: splitVendas.historico,
-      borderColor: 'rgba(110,231,183,.30)',
+      borderColor: 'rgba(110,231,183,.35)',
       backgroundColor: 'transparent',
       borderWidth: 1.5,
       fill: false,
@@ -18873,18 +18880,17 @@ function _raioxDesenharChart(dadosDiarios) {
       pointRadius: 0,
       pointHoverRadius: 5,
       spanGaps: false,
-      order: 2,
-      _hideLegend: true
+      order: 3
     });
 
-    // Destaque (linha grossa sólida, fill em degradê)
+    // Destaque (linha grossa sólida, fill em degradê até origem)
     datasets.push({
       label: '📊 Vendas',
       data: splitVendas.destaque,
       borderColor: '#6EE7B7',
       backgroundColor: gradPrincipal,
       borderWidth: 3,
-      fill: true,
+      fill: 'origin', // 🆕 Fill até y=0, comportamento estável
       tension: 0.35,
       pointRadius: 0,
       pointHoverRadius: 6,
@@ -19006,9 +19012,61 @@ function _raioxDesenharChart(dadosDiarios) {
     try { _raioxChartInstance.destroy(); } catch(e){}
   }
 
+  // 🎨 Plugin custom: desenha faixa de destaque atrás do gráfico
+  var bgDestaquePlugin = {
+    id: 'raiox-bg-destaque',
+    beforeDatasetsDraw: function(chart) {
+      // Só desenha se janela for diferente de '30d' (que não tem fade)
+      if(janela === '30d') return;
+      var idx = idxInicioDestaque;
+      var totalPontos = keys.length;
+      if(idx >= totalPontos - 1) return;
+
+      var xScale = chart.scales.x;
+      var yScale = chart.scales.y;
+      if(!xScale || !yScale) return;
+
+      var xStart = xScale.getPixelForValue(idx);
+      var xEnd   = xScale.getPixelForValue(totalPontos - 1) + 12; // overflow leve
+      var yTop   = yScale.top;
+      var yBottom = yScale.bottom;
+
+      var ctx2 = chart.ctx;
+      ctx2.save();
+      // Gradient sutil verde da identidade
+      var grad = ctx2.createLinearGradient(0, yTop, 0, yBottom);
+      grad.addColorStop(0,    'rgba(110,231,183,.06)');
+      grad.addColorStop(0.5,  'rgba(110,231,183,.04)');
+      grad.addColorStop(1,    'rgba(110,231,183,.00)');
+      ctx2.fillStyle = grad;
+      ctx2.fillRect(xStart, yTop, xEnd - xStart, yBottom - yTop);
+
+      // Borda esquerda sutil pra demarcar onde começa
+      ctx2.strokeStyle = 'rgba(110,231,183,.15)';
+      ctx2.lineWidth = 1;
+      ctx2.setLineDash([2, 4]);
+      ctx2.beginPath();
+      ctx2.moveTo(xStart, yTop);
+      ctx2.lineTo(xStart, yBottom);
+      ctx2.stroke();
+      ctx2.setLineDash([]);
+
+      // Label "AGORA" no canto superior direito da faixa
+      ctx2.fillStyle = 'rgba(110,231,183,.55)';
+      ctx2.font = '600 9px "JetBrains Mono", monospace';
+      ctx2.textAlign = 'right';
+      ctx2.textBaseline = 'top';
+      var label = janela === '24h' ? '⚡ TEMPO ATUAL' : '⚡ EM FOCO';
+      ctx2.fillText(label, xEnd - 14, yTop + 6);
+
+      ctx2.restore();
+    }
+  };
+
   _raioxChartInstance = new Chart(ctx, {
     type: 'line',
     data: { labels: labels, datasets: datasets },
+    plugins: [bgDestaquePlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -19218,7 +19276,9 @@ function raioxSetJanela(j) {
 
 /* Toggle linhas auxiliares */
 function raioxToggleLinhasAux() {
-  window._raioxLinhasAux = !window._raioxLinhasAux;
+  // Default = true (linhas visíveis), inverte
+  var atual = window._raioxLinhasAux === undefined ? true : !!window._raioxLinhasAux;
+  window._raioxLinhasAux = !atual;
   // Atualiza botão
   var btn = document.getElementById('raiox-toggle-aux');
   if(btn) {
