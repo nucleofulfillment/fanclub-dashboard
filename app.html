@@ -2945,73 +2945,46 @@ body.light body::before { opacity: 0; }
       </div>
 
       <!-- Configurações (oculto por padrão) -->
-      <div id="proj-config-panel" style="display:none;background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:20px">
-        <div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">⚙️ Configurações da Projeção</div>
-        <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6">Ajuste os parâmetros do cálculo. Os valores são salvos automaticamente.</div>
-
-        <!-- Bloco 1: período de análise -->
-        <div style="background:var(--s1);border:1px solid var(--s3);border-radius:8px;padding:14px;margin-bottom:12px">
-          <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📊 Período de análise</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
-            <div>
-              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px" title="Quantos dias passados são usados para calcular a taxa diária de vendas. Default 30 dias = vendas do último mês.">PERÍODO DE VENDA (dias) ⓘ</label>
-              <input id="proj-cfg-periodo-venda" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()"
-                title="Quantos dias passados o sistema considera como base. Ex: 30 = 'vendi X em 30 dias'"
-                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-            </div>
-            <div>
-              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px" title="Quantos dias futuros o sistema deve garantir estoque. Default 60 dias.">PROJETAR PARA (dias) ⓘ</label>
-              <input id="proj-cfg-periodo-proj" type="number" min="1" max="365" value="60" onchange="projSalvarConfig()"
-                title="Quantos dias futuros queremos cobrir. Ex: 60 = quero ter estoque pra 2 meses"
-                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-            </div>
+      <div id="proj-config-panel" style="display:none;background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">⚙️ Configurações</div>
+          <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2)">Salva automaticamente</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Vendas dos últimos N dias usadas pra calcular taxa diária">📅 VENDA (dias)</label>
+            <input id="proj-cfg-periodo-venda" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()" title="Período de venda usado como base"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
           </div>
-          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:10px;line-height:1.6">
-            💡 <strong style="color:var(--text)">Como funciona:</strong> sistema calcula <code style="color:var(--accent)">taxa_diária = vendido ÷ período_venda</code>, depois <code style="color:var(--accent)">previsibilidade = taxa_diária × período_projeção</code>, e finalmente <code style="color:var(--accent)">pedir = previsibilidade − estoque</code>.
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Quantos dias futuros queremos cobrir com estoque">🎯 PROJETAR (dias)</label>
+            <input id="proj-cfg-periodo-proj" type="number" min="1" max="365" value="60" onchange="projSalvarConfig()" title="Quantos dias de estoque queremos garantir"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Cobertura abaixo desse limite = produto urgente">🚨 URGENTE &lt; (d)</label>
+            <input id="proj-cfg-urgente" type="number" min="1" max="365" value="7" onchange="projSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Cobertura abaixo desse limite (e acima do urgente) = atenção">⚠️ ATENÇÃO &lt; (d)</label>
+            <input id="proj-cfg-atencao" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Quantidade de bestsellers que entram na lista mesmo zerados (0 = desativa)">🔥 TOP X</label>
+            <input id="proj-cfg-top-n" type="number" min="0" max="500" value="50" onchange="projSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Período usado pra identificar bestsellers (geralmente maior que o de venda)">🔥 TOP PER (d)</label>
+            <input id="proj-cfg-top-periodo" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
           </div>
         </div>
-
-        <!-- Bloco 2: limites de status -->
-        <div style="background:var(--s1);border:1px solid var(--s3);border-radius:8px;padding:14px;margin-bottom:12px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#F59E0B;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🚦 Limites de status</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
-            <div>
-              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">🚨 URGENTE SE COBERTURA &lt; (dias)</label>
-              <input id="proj-cfg-urgente" type="number" min="1" max="365" value="7" onchange="projSalvarConfig()"
-                title="Cobertura abaixo desse limite = produto urgente"
-                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-            </div>
-            <div>
-              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">⚠️ ATENÇÃO SE COBERTURA &lt; (dias)</label>
-              <input id="proj-cfg-atencao" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()"
-                title="Cobertura abaixo desse limite (mas acima do urgente) = produto em atenção"
-                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-            </div>
-          </div>
+        <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:10px;line-height:1.5;border-top:1px solid var(--s3);padding-top:8px">
+          💡 <strong style="color:var(--text)">Cobertura</strong> = quantos dias o estoque atual aguenta. <strong style="color:var(--text)">Urgente</strong>: vai zerar essa semana. <strong style="color:var(--text)">Atenção</strong>: precisa pedir nas próximas 2-4 semanas. <strong style="color:var(--text)">Top X</strong>: bestsellers zerados entram na lista mesmo sem cobertura calculável.
         </div>
-
-        <!-- Bloco 3: top bestsellers -->
-        <div style="background:var(--s1);border:1px solid var(--s3);border-radius:8px;padding:14px">
-          <div style="font-family:var(--fmono);font-size:10px;color:#FB923C;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🔥 Top bestsellers (exceção)</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
-            <div>
-              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">TOP X BESTSELLERS</label>
-              <input id="proj-cfg-top-n" type="number" min="0" max="500" value="50" onchange="projSalvarConfig()"
-                title="0 = desativa essa exceção"
-                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-            </div>
-            <div>
-              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">PERÍODO DO TOP (dias)</label>
-              <input id="proj-cfg-top-periodo" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()"
-                title="Período base pra identificar bestsellers"
-                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-            </div>
-          </div>
-          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:10px;line-height:1.6">
-            💡 <strong style="color:var(--text)">Por que isso existe:</strong> produtos zerados no período não entram naturalmente na lista (porque não têm vendas). Mas se eram <strong>top bestsellers antes de zerar</strong>, vale produzir mesmo assim. Configure 0 pra desativar.
-          </div>
-        </div>
-
       </div>
 
       <!-- Mini-info: fórmula em uso (atualizada em tempo real) -->
@@ -9852,13 +9825,14 @@ function projCalcularDados() {
     return { items:[], topZeradoSet:new Set(), kpis:null, erro:'sem-dados' };
   }
 
-  // 🆕 Determinar quais meses considerar baseado no período
-  // Lógica: período em dias → quantos meses (arredondado pra cima)
-  // Ex: 30d=1 mês, 60d=2 meses, 90d=3 meses, 120d=4 meses
-  var nMeses = Math.max(1, Math.round(cfg.periodoVenda / 30));
+  // 🆕 Determinar quais meses considerar baseado nos períodos
+  // Usamos 2 períodos diferentes:
+  //   - periodoVenda: pra calcular taxa diária e previsibilidade
+  //   - topPeriodo:   pra identificar bestsellers (exceção do Top X)
+  var nMesesVenda = Math.max(1, Math.round(cfg.periodoVenda / 30));
+  var nMesesTop   = Math.max(1, Math.round(cfg.topPeriodo / 30));
 
-  // Coletar todos os meses disponíveis nos dados (com chaves "abr26", "mar26", etc.)
-  // e ordenar do mais recente pro mais antigo
+  // Coletar todos os meses disponíveis nos dados
   var mesesDisponiveis = new Set();
   if(temVendas) {
     Object.values(produtosVendidosMap).forEach(function(p){
@@ -9869,28 +9843,25 @@ function projCalcularDados() {
   }
 
   // Ordena meses cronologicamente (mais recente primeiro)
-  // Formato esperado: "abr26", "mar26", "fev26", "jan26", "dez25", etc.
   var SIGLAS_ORDEM = {jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12};
   var mesesArr = Array.from(mesesDisponiveis).map(function(mk){
     var m = mk.match(/^([a-z]+)(\d+)$/);
     if(!m) return { mk: mk, ord: 0 };
     var sigla = m[1].substring(0,3);
     var ano = parseInt(m[2]);
-    var mesNum = SIGLAS_ORDEM[sigla] || 0;
-    // Se o ano vier com 2 dígitos (26 = 2026), normaliza
     if(ano < 100) ano += 2000;
+    var mesNum = SIGLAS_ORDEM[sigla] || 0;
     return { mk: mk, ord: ano * 100 + mesNum };
   }).filter(function(o){ return o.ord > 0; });
-
-  // Ordena decrescente (mais recente primeiro)
   mesesArr.sort(function(a,b){ return b.ord - a.ord; });
 
-  // Pega os N meses mais recentes
-  var mesesConsiderados = new Set(mesesArr.slice(0, nMeses).map(function(o){ return o.mk; }));
+  // Separar dois conjuntos de meses (pode haver sobreposição)
+  var mesesVenda = new Set(mesesArr.slice(0, nMesesVenda).map(function(o){ return o.mk; }));
+  var mesesTop   = new Set(mesesArr.slice(0, nMesesTop).map(function(o){ return o.mk; }));
 
   // 2) Map estoque por pai (soma todas variações)
   var estoquePorPai = {};
-  var estoqueDetalheVariacao = {}; // {pai: [{sku, qtd}]}
+  var estoqueDetalheVariacao = {};
   if(temEstoque) {
     estoqueData.forEach(function(it){
       if(!it || typeof it.estoque !== 'number') return;
@@ -9902,9 +9873,11 @@ function projCalcularDados() {
     });
   }
 
-  // 3) Map vendas por pai (agrega variações + soma qtd e gmv)
-  // 🆕 Agora considera APENAS os meses mais recentes (mesesConsiderados)
+  // 3) Map vendas por pai com 2 totais: vendaProj (período de venda) e vendaTop (período do top)
   var vendasPorPai = {};
+  // Map auxiliar pra ranking de bestsellers (usa mesesTop)
+  var vendaTopPorPai = {};
+
   if(temVendas) {
     Object.values(produtosVendidosMap).forEach(function(p){
       if(!p) return;
@@ -9912,22 +9885,28 @@ function projCalcularDados() {
       if(!sku) return;
       var pai = (typeof _extrairSkuPai === 'function') ? (_extrairSkuPai(sku) || sku) : sku;
 
-      // 🆕 Soma qtd e gmv apenas dos meses considerados
-      var qtdNoPeriodo = 0, gmvNoPeriodo = 0;
-      if(p.por_mes && mesesConsiderados.size > 0) {
+      // 🆕 Calcula soma pra cada período separadamente
+      var qtdVenda = 0, gmvVenda = 0;
+      var qtdTop = 0;
+
+      if(p.por_mes && Object.keys(p.por_mes).length > 0) {
         Object.keys(p.por_mes).forEach(function(mk){
-          if(mesesConsiderados.has(mk)) {
-            qtdNoPeriodo += (p.por_mes[mk] || 0);
-            if(p.gmv_por_mes) gmvNoPeriodo += (p.gmv_por_mes[mk] || 0);
-          }
+          var qtd = p.por_mes[mk] || 0;
+          var gmv = (p.gmv_por_mes||{})[mk] || 0;
+          if(mesesVenda.has(mk)) { qtdVenda += qtd; gmvVenda += gmv; }
+          if(mesesTop.has(mk))   { qtdTop   += qtd; }
         });
       } else {
         // Fallback: produto sem por_mes detalhado, usa total
-        qtdNoPeriodo = p.qtd || 0;
-        gmvNoPeriodo = p.gmv || 0;
+        qtdVenda = p.qtd || 0;
+        gmvVenda = p.gmv || 0;
+        qtdTop   = p.qtd || 0;
       }
 
-      // Se não vendeu nada no período considerado, ainda registra (pra captar bestsellers zerados depois)
+      // Acumular pra ranking de top
+      vendaTopPorPai[pai] = (vendaTopPorPai[pai] || 0) + qtdTop;
+
+      // Registra no mapa principal
       if(!vendasPorPai[pai]) {
         vendasPorPai[pai] = {
           skuPai: pai,
@@ -9939,26 +9918,27 @@ function projCalcularDados() {
         };
       }
       var g = vendasPorPai[pai];
-      g.totalVendido += qtdNoPeriodo;
-      g.totalGmv     += gmvNoPeriodo;
-      g.variacoes.push({ sku:sku, vendido:qtdNoPeriodo, gmv:gmvNoPeriodo, nome:p.nome });
-      // Nome representativo: a variação mais vendida
-      if(qtdNoPeriodo > g._topVarQtd) {
-        g._topVarQtd = qtdNoPeriodo;
+      g.totalVendido += qtdVenda;
+      g.totalGmv     += gmvVenda;
+      g.variacoes.push({ sku:sku, vendido:qtdVenda, gmv:gmvVenda, nome:p.nome });
+      // Nome representativo: a variação mais vendida (no período de top, que é maior em geral)
+      if(qtdTop > g._topVarQtd) {
+        g._topVarQtd = qtdTop;
         g.nome = p.nome || pai;
       }
     });
   }
 
-  // 4) Calcular Top X bestsellers (pra marcar exceção)
-  // Top é baseado no totalVendido por pai
+  // 4) Calcular Top X bestsellers usando vendaTopPorPai (não vendasPorPai!)
+  // Top é baseado nas vendas do PERÍODO DO TOP, não do período de venda
   var topZeradoSet = new Set();
   if(cfg.topN > 0) {
-    var ordenadoVendas = Object.values(vendasPorPai)
-      .filter(function(g){ return g.totalVendido > 0; })
-      .sort(function(a,b){ return b.totalVendido - a.totalVendido; })
+    var rankingTop = Object.keys(vendaTopPorPai)
+      .map(function(pai){ return { skuPai: pai, qtd: vendaTopPorPai[pai] }; })
+      .filter(function(g){ return g.qtd > 0; })
+      .sort(function(a,b){ return b.qtd - a.qtd; })
       .slice(0, cfg.topN);
-    ordenadoVendas.forEach(function(g){ topZeradoSet.add(g.skuPai); });
+    rankingTop.forEach(function(g){ topZeradoSet.add(g.skuPai); });
   }
 
   // 5) Construir lista final unificada
@@ -10094,8 +10074,10 @@ function projCalcularDados() {
     topZeradoSet: topZeradoSet,
     kpis: kpis,
     cfg: cfg,
-    nMeses: nMeses,
-    mesesConsiderados: Array.from(mesesConsiderados),
+    nMesesVenda: nMesesVenda,
+    nMesesTop: nMesesTop,
+    mesesVenda: Array.from(mesesVenda),
+    mesesTop: Array.from(mesesTop),
     mesesDisponiveis: mesesArr.length
   };
 }
@@ -10134,23 +10116,22 @@ function projRenderKPIs(dados) {
   if(elInfo && dados.cfg) {
     var c = dados.cfg;
     var mesesTxt = '';
-    if(dados.nMeses && dados.mesesConsiderados && dados.mesesConsiderados.length > 0) {
-      // Formata os meses pra display: "abr26" → "abr/26"
-      var mesesFmt = dados.mesesConsiderados.map(function(mk){
+    if(dados.nMesesVenda && dados.mesesVenda && dados.mesesVenda.length > 0) {
+      var mesesFmt = dados.mesesVenda.map(function(mk){
         var m = mk.match(/^([a-z]+)(\d+)$/);
         return m ? m[1]+'/'+m[2] : mk;
       }).join(', ');
       var avisoDisponibilidade = '';
-      if(dados.nMeses > dados.mesesDisponiveis) {
-        avisoDisponibilidade = ' ⚠️ <span style="color:#F59E0B">apenas '+dados.mesesDisponiveis+' meses disponíveis na planilha</span>';
+      if(dados.nMesesVenda > dados.mesesDisponiveis) {
+        avisoDisponibilidade = ' ⚠️ <span style="color:#F59E0B">apenas '+dados.mesesDisponiveis+' mês(es) disponível(eis) na planilha</span>';
       }
-      mesesTxt = ' <span style="color:var(--muted2)">(meses considerados: <strong style="color:var(--text)">'+mesesFmt+'</strong>'+avisoDisponibilidade+')</span>';
+      mesesTxt = ' <span style="color:var(--muted2)">(meses: <strong style="color:var(--text)">'+mesesFmt+'</strong>'+avisoDisponibilidade+')</span>';
     }
     elInfo.innerHTML =
-      '📐 <strong style="color:var(--text)">Cálculo em uso:</strong> '+
-      'Considerando vendas dos últimos <strong style="color:var(--accent)">'+c.periodoVenda+' dias</strong> ('+ (dados.nMeses||1) +' '+(dados.nMeses===1?'mês':'meses')+'), '+
-      'calculando estoque pra <strong style="color:var(--accent)">'+c.periodoProj+' dias</strong> futuros.'+mesesTxt+
-      '<br><span style="color:var(--muted2)">Urgente &lt;'+c.urgente+'d cobertura · Atenção &lt;'+c.atencao+'d · Top '+c.topN+' bestsellers entram mesmo zerados</span>';
+      '📐 <strong style="color:var(--text)">Cálculo:</strong> '+
+      'vendas dos últimos <strong style="color:var(--accent)">'+c.periodoVenda+'d</strong> ('+(dados.nMesesVenda||1)+'m), '+
+      'estoque pra <strong style="color:var(--accent)">'+c.periodoProj+'d</strong> futuros.'+mesesTxt+
+      '<br><span style="color:var(--muted2)">Urgente &lt;'+c.urgente+'d cobertura · Atenção &lt;'+c.atencao+'d · Top '+c.topN+' bestsellers ('+c.topPeriodo+'d) entram zerados</span>';
   }
 
   var k = dados.kpis;
