@@ -6341,41 +6341,92 @@ async function _tentarCSV(urlBase) {
 
 /* ═══════════════════════════════════════════════════════════
    🆕 Detecta abas REAIS via parsing do HTML (sem precisar publicação na web)
-   Estratégia confiável usando class CSS específica do Google Sheets:
-     <div class="docs-sheet-tab-caption">Nome da aba</div>
+   Tenta múltiplas estratégias e URLs.
    ═══════════════════════════════════════════════════════════ */
 async function _detectarAbasViaHTML(sheetId) {
-  try {
-    var res = await fetch('https://docs.google.com/spreadsheets/d/' + sheetId + '/edit');
-    if(!res.ok) {
-      console.warn('[Pedidos] HTML edit retornou status', res.status);
-      return null;
+  // Lista de URLs e regex pra tentar (cada combinação retorna HTML diferente)
+  var tentativas = [
+    {
+      url: 'https://docs.google.com/spreadsheets/d/' + sheetId + '/edit',
+      label: 'edit'
+    },
+    {
+      url: 'https://docs.google.com/spreadsheets/d/' + sheetId + '/htmlview',
+      label: 'htmlview'
+    },
+    {
+      url: 'https://docs.google.com/spreadsheets/d/' + sheetId + '/preview',
+      label: 'preview'
+    },
+    {
+      url: 'https://docs.google.com/spreadsheets/d/' + sheetId + '/edit?usp=sharing',
+      label: 'edit-sharing'
     }
-    var html = await res.text();
+  ];
 
-    // Padrão confiável: <div class="docs-sheet-tab-caption">NOME</div>
-    var pattern = /class="docs-sheet-tab-caption">([^<]+)<\/div>/g;
-    var nomes = [];
-    var m;
-    while((m = pattern.exec(html)) !== null) {
-      var nome = m[1].trim();
-      // Decodifica entidades HTML básicas
-      nome = nome.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
-      if(nome && nomes.indexOf(nome) === -1) nomes.push(nome);
+  // Lista de regex pra extrair nomes de abas (por prioridade)
+  var regexes = [
+    {
+      label: 'sheet-tab-caption',
+      pattern: /class="docs-sheet-tab-caption">([^<]+)<\/div>/g
+    },
+    {
+      label: 'sheetId-title',
+      pattern: /"sheetId":(\d+),"title":"([^"]+)"/g,
+      capture: 2
+    },
+    {
+      label: 'name-meta',
+      pattern: /name="([^"]+)"\s+id="\d+"/g
+    },
+    {
+      label: 'aria-label-tab',
+      pattern: /aria-label="(?:Selecione |Select |Acessar |Go to )?([A-Za-zÀ-ú][^"]{2,40})"\s+role="tab"/g
+    },
+    {
+      label: 'tab-name',
+      pattern: /<a[^>]+class="[^"]*tab[^"]*"[^>]*>([^<]+)</g
     }
+  ];
 
-    if(nomes.length > 0) {
-      console.log('[Pedidos] ✅ Detectou '+nomes.length+' abas via HTML:', nomes);
-      // Retorna apenas nomes (gid será descoberto via fingerprint depois)
-      return nomes.map(function(n){ return { nome: n, gid: null }; });
+  for(var i = 0; i < tentativas.length; i++) {
+    var t = tentativas[i];
+    try {
+      var res = await fetch(t.url);
+      if(!res.ok) {
+        console.log('[Pedidos] '+t.label+' retornou '+res.status);
+        continue;
+      }
+      var html = await res.text();
+      console.log('[Pedidos] '+t.label+' carregou: '+html.length+' chars');
+
+      // Tenta cada regex nesse HTML
+      for(var j = 0; j < regexes.length; j++) {
+        var rx = regexes[j];
+        var nomes = [];
+        var m;
+        var pat = new RegExp(rx.pattern.source, rx.pattern.flags);
+        while((m = pat.exec(html)) !== null) {
+          var nome = (rx.capture === 2 ? m[2] : m[1]).trim();
+          // Decodifica entidades HTML
+          nome = nome.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+          if(nome && nomes.indexOf(nome) === -1) nomes.push(nome);
+        }
+
+        if(nomes.length >= 2) {
+          console.log('[Pedidos] ✅ Detectou '+nomes.length+' abas via '+t.label+'/'+rx.label+':', nomes);
+          return nomes.map(function(n){ return { nome: n, gid: null }; });
+        }
+      }
+    } catch(e) {
+      console.warn('[Pedidos] Erro em '+t.label+':', e.message);
     }
-
-    console.warn('[Pedidos] HTML carregou mas não achou padrão de abas');
-    return null;
-  } catch(e) {
-    console.warn('[Pedidos] Erro ao fetch HTML edit:', e.message);
-    return null;
   }
+
+  // 🆕 ÚLTIMA TENTATIVA: tentar nomes mensais conhecidos diretamente
+  // Se gviz aceitar, é porque a aba existe
+  console.log('[Pedidos] HTML/regex falhou — tentando nomes mensais conhecidos...');
+  return null;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -6412,6 +6463,24 @@ async function loadGSMultiAba(url) {
     abasReais = await _detectarAbasViaHTML(sheetId);
   } catch(e) {
     console.warn('[Pedidos] Falha ao detectar abas via HTML:', e);
+  }
+
+  // 🆕 FALLBACK: se HTML detection falhou, tenta nomes mensais conhecidos
+  // (será validado depois por fingerprint pra evitar bug do Google)
+  if(!abasReais || abasReais.length === 0) {
+    console.log('[Pedidos] HTML detection falhou — tentando nomes mensais conhecidos como fallback');
+    var anoAtual = new Date().getFullYear();
+    var anosTentar = [anoAtual, anoAtual - 1];
+    var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                 'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    abasReais = [];
+    anosTentar.forEach(function(ano){
+      var yy = String(ano).slice(-2);
+      meses.forEach(function(mes){
+        abasReais.push({ nome: mes + '-' + yy, gid: null });
+      });
+    });
+    console.log('[Pedidos] Vai tentar '+abasReais.length+' nomes mensais (filtragem por fingerprint depois)');
   }
 
   // Não conseguiu listar → fallback tradicional
