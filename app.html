@@ -2931,9 +2931,16 @@ body.light body::before { opacity: 0; }
     <main class="main">
 
       <!-- Header -->
-      <div style="margin-bottom:16px">
-        <h1 style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px">🎯 Projeção de Estoque</h1>
-        <div style="font-family:var(--fmono);font-size:11px;color:var(--muted)">Lista priorizada de produtos que precisam de produção · Calculado por SKU pai</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div>
+          <h1 style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px">🎯 Projeção de Estoque</h1>
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted)">Lista priorizada de produtos que precisam de produção · Calculado por SKU pai</div>
+        </div>
+        <button onclick="veltroOrdensListaAbrir()" type="button"
+          style="background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:9px 14px;border-radius:8px;font-family:var(--fmono);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0">
+          📋 <span>Ordens</span>
+          <span id="proj-ordens-badge" style="background:var(--accent);color:#0A0C10;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;display:none">0</span>
+        </button>
       </div>
 
       <!-- Configurações (oculto por padrão) -->
@@ -10468,6 +10475,9 @@ function projRender() {
 
   // Lista priorizada
   projRenderLista(dados);
+
+  // 🆕 Atualiza badge de ordens em produção no header
+  if(typeof veltroOrdensAtualizarBadge === 'function') veltroOrdensAtualizarBadge();
 }
 
 /* ─ Render KPIs ─ */
@@ -10652,12 +10662,72 @@ function projToggleDetalhe(skuPai) {
   projRenderLista();
 }
 
+/* 🆕 Ordena array de variações por tamanho extraído do SKU/nome.
+   Numéricos primeiro (2, 4, 6, 8, 10...), depois letras (P, M, G, GG).
+   Se não conseguir extrair, mantém ordem original. */
+function projOrdenarPorTamanho(variacoes) {
+  if(!variacoes || variacoes.length < 2) return variacoes;
+
+  // Mapa de letras: PP=1, P=2, M=3, G=4, GG=5, XG=6, XGG=7
+  var ORDEM_LETRAS = { 'PP':1, 'P':2, 'M':3, 'G':4, 'GG':5, 'XG':6, 'XL':6, 'XGG':7, 'XXL':7, 'XS':0, 'S':2, 'L':4 };
+
+  var modoTam = (typeof window !== 'undefined' && window._veltroModoTamanho) ? window._veltroModoTamanho : 'sku';
+
+  function extrairOrdem(v) {
+    var fonte = (modoTam === 'nome' && v.nome) ? v.nome : v.sku;
+    var tam = (typeof _extrairTamanho === 'function') ? _extrairTamanho(fonte, modoTam) : null;
+    if(!tam) {
+      // fallback: tenta no outro modo
+      var outroModo = modoTam === 'nome' ? 'sku' : 'nome';
+      var outraFonte = outroModo === 'nome' ? v.nome : v.sku;
+      tam = (typeof _extrairTamanho === 'function') ? _extrairTamanho(outraFonte, outroModo) : null;
+    }
+    // 🆕 Fallback adicional: pega ÚLTIMOS dígitos do SKU mesmo com letras antes
+    // Cobre casos tipo "LN0205-AZ12" (azul tamanho 12), "KB0382-PAPAYA08" (papaya 8)
+    if(!tam && v.sku) {
+      var m = String(v.sku).match(/(\d{1,3})$/);
+      if(m) tam = m[1];
+    }
+    if(!tam) return { tipo: 'sem', ord: 9999, raw: '' };
+
+    var t = String(tam).toUpperCase();
+    if(/^\d{1,4}$/.test(t)) {
+      return { tipo: 'num', ord: parseInt(t, 10), raw: t };
+    }
+    if(ORDEM_LETRAS[t] !== undefined) {
+      return { tipo: 'letra', ord: ORDEM_LETRAS[t], raw: t };
+    }
+    return { tipo: 'outro', ord: 9999, raw: t };
+  }
+
+  // Cria array com ordem extraída
+  var comOrdem = variacoes.map(function(v, idx){
+    return { v: v, info: extrairOrdem(v), idxOriginal: idx };
+  });
+
+  // Ordena: numéricos primeiro (por valor), depois letras (P→GG), depois outros (mantém ordem original)
+  comOrdem.sort(function(a, b){
+    var pesoA = a.info.tipo === 'num' ? 0 : a.info.tipo === 'letra' ? 1 : 2;
+    var pesoB = b.info.tipo === 'num' ? 0 : b.info.tipo === 'letra' ? 1 : 2;
+    if(pesoA !== pesoB) return pesoA - pesoB;
+    if(pesoA < 2) return a.info.ord - b.info.ord;
+    return a.idxOriginal - b.idxOriginal;
+  });
+
+  return comOrdem.map(function(o){ return o.v; });
+}
+
 /* ─ Render do detalhe expandido (variações + financeiro) ─ */
 function projDetalheExpandido(it) {
   var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
   var fR2 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   var fN = function(n){ return (n||0).toLocaleString('pt-BR'); };
   var fP = function(n){ return ((n||0)*100).toFixed(1).replace('.',',') + '%'; };
+
+  // 🆕 Ordena variações por tamanho (do menor pro maior pra ajudar produção)
+  if(it.variacoes && it.variacoes.length > 1) {
+    it.variacoes = projOrdenarPorTamanho(it.variacoes);
+  }
 
   // Grid usa as MESMAS larguras da linha principal pra alinhar perfeitamente:
   // 36px (status) | 1fr (produto) | 80px (vend) | 80px (est) | 80px (prev) | 80px (pedir) | 110px (custo) | 130px (invest) | 36px (arrow)
@@ -16280,7 +16350,11 @@ function veltroOrdemAbrir(skuPai) {
 
   // Lista de variações com qtd editável
   var listaEl = document.getElementById('ordem-variacoes-lista');
+  // 🆕 Ordena variações por tamanho (igual ao detail)
   var variacoes = it.variacoes || [];
+  if(variacoes.length > 1 && typeof projOrdenarPorTamanho === 'function') {
+    variacoes = projOrdenarPorTamanho(variacoes.slice());
+  }
   if(variacoes.length === 0) {
     listaEl.innerHTML = '<div style="padding:10px;color:var(--muted2);text-align:center;font-family:var(--fmono);font-size:10px">Sem variações detalhadas</div>';
   } else {
@@ -16495,6 +16569,190 @@ function veltroOrdemSalvar() {
       btn.style.background = 'var(--accent)';
     }
   }, 1500);
+  // Atualiza badge contador
+  veltroOrdensAtualizarBadge();
+}
+
+/* ─ Listagem de ordens (modal simples) ─ */
+
+var _ordensFiltroAtual = 'todas';
+
+function veltroOrdensListaAbrir() {
+  _ordensFiltroAtual = 'todas';
+  // reseta botões de filtro
+  document.querySelectorAll('.ord-filter').forEach(function(b, idx){
+    b.classList.toggle('on', idx === 0);
+    b.style.borderColor = idx === 0 ? 'var(--accent)' : 'var(--border2)';
+    b.style.color = idx === 0 ? 'var(--text)' : 'var(--muted)';
+  });
+  veltroOrdensListaRender();
+  var modal = document.getElementById('veltro-ordens-lista-modal');
+  if(modal) modal.style.display = 'flex';
+}
+
+function veltroOrdensListaFechar() {
+  var modal = document.getElementById('veltro-ordens-lista-modal');
+  if(modal) modal.style.display = 'none';
+}
+
+function veltroOrdensListaFiltrar(filtro, btnEl) {
+  _ordensFiltroAtual = filtro;
+  document.querySelectorAll('.ord-filter').forEach(function(b){
+    b.classList.remove('on');
+    b.style.borderColor = 'var(--border2)';
+    b.style.color = 'var(--muted)';
+  });
+  if(btnEl) {
+    btnEl.classList.add('on');
+    btnEl.style.borderColor = 'var(--accent)';
+    btnEl.style.color = 'var(--text)';
+  }
+  veltroOrdensListaRender();
+}
+
+function veltroOrdensListaRender() {
+  var empId = veltroOrdemGetEmpresaIdAtual();
+  var container = document.getElementById('ordens-lista-container');
+  var resumoEl = document.getElementById('ordens-lista-resumo');
+  if(!container) return;
+
+  var todas = veltroOrdensGetAll(empId);
+  var filtradas = (_ordensFiltroAtual === 'todas') ? todas
+    : todas.filter(function(o){ return o.status === _ordensFiltroAtual; });
+
+  // Ordena: mais recentes primeiro
+  filtradas.sort(function(a,b){ return (b.criadoEm||0) - (a.criadoEm||0); });
+
+  // Atualiza resumo
+  if(resumoEl) {
+    var totalRS = todas.reduce(function(s,o){ return s + (o.total||0); }, 0);
+    resumoEl.textContent = todas.length + (todas.length === 1 ? ' ordem' : ' ordens') +
+      ' · R$ ' + totalRS.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' total';
+  }
+
+  if(filtradas.length === 0) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:var(--fmono);font-size:12px;background:var(--s2);border:1px dashed var(--border2);border-radius:8px">'+
+      '<div style="font-size:32px;margin-bottom:8px">📋</div>'+
+      'Nenhuma ordem ' + (_ordensFiltroAtual === 'todas' ? 'criada ainda' : 'nesse status') +
+      '</div>';
+    return;
+  }
+
+  // Mapas de cor/label por status
+  var STATUS_INFO = {
+    'em-producao': { cor: '#60A5FA', icone: '🔵', label: 'Em produção' },
+    'entregue':    { cor: '#10B981', icone: '🟢', label: 'Entregue' },
+    'cancelada':   { cor: '#F43F5E', icone: '🔴', label: 'Cancelada' }
+  };
+
+  var FORMAS_PAG = {
+    'a-vista': 'À vista',
+    '30': '30d',
+    '60': '60d',
+    '90': '90d',
+    '30-60': '30/60',
+    '30-60-90': '30/60/90',
+    '50-50': '50% + 50%'
+  };
+
+  container.innerHTML = filtradas.map(function(o){
+    var st = STATUS_INFO[o.status] || STATUS_INFO['em-producao'];
+    var dataCriacao = o.criadoEm ? new Date(o.criadoEm) : null;
+    var dataStr = dataCriacao ?
+      String(dataCriacao.getDate()).padStart(2,'0')+'/'+String(dataCriacao.getMonth()+1).padStart(2,'0')+'/'+dataCriacao.getFullYear() : '—';
+    var entrega = o.entregaPrevista ? new Date(o.entregaPrevista) : null;
+    var entregaStr = entrega ?
+      String(entrega.getDate()).padStart(2,'0')+'/'+String(entrega.getMonth()+1).padStart(2,'0')+'/'+entrega.getFullYear() : '—';
+    var pagLabel = FORMAS_PAG[o.formaPagamento] || o.formaPagamento || '—';
+
+    return '<div style="background:var(--s2);border:1px solid var(--border2);border-left:3px solid '+st.cor+';border-radius:8px;padding:12px 14px;margin-bottom:8px">'+
+      // Linha 1: número + status + total + ações
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">'+
+            '<span style="font-family:var(--fmono);font-size:13px;font-weight:600;color:var(--accent)">'+escapeHtml(o.numero)+'</span>'+
+            '<span style="font-family:var(--fmono);font-size:10px;color:'+st.cor+';background:'+st.cor+'15;padding:2px 8px;border-radius:10px">'+st.icone+' '+st.label+'</span>'+
+            '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted2)">criada '+dataStr+'</span>'+
+          '</div>'+
+          '<div style="font-family:var(--fhead);font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis">'+escapeHtml(o.nome||o.skuPai)+'</div>'+
+          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">'+escapeHtml(o.skuPai)+' · '+(o.variacoes||[]).length+' variações</div>'+
+        '</div>'+
+        '<div style="text-align:right;flex-shrink:0">'+
+          '<div style="font-family:var(--fmono);font-size:14px;font-weight:600;color:var(--accent)">R$ '+(o.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'+
+          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted)">'+(o.qtdTotal||0).toLocaleString('pt-BR')+' un.</div>'+
+        '</div>'+
+      '</div>'+
+      // Linha 2: detalhes
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px;font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:8px;padding-top:8px;border-top:1px solid var(--s3)">'+
+        '<div>🏭 '+escapeHtml(o.fornecedorNome||'?')+'</div>'+
+        '<div>💳 '+pagLabel+'</div>'+
+        '<div>📅 '+(o.leadTime||0)+'d → '+entregaStr+'</div>'+
+      '</div>'+
+      // Linha 3: ações
+      '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
+        (o.status === 'em-producao' ?
+          '<button onclick="veltroOrdemMudarStatus(\''+o.id+'\',\'entregue\')" type="button" '+
+            'style="background:#10B981;border:none;color:#0A0C10;padding:5px 10px;border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">✓ Marcar entregue</button>'+
+          '<button onclick="veltroOrdemMudarStatus(\''+o.id+'\',\'cancelada\')" type="button" '+
+            'style="background:transparent;border:1px solid var(--border2);color:var(--red);padding:5px 10px;border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer">✕ Cancelar</button>'
+          : '') +
+        '<button onclick="veltroOrdemRemover(\''+o.id+'\')" type="button" '+
+          'style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:5px 10px;border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;margin-left:auto">🗑 Excluir</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function veltroOrdemMudarStatus(ordemId, novoStatus) {
+  var empId = veltroOrdemGetEmpresaIdAtual();
+  var lista = veltroOrdensGetAll(empId);
+  var idx = lista.findIndex(function(o){ return o.id === ordemId; });
+  if(idx === -1) return;
+
+  var labelStatus = { 'entregue':'Entregue', 'cancelada':'Cancelada', 'em-producao':'Em produção' }[novoStatus] || novoStatus;
+  if(novoStatus === 'cancelada' && !confirm('Cancelar ordem '+lista[idx].numero+'?')) return;
+
+  lista[idx].status = novoStatus;
+  if(novoStatus === 'entregue') lista[idx].dataEntrega = Date.now();
+  if(novoStatus === 'cancelada') lista[idx].dataCancelamento = Date.now();
+
+  if(veltroOrdensSaveAll(empId, lista)) {
+    veltroOrdensListaRender();
+    veltroOrdensAtualizarBadge();
+  }
+}
+
+function veltroOrdemRemover(ordemId) {
+  var empId = veltroOrdemGetEmpresaIdAtual();
+  var lista = veltroOrdensGetAll(empId);
+  var ordem = lista.find(function(o){ return o.id === ordemId; });
+  if(!ordem) return;
+  if(!confirm('Excluir permanentemente a ordem '+ordem.numero+'?\n\nEsta ação não pode ser desfeita.')) return;
+
+  var novaLista = lista.filter(function(o){ return o.id !== ordemId; });
+  if(veltroOrdensSaveAll(empId, novaLista)) {
+    veltroOrdensListaRender();
+    veltroOrdensAtualizarBadge();
+  }
+}
+
+/* Atualiza badge no botão "Ordens" do header da Projeção */
+function veltroOrdensAtualizarBadge() {
+  try {
+    var empId = veltroOrdemGetEmpresaIdAtual();
+    if(!empId) return;
+    var ordens = veltroOrdensGetAll(empId);
+    var emProducao = ordens.filter(function(o){ return o.status === 'em-producao'; }).length;
+    var badge = document.getElementById('proj-ordens-badge');
+    if(badge) {
+      if(emProducao > 0) {
+        badge.textContent = String(emProducao);
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch(e){}
 }
 
 function veltroFecharEditarEmpresa() {
@@ -16898,6 +17156,44 @@ window.addEventListener('load', function() {
      Permite editar: nome, senha, canais ativos, link da loja própria.
      ID não é editável (chave primária com várias dependências).
 ═══════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════
+     📋 MODAL: Lista de Ordens de Compra
+     ═══════════════════════════════════════════════════════════ -->
+<div id="veltro-ordens-lista-modal" style="display:none;position:fixed;inset:0;z-index:99999;
+     background:rgba(0,0,0,.85);backdrop-filter:blur(8px);align-items:center;justify-content:center">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;
+              padding:24px;width:100%;max-width:760px;max-height:92vh;overflow-y:auto;margin:20px">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700">📋 Ordens de Compra</div>
+        <div id="ordens-lista-resumo" style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">—</div>
+      </div>
+      <button onclick="veltroOrdensListaFechar()" type="button"
+        style="background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--muted);padding:5px 10px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+
+    <!-- Filtros -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <button onclick="veltroOrdensListaFiltrar('todas', this)" class="ord-filter on" type="button"
+        style="background:var(--s2);border:1px solid var(--accent);color:var(--text);padding:6px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px;cursor:pointer">Todas</button>
+      <button onclick="veltroOrdensListaFiltrar('em-producao', this)" class="ord-filter" type="button"
+        style="background:var(--s2);border:1px solid var(--border2);color:var(--muted);padding:6px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px;cursor:pointer">🔵 Em produção</button>
+      <button onclick="veltroOrdensListaFiltrar('entregue', this)" class="ord-filter" type="button"
+        style="background:var(--s2);border:1px solid var(--border2);color:var(--muted);padding:6px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px;cursor:pointer">🟢 Entregues</button>
+      <button onclick="veltroOrdensListaFiltrar('cancelada', this)" class="ord-filter" type="button"
+        style="background:var(--s2);border:1px solid var(--border2);color:var(--muted);padding:6px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px;cursor:pointer">🔴 Canceladas</button>
+    </div>
+
+    <!-- Lista -->
+    <div id="ordens-lista-container">
+      <!-- preenchido dinamicamente -->
+    </div>
+
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════
      📦 MODAL: Criar Ordem de Compra
      ═══════════════════════════════════════════════════════════ -->
