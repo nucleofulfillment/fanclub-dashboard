@@ -10791,7 +10791,9 @@ async function loadEstoque() {
         });
 
         // Alimenta mapas de custo + marca pra Saúde + Precificação
-        var skuBase = sku.replace(/-\d{1,4}$/, '');
+        // Usar _extrairSkuPai pra cobrir formato La Luna (-PAPAYA08, -RS12, -RSG, etc.)
+        // Antes usava /-\d{1,4}$/ que não cobria letra+digito juntos no fim
+        var skuBase = (typeof _extrairSkuPai === 'function') ? _extrairSkuPai(sku) : sku.replace(/-\d{1,4}$/, '');
         if(!skuBase) skuBase = sku;
 
         if(marca && !novoMarcaMap[skuBase]) {
@@ -11664,9 +11666,10 @@ async function loadCustoProdutos() {
 
       totalLin++;
 
-      // Normalizar SKU base: remove sufixo de tamanho (-NN, -NNN ou -N)
-      // Formato típico: "101003000-6388-28" → "101003000-6388"
-      var skuBase = cod.replace(/-\d{1,4}$/, '');
+      // Normalizar SKU base: usa _extrairSkuPai pra cobrir formatos FanClub e Laluna.
+      // Antes: regex /-\d{1,4}$/ (só pegava sufixo numérico simples)
+      // Agora: cobre KKB038-CQ08 → KKB038-CQ, ANJ505-RSG → ANJ505-RS, etc.
+      var skuBase = (typeof _extrairSkuPai === 'function') ? _extrairSkuPai(cod) : cod.replace(/-\d{1,4}$/, '');
       if(!skuBase) skuBase = cod;
 
       // Gravar marca sempre (mesmo sem custo)
@@ -11760,11 +11763,15 @@ async function loadCustoProdutos() {
 function getCustoReal(sku) {
   if(!sku) return null;
   var s = String(sku).trim();
-  // Tentar SKU completo (caso o sistema use SKU com tamanho)
+  // Tentar SKU completo (caso a planilha de custo use SKU com variação)
   if(custoRealMap[s]) return custoRealMap[s];
-  // Tentar SKU base (sem tamanho)
-  var base = s.replace(/-\d{1,4}$/, '');
-  if(custoRealMap[base]) return custoRealMap[base];
+  // Tentar SKU pai usando algoritmo unificado (cobre FanClub e Laluna)
+  // Antes usava regex /-\d{1,4}$/ que não cobria padrões tipo "KB0382-PAPAYA08" → "KB0382-PAPAYA"
+  var pai = (typeof _extrairSkuPai === 'function') ? _extrairSkuPai(s) : s.replace(/-\d{1,4}$/, '');
+  if(pai && pai !== s && custoRealMap[pai]) return custoRealMap[pai];
+  // Fallback antigo (caso _extrairSkuPai não exista por algum motivo)
+  var baseFallback = s.replace(/-\d{1,4}$/, '');
+  if(baseFallback !== s && baseFallback !== pai && custoRealMap[baseFallback]) return custoRealMap[baseFallback];
   return null;
 }
 
@@ -11772,8 +11779,12 @@ function getMarcaProduto(sku) {
   if(!sku) return null;
   var s = String(sku).trim();
   if(marcaPorSku[s]) return marcaPorSku[s];
-  var base = s.replace(/-\d{1,4}$/, '');
-  if(marcaPorSku[base]) return marcaPorSku[base];
+  // Usar _extrairSkuPai (mesma lógica do custo)
+  var pai = (typeof _extrairSkuPai === 'function') ? _extrairSkuPai(s) : s.replace(/-\d{1,4}$/, '');
+  if(pai && pai !== s && marcaPorSku[pai]) return marcaPorSku[pai];
+  // Fallback regex antiga
+  var baseFallback = s.replace(/-\d{1,4}$/, '');
+  if(baseFallback !== s && baseFallback !== pai && marcaPorSku[baseFallback]) return marcaPorSku[baseFallback];
   return null;
 }
 
