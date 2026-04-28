@@ -9852,6 +9852,42 @@ function projCalcularDados() {
     return { items:[], topZeradoSet:new Set(), kpis:null, erro:'sem-dados' };
   }
 
+  // 🆕 Determinar quais meses considerar baseado no período
+  // Lógica: período em dias → quantos meses (arredondado pra cima)
+  // Ex: 30d=1 mês, 60d=2 meses, 90d=3 meses, 120d=4 meses
+  var nMeses = Math.max(1, Math.round(cfg.periodoVenda / 30));
+
+  // Coletar todos os meses disponíveis nos dados (com chaves "abr26", "mar26", etc.)
+  // e ordenar do mais recente pro mais antigo
+  var mesesDisponiveis = new Set();
+  if(temVendas) {
+    Object.values(produtosVendidosMap).forEach(function(p){
+      if(p && p.por_mes) {
+        Object.keys(p.por_mes).forEach(function(mk){ mesesDisponiveis.add(mk); });
+      }
+    });
+  }
+
+  // Ordena meses cronologicamente (mais recente primeiro)
+  // Formato esperado: "abr26", "mar26", "fev26", "jan26", "dez25", etc.
+  var SIGLAS_ORDEM = {jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12};
+  var mesesArr = Array.from(mesesDisponiveis).map(function(mk){
+    var m = mk.match(/^([a-z]+)(\d+)$/);
+    if(!m) return { mk: mk, ord: 0 };
+    var sigla = m[1].substring(0,3);
+    var ano = parseInt(m[2]);
+    var mesNum = SIGLAS_ORDEM[sigla] || 0;
+    // Se o ano vier com 2 dígitos (26 = 2026), normaliza
+    if(ano < 100) ano += 2000;
+    return { mk: mk, ord: ano * 100 + mesNum };
+  }).filter(function(o){ return o.ord > 0; });
+
+  // Ordena decrescente (mais recente primeiro)
+  mesesArr.sort(function(a,b){ return b.ord - a.ord; });
+
+  // Pega os N meses mais recentes
+  var mesesConsiderados = new Set(mesesArr.slice(0, nMeses).map(function(o){ return o.mk; }));
+
   // 2) Map estoque por pai (soma todas variações)
   var estoquePorPai = {};
   var estoqueDetalheVariacao = {}; // {pai: [{sku, qtd}]}
@@ -9867,6 +9903,7 @@ function projCalcularDados() {
   }
 
   // 3) Map vendas por pai (agrega variações + soma qtd e gmv)
+  // 🆕 Agora considera APENAS os meses mais recentes (mesesConsiderados)
   var vendasPorPai = {};
   if(temVendas) {
     Object.values(produtosVendidosMap).forEach(function(p){
@@ -9874,6 +9911,23 @@ function projCalcularDados() {
       var sku = p.sku || p.cod || '';
       if(!sku) return;
       var pai = (typeof _extrairSkuPai === 'function') ? (_extrairSkuPai(sku) || sku) : sku;
+
+      // 🆕 Soma qtd e gmv apenas dos meses considerados
+      var qtdNoPeriodo = 0, gmvNoPeriodo = 0;
+      if(p.por_mes && mesesConsiderados.size > 0) {
+        Object.keys(p.por_mes).forEach(function(mk){
+          if(mesesConsiderados.has(mk)) {
+            qtdNoPeriodo += (p.por_mes[mk] || 0);
+            if(p.gmv_por_mes) gmvNoPeriodo += (p.gmv_por_mes[mk] || 0);
+          }
+        });
+      } else {
+        // Fallback: produto sem por_mes detalhado, usa total
+        qtdNoPeriodo = p.qtd || 0;
+        gmvNoPeriodo = p.gmv || 0;
+      }
+
+      // Se não vendeu nada no período considerado, ainda registra (pra captar bestsellers zerados depois)
       if(!vendasPorPai[pai]) {
         vendasPorPai[pai] = {
           skuPai: pai,
@@ -9885,12 +9939,12 @@ function projCalcularDados() {
         };
       }
       var g = vendasPorPai[pai];
-      g.totalVendido += (p.qtd || 0);
-      g.totalGmv     += (p.gmv || 0);
-      g.variacoes.push({ sku:sku, vendido:(p.qtd||0), gmv:(p.gmv||0), nome:p.nome });
+      g.totalVendido += qtdNoPeriodo;
+      g.totalGmv     += gmvNoPeriodo;
+      g.variacoes.push({ sku:sku, vendido:qtdNoPeriodo, gmv:gmvNoPeriodo, nome:p.nome });
       // Nome representativo: a variação mais vendida
-      if((p.qtd||0) > g._topVarQtd) {
-        g._topVarQtd = (p.qtd||0);
+      if(qtdNoPeriodo > g._topVarQtd) {
+        g._topVarQtd = qtdNoPeriodo;
         g.nome = p.nome || pai;
       }
     });
@@ -10035,7 +10089,15 @@ function projCalcularDados() {
     totalRetorno: itemsPriorizados.reduce(function(s,i){return s+i.receitaProj;},0)
   };
 
-  return { items: itemsPriorizados, topZeradoSet: topZeradoSet, kpis: kpis, cfg: cfg };
+  return {
+    items: itemsPriorizados,
+    topZeradoSet: topZeradoSet,
+    kpis: kpis,
+    cfg: cfg,
+    nMeses: nMeses,
+    mesesConsiderados: Array.from(mesesConsiderados),
+    mesesDisponiveis: mesesArr.length
+  };
 }
 
 /* ─ Render principal: orquestrador ─ */
@@ -10071,11 +10133,24 @@ function projRenderKPIs(dados) {
   // Atualiza info-box com a fórmula em uso
   if(elInfo && dados.cfg) {
     var c = dados.cfg;
+    var mesesTxt = '';
+    if(dados.nMeses && dados.mesesConsiderados && dados.mesesConsiderados.length > 0) {
+      // Formata os meses pra display: "abr26" → "abr/26"
+      var mesesFmt = dados.mesesConsiderados.map(function(mk){
+        var m = mk.match(/^([a-z]+)(\d+)$/);
+        return m ? m[1]+'/'+m[2] : mk;
+      }).join(', ');
+      var avisoDisponibilidade = '';
+      if(dados.nMeses > dados.mesesDisponiveis) {
+        avisoDisponibilidade = ' ⚠️ <span style="color:#F59E0B">apenas '+dados.mesesDisponiveis+' meses disponíveis na planilha</span>';
+      }
+      mesesTxt = ' <span style="color:var(--muted2)">(meses considerados: <strong style="color:var(--text)">'+mesesFmt+'</strong>'+avisoDisponibilidade+')</span>';
+    }
     elInfo.innerHTML =
       '📐 <strong style="color:var(--text)">Cálculo em uso:</strong> '+
-      'Considerando vendas dos últimos <strong style="color:var(--accent)">'+c.periodoVenda+' dias</strong>, '+
-      'calculando estoque necessário pra <strong style="color:var(--accent)">'+c.periodoProj+' dias</strong> futuros. '+
-      '<span style="color:var(--muted2)">Urgente &lt;'+c.urgente+'d cobertura · Atenção &lt;'+c.atencao+'d · Top '+c.topN+' bestsellers entram mesmo zerados</span>';
+      'Considerando vendas dos últimos <strong style="color:var(--accent)">'+c.periodoVenda+' dias</strong> ('+ (dados.nMeses||1) +' '+(dados.nMeses===1?'mês':'meses')+'), '+
+      'calculando estoque pra <strong style="color:var(--accent)">'+c.periodoProj+' dias</strong> futuros.'+mesesTxt+
+      '<br><span style="color:var(--muted2)">Urgente &lt;'+c.urgente+'d cobertura · Atenção &lt;'+c.atencao+'d · Top '+c.topN+' bestsellers entram mesmo zerados</span>';
   }
 
   var k = dados.kpis;
