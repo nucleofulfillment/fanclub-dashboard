@@ -3359,7 +3359,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX5';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX6';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -7260,6 +7260,12 @@ function showPage(pageId, navEl) {
       }
       raioxRender();
     } catch(e){ console.error('[Raio X]', e); }
+  } else {
+    // Esconde tooltip flutuante do Raio X ao sair da página
+    try {
+      var ttEl = document.getElementById('raiox-tooltip');
+      if(ttEl) ttEl.style.opacity = '0';
+    } catch(e){}
   }
   // If financeiro page, sincroniza filtros locais e recalcula com filtro global atual
   if(pageId === 'financeiro') {
@@ -18563,8 +18569,8 @@ function raioxRender() {
       // Disclaimer compacto
       '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:10px;line-height:1.6;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
         '<span>⚖ <strong style="color:#9CA3AF">Equilíbrio</strong>: média móvel 7d</span> · '+
-        '<span>🔬 <strong style="color:#A78BFA">Linhas auxiliares</strong>: simuladas pra demonstração visual</span> · '+
-        '<span>🔴🟡🔵 <strong>Pontos</strong>: alertas detectados (hover pra detalhes)</span>'+
+        '<span>💡 <strong style="color:var(--accent)">Hover</strong> em qualquer ponto pra ver detalhes</span> · '+
+        '<span>📈 <strong style="color:#A78BFA">Linhas Aux</strong>: ative pra ver Mídia/Estoque/Mercado (🔬 simulado)</span>'+
       '</div>'+
     '</div>';
 
@@ -18814,9 +18820,10 @@ function _raioxDesenharChart(dadosDiarios) {
   // ─── Datasets ───
   var datasets = [];
   var cenario = raioxGetModoDemo();
-  // Linhas auxiliares ativas? (por padrão ligadas em demo, desligadas em real)
+  // 🆕 Linhas auxiliares ativas? Por padrão DESLIGADAS (gráfico limpo igual dashboard).
+  // Cliente ativa pelo botão se quiser drilldown visual.
   var linhasAux = window._raioxLinhasAux === undefined
-    ? (cenario !== 'real')
+    ? false
     : !!window._raioxLinhasAux;
 
   if(modo === 'canais') {
@@ -18872,47 +18879,48 @@ function _raioxDesenharChart(dadosDiarios) {
       order: 5
     });
 
-    // Linhas auxiliares (semi-transparentes)
-    if(linhasAux) {
-      var aux = raioxGerarLinhasAuxiliares(dadosDiarios, cenario);
+    // Linhas auxiliares — sempre computadas (pra tooltip), mas ocultas se linhasAux=false
+    var aux = raioxGerarLinhasAuxiliares(dadosDiarios, cenario);
 
-      datasets.push({
-        label: '📢 Mídia 🔬',
-        data: aux.midia.map(function(v){ return Math.round(v); }),
-        borderColor: 'rgba(167,139,250,.55)',
-        backgroundColor: 'transparent',
-        borderWidth: 1.5,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        order: 6
-      });
-      datasets.push({
-        label: '📦 Estoque 🔬',
-        data: aux.estoque.map(function(v){ return Math.round(v); }),
-        borderColor: 'rgba(251,146,60,.55)',
-        backgroundColor: 'transparent',
-        borderWidth: 1.5,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        order: 7
-      });
-      datasets.push({
-        label: '🌐 Mercado 🔬',
-        data: aux.mercado.map(function(v){ return Math.round(v); }),
-        borderColor: 'rgba(96,165,250,.55)',
-        backgroundColor: 'transparent',
-        borderWidth: 1.5,
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        order: 8
-      });
-    }
+    datasets.push({
+      label: '📢 Mídia 🔬',
+      data: aux.midia.map(function(v){ return Math.round(v); }),
+      borderColor: 'rgba(167,139,250,.55)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      hidden: !linhasAux,
+      order: 6
+    });
+    datasets.push({
+      label: '📦 Estoque 🔬',
+      data: aux.estoque.map(function(v){ return Math.round(v); }),
+      borderColor: 'rgba(251,146,60,.55)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      hidden: !linhasAux,
+      order: 7
+    });
+    datasets.push({
+      label: '🌐 Mercado 🔬',
+      data: aux.mercado.map(function(v){ return Math.round(v); }),
+      borderColor: 'rgba(96,165,250,.55)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      hidden: !linhasAux,
+      order: 8
+    });
 
     // ─── PONTOS DE ALERTA (em cima da linha principal) ───
     var alertas = raioxDetectarAlertasGrafico(dadosDiarios, baseline);
@@ -18973,35 +18981,145 @@ function _raioxDesenharChart(dadosDiarios) {
             usePointStyle: true,
             boxWidth: 8,
             padding: 12,
-            filter: function(item){
-              // Esconde a legenda do dataset Alertas (é só visual via pontos)
-              return item.text !== '⚠ Alertas';
+            filter: function(item, chartData){
+              // Esconde dataset de Alertas (visual só via pontos)
+              if(item.text === '⚠ Alertas') return false;
+              // Esconde datasets ocultos (Mídia/Estoque/Mercado quando linhasAux=false)
+              var ds = chartData.datasets[item.datasetIndex];
+              if(ds && ds.hidden) return false;
+              return true;
             }
           }
         },
         tooltip: {
-          backgroundColor: 'rgba(10,12,16,.96)',
-          borderColor: 'rgba(110,231,183,.30)',
-          borderWidth: 1,
-          padding: 10,
-          titleFont: { family: 'Syne', size: 12, weight: '700' },
-          bodyFont: { family: 'JetBrains Mono', size: 11 },
-          callbacks: {
-            label: function(ctx){
-              var lbl = ctx.dataset.label || '';
-              if(lbl === '⚠ Alertas') {
-                var alerta = (window._raioxAlertasAtuais || {})[ctx.dataIndex];
-                if(alerta) {
-                  return [
-                    alerta.icone + ' ' + alerta.motivo,
-                    'R$ ' + (alerta.valor||0).toLocaleString('pt-BR',{maximumFractionDigits:0}),
-                    'Esperado: R$ ' + Math.round(alerta.baseline).toLocaleString('pt-BR')
-                  ];
-                }
-                return null;
-              }
-              return lbl + ': R$ ' + (ctx.parsed.y||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
+          enabled: false, // 🎨 Desabilita tooltip padrão — usa external custom
+          external: function(context) {
+            var tooltipEl = document.getElementById('raiox-tooltip');
+            if(!tooltipEl) {
+              tooltipEl = document.createElement('div');
+              tooltipEl.id = 'raiox-tooltip';
+              tooltipEl.style.cssText = 'position:absolute;pointer-events:none;z-index:9999;opacity:0;transition:opacity .15s;background:rgba(10,12,16,.97);backdrop-filter:blur(8px);border:1px solid rgba(110,231,183,.30);border-radius:10px;padding:12px 14px;box-shadow:0 8px 32px rgba(0,0,0,.5);font-family:var(--fmono);min-width:240px;max-width:320px';
+              document.body.appendChild(tooltipEl);
             }
+
+            var tt = context.tooltip;
+            if(tt.opacity === 0) {
+              tooltipEl.style.opacity = '0';
+              return;
+            }
+
+            // Index do ponto + dados
+            var idx = (tt.dataPoints && tt.dataPoints[0]) ? tt.dataPoints[0].dataIndex : 0;
+            var labelData = (tt.dataPoints && tt.dataPoints[0]) ? tt.dataPoints[0].label : '';
+
+            // Pega valores dos datasets nessa posição
+            var allDatasets = context.chart.data.datasets;
+            function _getValor(label) {
+              var ds = allDatasets.find(function(d){ return (d.label||'').indexOf(label) !== -1; });
+              return ds && ds.data[idx] !== undefined ? ds.data[idx] : null;
+            }
+
+            var vendasV = _getValor('Vendas');
+            var baselineV = _getValor('Equilíbrio');
+            var midiaV = _getValor('Mídia');
+            var estoqueV = _getValor('Estoque');
+            var mercadoV = _getValor('Mercado');
+
+            // Calcula variação % vs baseline
+            function _pct(v, base) {
+              if(!v || !base || base === 0) return null;
+              return Math.round(((v - base) / base) * 100);
+            }
+            function _pilula(pct) {
+              if(pct === null || pct === undefined) return '';
+              var cor, seta, bg, brd;
+              if(pct >= 0) {
+                cor = '#10B981'; seta = '▲'; bg = 'rgba(16,185,129,.12)'; brd = 'rgba(16,185,129,.40)';
+              } else {
+                cor = '#F43F5E'; seta = '▼'; bg = 'rgba(244,63,94,.12)'; brd = 'rgba(244,63,94,.40)';
+              }
+              return '<span style="background:'+bg+';border:1px solid '+brd+';color:'+cor+';padding:2px 7px;border-radius:6px;font-family:\'JetBrains Mono\',monospace;font-size:9.5px;font-weight:700;letter-spacing:.3px;margin-left:6px;white-space:nowrap">'+seta+' '+(pct >= 0 ? '+' : '')+pct+'%</span>';
+            }
+            function _fmt(v) {
+              if(v === null || v === undefined) return '—';
+              return 'R$ ' + Math.round(v).toLocaleString('pt-BR');
+            }
+            function _linha(emoji, nome, valor, base, isPrincipal) {
+              var pct = base !== null ? _pct(valor, base) : null;
+              var corNome = isPrincipal ? '#6EE7B7' : 'var(--text)';
+              var pesoNome = isPrincipal ? '700' : '500';
+              var size = isPrincipal ? '12px' : '11px';
+              return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:'+size+'">'+
+                '<div style="display:flex;align-items:center;gap:7px;flex:1;min-width:0">'+
+                  '<span style="font-size:11px;flex-shrink:0">'+emoji+'</span>'+
+                  '<span style="color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:500">'+nome+'</span>'+
+                '</div>'+
+                '<div style="display:flex;align-items:center;gap:6px">'+
+                  '<span style="color:'+corNome+';font-weight:'+pesoNome+';font-family:\'Syne\',sans-serif;font-size:'+size+'">'+_fmt(valor)+'</span>'+
+                  (isPrincipal ? '' : (pct !== null ? _pilula(pct) : ''))+
+                '</div>'+
+              '</div>';
+            }
+
+            // Pílula da linha principal (mostrada no header)
+            var pctVendas = _pct(vendasV, baselineV);
+            var pilulaPrincipal = pctVendas !== null ? _pilula(pctVendas) : '';
+
+            // Mini-comentário inteligente
+            var comentario = '';
+            if(pctVendas !== null) {
+              if(pctVendas >= 30) {
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FCD34D;line-height:1.5">💡 Pico atípico — vendas '+Math.abs(pctVendas)+'% acima do esperado. Investigue causa.</div>';
+              } else if(pctVendas <= -25) {
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#F87171;line-height:1.5">🚨 Queda relevante — vendas '+Math.abs(pctVendas)+'% abaixo do baseline.</div>';
+              } else if(pctVendas >= 10) {
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#10B981;line-height:1.5">✅ Performance acima do esperado.</div>';
+              } else if(pctVendas <= -10) {
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FB923C;line-height:1.5">⚠️ Atenção — performance abaixo do esperado.</div>';
+              } else {
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted);line-height:1.5">─ Performance dentro da margem normal.</div>';
+              }
+            }
+
+            // ─── HTML completo da tooltip ───
+            var html =
+              '<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(110,231,183,.15);display:flex;align-items:center;justify-content:space-between;gap:10px">'+
+                '<span>'+labelData+'</span>'+
+                pilulaPrincipal+
+              '</div>'+
+              // Linha principal: Vendas
+              _linha('📊', 'Vendas', vendasV, baselineV, true)+
+              // Baseline (sem pílula, só referência)
+              _linha('⚖', 'Equilíbrio', baselineV, null, false)+
+              // Outras métricas (sempre mostra mesmo se linhas off)
+              (midiaV !== null || estoqueV !== null || mercadoV !== null
+                ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05)">'+
+                    '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas</div>'+
+                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, baselineV, false) : '')+
+                    (estoqueV !== null ? _linha('📦', 'Estoque 🔬', estoqueV, baselineV, false) : '')+
+                    (mercadoV !== null ? _linha('🌐', 'Mercado 🔬', mercadoV, baselineV, false) : '')+
+                  '</div>'
+                : ''
+              )+
+              comentario;
+
+            tooltipEl.innerHTML = html;
+
+            // Posicionamento
+            var pos = context.chart.canvas.getBoundingClientRect();
+            tooltipEl.style.opacity = '1';
+            // Calcula posição evitando sair da viewport
+            var ttRect = tooltipEl.getBoundingClientRect();
+            var x = pos.left + window.pageXOffset + tt.caretX + 14;
+            var y = pos.top + window.pageYOffset + tt.caretY - ttRect.height / 2;
+            // Se passar da direita, joga pra esquerda do cursor
+            if(x + ttRect.width > window.innerWidth + window.pageXOffset - 20) {
+              x = pos.left + window.pageXOffset + tt.caretX - ttRect.width - 14;
+            }
+            // Se passar do topo
+            if(y < window.pageYOffset + 10) y = window.pageYOffset + 10;
+            tooltipEl.style.left = x + 'px';
+            tooltipEl.style.top = y + 'px';
           }
         }
       },
