@@ -3362,7 +3362,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX11';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX12';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -17979,55 +17979,58 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
   var valores = keys.map(function(k){ return dadosDiarios[k].gmv || 0; });
   var media = valores.reduce(function(s,v){ return s+v; }, 0) / valores.length;
 
-  // Parâmetros por cenário (afeta intensidade das linhas auxiliares)
+  // 🆕 Parâmetros por cenário com EVENTOS específicos por linha
+  // eventos: { indiceDia: multiplicador } — multiplica o valor da linha naquele dia
+  // Cada linha conta uma "história" diferente em períodos diferentes
   var params = {
-    'critico':  { midiaTrend: -0.45, estoqueTrend: -0.55, mercadoTrend: -0.20, marketplaceTrend: -0.40 },
-    'saudavel': { midiaTrend:  0.30, estoqueTrend:  0.10, mercadoTrend:  0.25, marketplaceTrend:  0.35 },
-    'misto':    { midiaTrend: -0.30, estoqueTrend: -0.15, mercadoTrend:  0.18, marketplaceTrend: -0.10 },
-    'real':     { midiaTrend: -0.20, estoqueTrend:  0.05, mercadoTrend:  0.10, marketplaceTrend:  0.15 }
+    'critico': {
+      midia:       { trend: -0.45, ruido: 0.10, eventos: { 14: 0.65, 18: 0.50, 22: 0.40, 25: 0.45, 28: 0.35 } },
+      estoque:     { trend: -0.55, ruido: 0.09, eventos: { 8: 0.85, 14: 0.70, 18: 0.55, 23: 0.45, 27: 0.38, 28: 0.40 } },
+      mercado:     { trend: -0.20, ruido: 0.12, eventos: { 5: 1.20, 12: 0.75, 19: 0.65, 25: 0.70, 28: 0.60 } },
+      marketplace: { trend: -0.40, ruido: 0.11, eventos: { 9: 1.30, 13: 0.55, 17: 0.50, 22: 0.45, 26: 0.40, 28: 0.35 } }
+    },
+    'saudavel': {
+      midia:       { trend: 0.30, ruido: 0.10, eventos: { 7: 1.30, 13: 1.50, 18: 1.40, 22: 1.65, 27: 1.55, 28: 1.70 } },
+      estoque:     { trend: 0.10, ruido: 0.09, eventos: { 5: 0.85, 12: 1.25, 18: 1.40, 23: 1.30, 28: 1.45 } },
+      mercado:     { trend: 0.25, ruido: 0.12, eventos: { 4: 0.80, 11: 1.45, 17: 1.30, 22: 1.55, 28: 1.65 } },
+      marketplace: { trend: 0.35, ruido: 0.11, eventos: { 6: 1.20, 13: 1.55, 17: 1.40, 22: 1.70, 26: 1.60, 28: 1.80 } }
+    },
+    'misto': {
+      midia:       { trend: -0.30, ruido: 0.12, eventos: { 5: 1.25, 11: 0.65, 17: 1.30, 22: 0.55, 25: 0.45, 28: 0.40 } },
+      estoque:     { trend: -0.15, ruido: 0.10, eventos: { 7: 1.10, 14: 0.75, 18: 0.60, 22: 0.55, 26: 0.50, 28: 0.45 } },
+      mercado:     { trend: 0.18, ruido: 0.13, eventos: { 4: 0.75, 10: 1.45, 15: 1.20, 20: 1.55, 25: 1.30, 28: 1.50 } },
+      marketplace: { trend: -0.10, ruido: 0.13, eventos: { 6: 1.40, 12: 0.55, 18: 1.30, 22: 0.50, 25: 0.55, 28: 0.45 } }
+    },
+    'real': {
+      midia:       { trend: -0.20, ruido: 0.08, eventos: {} },
+      estoque:     { trend:  0.05, ruido: 0.07, eventos: {} },
+      mercado:     { trend:  0.10, ruido: 0.10, eventos: {} },
+      marketplace: { trend:  0.15, ruido: 0.09, eventos: {} }
+    }
   };
   var p = params[cenario] || params['misto'];
 
-  // Linha "Impacto Mídia" — começa equilibrada, vai descendo (custo subindo = ROAS caindo)
-  var midia = valores.map(function(v, i){
-    var indice = i / Math.max(1, keys.length - 1);
-    var base = media * 0.85;
-    var trend = base * p.midiaTrend * indice;
-    var seed = (i * 41 + 13) % 100 / 100;
-    var ruido = base * 0.06 * (seed * 2 - 1);
-    return Math.max(0, base + trend + ruido);
-  });
+  // Helper: gera série temporal com trend + ruído + eventos
+  function _gerarSerie(linhaCfg, baseMultiplicador, seedSeq) {
+    return valores.map(function(v, i){
+      var indice = i / Math.max(1, keys.length - 1);
+      var base = media * baseMultiplicador;
+      var trend = base * linhaCfg.trend * indice;
+      var seed = (i * seedSeq + 7) % 100 / 100;
+      var ruido = base * linhaCfg.ruido * (seed * 2 - 1);
+      var valor = base + trend + ruido;
+      // Aplicar evento se houver pra esse dia
+      if(linhaCfg.eventos && linhaCfg.eventos[i] !== undefined) {
+        valor = valor * linhaCfg.eventos[i];
+      }
+      return Math.max(0, valor);
+    });
+  }
 
-  // Linha "Pressão Estoque" — sobe quando estoque baixa (vira problema)
-  var estoque = valores.map(function(v, i){
-    var indice = i / Math.max(1, keys.length - 1);
-    var base = media * 0.70;
-    // Pressão sobe (= ruim) com tempo se trend negativo
-    var trend = base * Math.abs(p.estoqueTrend) * indice * (p.estoqueTrend < 0 ? 1 : -0.5);
-    var seed = (i * 23 + 7) % 100 / 100;
-    var ruido = base * 0.05 * (seed * 2 - 1);
-    return Math.max(0, base + trend + ruido);
-  });
-
-  // Linha "Tendência Mercado" — oscila com tendência geral
-  var mercado = valores.map(function(v, i){
-    var indice = i / Math.max(1, keys.length - 1);
-    var base = media * 0.95;
-    var trend = base * p.mercadoTrend * indice;
-    var seed = (i * 17 + 3) % 100 / 100;
-    var ruido = base * 0.08 * (seed * 2 - 1);
-    return Math.max(0, base + trend + ruido);
-  });
-
-  // 🆕 Linha "Marketplace" — comportamento dos canais marketplace agregados
-  var marketplace = valores.map(function(v, i){
-    var indice = i / Math.max(1, keys.length - 1);
-    var base = media * 0.78;
-    var trend = base * p.marketplaceTrend * indice;
-    var seed = (i * 29 + 5) % 100 / 100;
-    var ruido = base * 0.07 * (seed * 2 - 1);
-    return Math.max(0, base + trend + ruido);
-  });
+  var midia       = _gerarSerie(p.midia,       0.85, 41);
+  var estoque     = _gerarSerie(p.estoque,     0.70, 23);
+  var mercado     = _gerarSerie(p.mercado,     0.95, 17);
+  var marketplace = _gerarSerie(p.marketplace, 0.78, 29);
 
   return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace };
 }
