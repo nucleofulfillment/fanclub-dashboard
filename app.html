@@ -3351,7 +3351,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX1';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX2';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -15218,6 +15218,15 @@ function veltroLogin() {
 function veltroEntrarDashboard(empresa) {
   // Inicializar plataforma ativa
   try { plataformaInit(); } catch(e) {}
+
+  // 🆕 Restaura auth admin se houver na sessão (pra Raio X aparecer sem precisar relogar)
+  try {
+    if(sessionStorage.getItem('veltro_admin_session') === '1') {
+      _veltroAdminAutenticado = true;
+      window._veltroAdminAutenticado = true;
+    }
+  } catch(e){}
+
   // Ocultar telas de acesso
   try{ document.getElementById('veltro-login').style.display = 'none'; }catch(e){}
   try{ document.getElementById('veltro-onboarding').style.display = 'none'; }catch(e){}
@@ -15249,6 +15258,11 @@ function veltroEntrarDashboard(empresa) {
   if(links.principal && !sheetURL) {
     try{ sheetURL = _toGvizUrl(links.principal, '1435598200'); }catch(e){}
   }
+
+  // 🚀 Garante visibilidade do Raio X na nav se admin master ativo
+  setTimeout(function(){
+    try { if(typeof raioxAtualizarVisibilidadeNav === 'function') raioxAtualizarVisibilidadeNav(); } catch(e){}
+  }, 100);
 }
 
 function veltroMostrarOnboarding(empresa) {
@@ -15581,6 +15595,8 @@ function veltroLogout() {
   if(!confirm('Sair do Veltro OS?')) return;
   // Garantir que snapshot ativo seja desativado para não vazar entre empresas
   try { _snapshotAtivo = null; var b = document.getElementById('snapshot-banner'); if(b) b.remove(); } catch(e) {}
+  // 🚀 Limpa sessão admin (pra Raio X não aparecer pro próximo usuário no mesmo navegador)
+  try { sessionStorage.removeItem('veltro_admin_session'); } catch(e){}
   localStorage.removeItem(VELTRO_SESSAO_KEY);
   location.reload();
 }
@@ -15608,6 +15624,8 @@ function veltroAutenticarAdmin() {
   if(senha === VELTRO_SENHA_ADMIN) {
     _veltroAdminAutenticado = true;
     window._veltroAdminAutenticado = true; // 🆕 expor pra outros módulos (Raio X)
+    // 🆕 Persiste só na sessão do navegador (some ao fechar) — pra Raio X ficar visível ao trocar empresa
+    try { sessionStorage.setItem('veltro_admin_session', '1'); } catch(e){}
     try{ document.getElementById('admin-auth-block').style.display = 'none'; }catch(e){}
     try{ document.getElementById('admin-painel').style.display = 'block'; }catch(e){}
     veltroRenderListaEmpresas();
