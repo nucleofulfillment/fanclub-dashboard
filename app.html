@@ -6339,6 +6339,159 @@ async function _tentarCSV(urlBase) {
   return { rows: _parseCSV(txt), tamanhoBytes: txt.length };
 }
 
+/* ═══════════════════════════════════════════════════════════
+   🆕 Carregamento multi-aba mensal (Pedidos)
+   Detecta abas tipo "Janeiro-26", "Fevereiro-26", etc.
+   Se encontrar 2+ abas mensais → carrega todas e une.
+   Se não encontrar → fallback pra loadGS tradicional (1 aba só).
+   ═══════════════════════════════════════════════════════════ */
+async function loadGSMultiAba(url) {
+  // Extrai o sheetId da URL
+  var sheetId = null;
+  try {
+    var m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    sheetId = m ? m[1] : null;
+  } catch(e) {}
+
+  // Sem sheetId → fallback direto
+  if(!sheetId) {
+    console.log('[Pedidos] sheetId não detectado, usando carregamento tradicional');
+    return await loadGS(url);
+  }
+
+  // Tenta descobrir abas
+  var abas = null;
+  try {
+    abas = await _descobrirAbas(sheetId);
+  } catch(e) {
+    console.warn('[Pedidos] Falha ao descobrir abas:', e);
+  }
+
+  // Não conseguiu listar → fallback
+  if(!abas || abas.length === 0) {
+    console.log('[Pedidos] Nenhuma aba detectada, usando carregamento tradicional');
+    return await loadGS(url);
+  }
+
+  // Filtra abas mensais (mesma regra do _parseChavemes da Projeção)
+  // Padrões aceitos: Janeiro-26, janeiro 26, jan-26, jan26, abril-2026, etc.
+  var SIGLAS_MES = {jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12};
+  var NOMES_MES = {
+    janeiro:'jan', fevereiro:'fev', marco:'mar', 'março':'mar', abril:'abr',
+    maio:'mai', junho:'jun', julho:'jul', agosto:'ago', setembro:'set',
+    outubro:'out', novembro:'nov', dezembro:'dez'
+  };
+
+  function _detectarMesAba(nomeAba) {
+    if(!nomeAba) return null;
+    var s = String(nomeAba).toLowerCase().replace(/[\s/_]/g,'-');
+    var match = s.match(/^([a-z]+)(?:-?(\d{2,4}))?/);
+    if(!match) return null;
+    var palavra = match[1];
+    var anoStr = match[2];
+    var sigla;
+    if(SIGLAS_MES[palavra]) sigla = palavra;
+    else if(NOMES_MES[palavra]) sigla = NOMES_MES[palavra];
+    else if(palavra.length >= 3 && SIGLAS_MES[palavra.substring(0,3)]) sigla = palavra.substring(0,3);
+    if(!sigla) return null;
+    var ano = parseInt(anoStr || '0');
+    if(ano > 0 && ano < 100) ano += 2000;
+    if(ano === 0) ano = new Date().getFullYear();
+    return { sigla: sigla, ano: ano, mesNum: SIGLAS_MES[sigla], ord: ano * 100 + SIGLAS_MES[sigla] };
+  }
+
+  var abasMensais = abas
+    .map(function(nome){
+      var info = _detectarMesAba(nome);
+      return info ? { nome: nome, info: info } : null;
+    })
+    .filter(Boolean);
+
+  // Menos de 2 abas mensais → planilha "antiga" (1 aba só)
+  if(abasMensais.length < 2) {
+    console.log('[Pedidos] Apenas '+abasMensais.length+' aba(s) mensal(is) detectada(s) — usando carregamento tradicional');
+    return await loadGS(url);
+  }
+
+  // Ordena cronologicamente (mais antiga → mais recente)
+  abasMensais.sort(function(a,b){ return a.info.ord - b.info.ord; });
+
+  console.log('[Pedidos] 🗓️ '+abasMensais.length+' abas mensais detectadas:',
+    abasMensais.map(function(a){ return a.nome+' ('+a.info.sigla+'/'+(a.info.ano%100)+')'; }));
+
+  // URL base (com gid removido)
+  var urlBase = url.split('&sheet=')[0].split('&gid=')[0];
+
+  // Carrega cada aba em paralelo
+  var promessas = abasMensais.map(function(aba){
+    var urlAba = urlBase + '&sheet=' + encodeURIComponent(aba.nome) + '&nocache=' + Date.now();
+    return loadGS(urlAba)
+      .then(function(rows){ return { aba: aba.nome, rows: rows, ok: true }; })
+      .catch(function(e){
+        console.warn('[Pedidos] ❌ Falha ao carregar "'+aba.nome+'":', e.message || e);
+        return { aba: aba.nome, rows: [], ok: false, erro: e };
+      });
+  });
+
+  var resultados = await Promise.all(promessas);
+
+  // Une todas as linhas (mantém o cabeçalho da PRIMEIRA aba que carregou com sucesso)
+  var todasLinhas = [];
+  var headerJaAdicionado = false;
+  var totalSucesso = 0, totalFalha = 0;
+
+  resultados.forEach(function(r){
+    if(!r.ok || !r.rows || r.rows.length === 0) {
+      totalFalha++;
+      return;
+    }
+    totalSucesso++;
+    var rows = r.rows;
+    // Detecta se primeira linha é cabeçalho (mesma heurística do loadGS)
+    var temHeader = rows[0] && isNaN(parseFloat(rows[0][4]));
+
+    if(!headerJaAdicionado && temHeader) {
+      // Primeira aba com header: adiciona header + dados
+      todasLinhas = todasLinhas.concat(rows);
+      headerJaAdicionado = true;
+      console.log('[Pedidos] ✅ "'+r.aba+'": '+rows.length+' linhas (com header)');
+    } else if(headerJaAdicionado && temHeader) {
+      // Outras abas com header: pula a 1ª linha (cabeçalho duplicado)
+      todasLinhas = todasLinhas.concat(rows.slice(1));
+      console.log('[Pedidos] ✅ "'+r.aba+'": '+(rows.length-1)+' linhas (header descartado)');
+    } else {
+      // Sem header: adiciona tudo
+      todasLinhas = todasLinhas.concat(rows);
+      if(!headerJaAdicionado) headerJaAdicionado = true;
+      console.log('[Pedidos] ✅ "'+r.aba+'": '+rows.length+' linhas (sem header)');
+    }
+  });
+
+  console.log('[Pedidos] 📊 Total unificado: '+totalSucesso+'/'+abasMensais.length+' abas, '+todasLinhas.length+' linhas');
+
+  if(totalFalha > 0) {
+    console.warn('[Pedidos] ⚠️ '+totalFalha+' aba(s) falharam ao carregar');
+  }
+
+  // Guarda diagnóstico
+  window._veltroUltimoCarregamento = {
+    fonte: 'multi-aba',
+    abas: abasMensais.map(function(a){ return a.nome; }),
+    abasOk: totalSucesso,
+    abasFalha: totalFalha,
+    linhas: todasLinhas.length,
+    timestamp: new Date().toISOString()
+  };
+
+  // Se nenhuma aba carregou, retorna fallback
+  if(todasLinhas.length === 0) {
+    console.warn('[Pedidos] ⚠️ Nenhuma aba carregou, usando carregamento tradicional como fallback');
+    return await loadGS(url);
+  }
+
+  return todasLinhas;
+}
+
 async function loadGS(url){
   // 🆕 Estratégia híbrida: tenta CSV primeiro (5x menor), JSON como fallback
   var rows = null;
@@ -6744,7 +6897,7 @@ async function refresh(){
   const lbl=document.getElementById('sync-lbl');
   try{
     lbl.textContent='Sincronizando...';
-    const rows=url?await loadGS(url):SAMPLE;
+    const rows=url?await loadGSMultiAba(url):SAMPLE;
     // Invalidar cache de pedidos ao receber novos dados
     _pedidosCache = null;
     _pedidosCacheKey = '';
