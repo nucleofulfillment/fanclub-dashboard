@@ -16690,6 +16690,8 @@ function veltroOrdensListaRender() {
       '</div>'+
       // Linha 3: ações
       '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
+        '<button onclick="veltroOrdemView(\''+o.id+'\')" type="button" '+
+          'style="background:var(--accent);border:none;color:#0A0C10;padding:5px 10px;border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">👁️ Ver / PDF</button>'+
         (o.status === 'em-producao' ?
           '<button onclick="veltroOrdemMudarStatus(\''+o.id+'\',\'entregue\')" type="button" '+
             'style="background:#10B981;border:none;color:#0A0C10;padding:5px 10px;border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">✓ Marcar entregue</button>'+
@@ -16701,6 +16703,204 @@ function veltroOrdensListaRender() {
       '</div>'+
     '</div>';
   }).join('');
+}
+
+/* ─ Visualizar ordem (modal pra ver detalhes + gerar PDF) ─ */
+
+var _veltroOrdemViewAtual = null;
+
+function veltroOrdemView(ordemId) {
+  var empId = veltroOrdemGetEmpresaIdAtual();
+  var lista = veltroOrdensGetAll(empId);
+  var o = lista.find(function(x){ return x.id === ordemId; });
+  if(!o) {
+    alert('Ordem não encontrada');
+    return;
+  }
+  _veltroOrdemViewAtual = o;
+
+  // Pega fornecedor completo (pode ter mais info que o snapshot)
+  var fornecedores = veltroForncGetAll(empId);
+  var fornecedor = fornecedores.find(function(f){ return f.id === o.fornecedorId; }) || {
+    nome: o.fornecedorNome,
+    contato: o.fornecedorContato,
+    leadTime: o.leadTime
+  };
+
+  // Pega empresa atual
+  var empresa = (typeof veltroGetEmpresaAtualObj === 'function') ? veltroGetEmpresaAtualObj() : { nome: empId };
+  var nomeEmpresa = (empresa && empresa.nome) || empId || 'Empresa';
+
+  // Status badge
+  var STATUS_INFO = {
+    'em-producao': { cor: '#60A5FA', icone: '🔵', label: 'Em produção' },
+    'entregue':    { cor: '#10B981', icone: '🟢', label: 'Entregue' },
+    'cancelada':   { cor: '#F43F5E', icone: '🔴', label: 'Cancelada' }
+  };
+  var st = STATUS_INFO[o.status] || STATUS_INFO['em-producao'];
+  var badgeEl = document.getElementById('ordem-view-status-badge');
+  if(badgeEl) {
+    badgeEl.textContent = st.icone + ' ' + st.label;
+    badgeEl.style.color = st.cor;
+    badgeEl.style.background = st.cor + '20';
+  }
+
+  // Formas de pagamento amigáveis
+  var FORMAS_PAG = {
+    'a-vista': 'À vista (na entrega)',
+    '30': '30 dias após entrega',
+    '60': '60 dias após entrega',
+    '90': '90 dias após entrega',
+    '30-60': '30/60 dias',
+    '30-60-90': '30/60/90 dias',
+    '50-50': '50% adiantamento + 50% entrega'
+  };
+  var pagLabel = FORMAS_PAG[o.formaPagamento] || o.formaPagamento || '—';
+
+  // Datas
+  function fmtDate(timestamp) {
+    if(!timestamp) return '—';
+    var d = new Date(timestamp);
+    return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+  }
+  function fmtDateISO(iso) {
+    if(!iso) return '—';
+    return fmtDate(new Date(iso).getTime());
+  }
+
+  var dataCriacao = fmtDate(o.criadoEm);
+  var dataEntrega = fmtDateISO(o.entregaPrevista);
+
+  // Variações ordenadas por tamanho
+  var vars = (o.variacoes || []).slice();
+  if(typeof projOrdenarPorTamanho === 'function') {
+    vars = projOrdenarPorTamanho(vars);
+  }
+
+  var fR2 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var fN = function(n){ return (n||0).toLocaleString('pt-BR'); };
+
+  // Logo: tenta carregar da Laluna como decidido
+  var logoHTML = '';
+  if(empId === 'laluna') {
+    // Tenta a logo do site da Laluna
+    logoHTML = '<img src="https://www.lalunamodas.com.br/img/2018/12/loja/43/icone/faviconlaluna.png" '+
+      'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'" '+
+      'style="width:60px;height:60px;object-fit:contain;border-radius:6px">'+
+      '<div style="display:none;font-family:Georgia,serif;font-size:24px;font-weight:700;color:#0A0C10">'+escapeHtml(nomeEmpresa)+'</div>';
+  } else {
+    logoHTML = '<div style="font-family:Georgia,serif;font-size:24px;font-weight:700;color:#0A0C10">'+escapeHtml(nomeEmpresa)+'</div>';
+  }
+
+  // Conteúdo do PDF (HTML que vira print)
+  var html =
+    // Cabeçalho com logo + número
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0A0C10;padding-bottom:14px;margin-bottom:18px">'+
+      '<div style="display:flex;align-items:center;gap:14px">'+
+        logoHTML +
+        '<div>'+
+          '<div style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:#0A0C10">'+escapeHtml(nomeEmpresa)+'</div>'+
+          '<div style="font-size:11px;color:#666;margin-top:2px">Ordem de Produção · Veltro OS</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="text-align:right">'+
+        '<div style="font-family:monospace;font-size:18px;font-weight:700;color:#0A0C10">'+escapeHtml(o.numero)+'</div>'+
+        '<div style="font-size:10px;color:#666;margin-top:2px">Emitida em '+dataCriacao+'</div>'+
+      '</div>'+
+    '</div>'+
+
+    // Status (se cancelada, destaca)
+    (o.status === 'cancelada' ?
+      '<div style="background:#FEE;border:1px solid #F43F5E;color:#A01;padding:8px 12px;border-radius:6px;margin-bottom:14px;font-size:12px;text-align:center;font-weight:600">⚠️ ORDEM CANCELADA</div>' : '') +
+
+    // Bloco fornecedor + dados gerais
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">'+
+      // Fornecedor
+      '<div style="background:#F8F9FA;border:1px solid #E5E7EB;border-radius:8px;padding:12px">'+
+        '<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">FORNECEDOR</div>'+
+        '<div style="font-size:14px;font-weight:600;color:#0A0C10">'+escapeHtml(fornecedor.nome || '—')+'</div>'+
+        (fornecedor.contato ? '<div style="font-size:11px;color:#444;margin-top:3px">📞 '+escapeHtml(fornecedor.contato)+'</div>' : '') +
+      '</div>'+
+      // Datas e prazos
+      '<div style="background:#F8F9FA;border:1px solid #E5E7EB;border-radius:8px;padding:12px">'+
+        '<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">PRAZOS</div>'+
+        '<div style="font-size:11px;color:#0A0C10;line-height:1.6">'+
+          '<strong>Lead time:</strong> '+(o.leadTime||0)+' dias<br>'+
+          '<strong>Entrega prevista:</strong> '+dataEntrega+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+
+    // Pagamento
+    '<div style="background:#F8F9FA;border:1px solid #E5E7EB;border-radius:8px;padding:12px;margin-bottom:18px">'+
+      '<div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">FORMA DE PAGAMENTO</div>'+
+      '<div style="font-size:13px;color:#0A0C10;font-weight:500">💳 '+escapeHtml(pagLabel)+'</div>'+
+    '</div>'+
+
+    // Tabela de itens
+    '<div style="margin-bottom:14px">'+
+      '<div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">📋 ITENS DA PRODUÇÃO</div>'+
+      '<div style="font-size:13px;color:#0A0C10;font-weight:600;margin-bottom:6px">'+escapeHtml(o.nome || o.skuPai)+' ('+escapeHtml(o.skuPai)+')</div>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:11px">'+
+        '<thead>'+
+          '<tr style="background:#0A0C10;color:#FFF">'+
+            '<th style="padding:8px 10px;text-align:left;border:1px solid #0A0C10">SKU</th>'+
+            '<th style="padding:8px 10px;text-align:right;border:1px solid #0A0C10;width:80px">Qtd</th>'+
+            '<th style="padding:8px 10px;text-align:right;border:1px solid #0A0C10;width:90px">Custo Un.</th>'+
+            '<th style="padding:8px 10px;text-align:right;border:1px solid #0A0C10;width:110px">Subtotal</th>'+
+          '</tr>'+
+        '</thead>'+
+        '<tbody>'+
+          vars.map(function(v, idx){
+            var bg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
+            var subtotal = (v.qtd || 0) * (o.custoUnit || 0);
+            return '<tr style="background:'+bg+'">'+
+              '<td style="padding:6px 10px;border:1px solid #E5E7EB;font-family:monospace">'+escapeHtml(v.sku)+'</td>'+
+              '<td style="padding:6px 10px;border:1px solid #E5E7EB;text-align:right">'+fN(v.qtd)+'</td>'+
+              '<td style="padding:6px 10px;border:1px solid #E5E7EB;text-align:right">'+fR2(o.custoUnit||0)+'</td>'+
+              '<td style="padding:6px 10px;border:1px solid #E5E7EB;text-align:right;font-weight:500">'+fR2(subtotal)+'</td>'+
+            '</tr>';
+          }).join('')+
+        '</tbody>'+
+        '<tfoot>'+
+          '<tr style="background:#F0F9F0">'+
+            '<td style="padding:10px;border:1px solid #0A0C10;font-weight:700">TOTAL</td>'+
+            '<td style="padding:10px;border:1px solid #0A0C10;text-align:right;font-weight:700">'+fN(o.qtdTotal)+' un.</td>'+
+            '<td style="padding:10px;border:1px solid #0A0C10"></td>'+
+            '<td style="padding:10px;border:1px solid #0A0C10;text-align:right;font-weight:700;font-size:14px;color:#0A0C10">'+fR2(o.total)+'</td>'+
+          '</tr>'+
+        '</tfoot>'+
+      '</table>'+
+    '</div>'+
+
+    // Observações (se houver)
+    (o.observacoes ?
+      '<div style="background:#FFF8E5;border:1px solid #F5C842;border-radius:8px;padding:12px;margin-bottom:18px">'+
+        '<div style="font-size:9px;color:#856404;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;font-weight:600">📝 OBSERVAÇÕES</div>'+
+        '<div style="font-size:12px;color:#333;line-height:1.6;white-space:pre-wrap">'+escapeHtml(o.observacoes)+'</div>'+
+      '</div>'
+    : '') +
+
+    // Rodapé
+    '<div style="border-top:1px solid #E5E7EB;padding-top:12px;margin-top:24px;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#999">'+
+      '<div>Veltro OS · Sistema Operacional do E-commerce · veltroos.com.br</div>'+
+      '<div>Gerado em '+dataCriacao+'</div>'+
+    '</div>';
+
+  document.getElementById('ordem-view-conteudo').innerHTML = html;
+  var modal = document.getElementById('veltro-ordem-view-modal');
+  if(modal) modal.style.display = 'flex';
+}
+
+function veltroOrdemViewFechar() {
+  var modal = document.getElementById('veltro-ordem-view-modal');
+  if(modal) modal.style.display = 'none';
+  _veltroOrdemViewAtual = null;
+}
+
+function veltroOrdemPrint() {
+  // Abre diálogo de impressão (cliente escolhe "Salvar como PDF")
+  window.print();
 }
 
 function veltroOrdemMudarStatus(ordemId, novoStatus) {
@@ -17156,6 +17356,50 @@ window.addEventListener('load', function() {
      Permite editar: nome, senha, canais ativos, link da loja própria.
      ID não é editável (chave primária com várias dependências).
 ═══════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════
+     👁️ MODAL: Visualizar Ordem (com PDF)
+     ═══════════════════════════════════════════════════════════ -->
+<div id="veltro-ordem-view-modal" style="display:none;position:fixed;inset:0;z-index:99999;
+     background:rgba(0,0,0,.85);backdrop-filter:blur(8px);align-items:center;justify-content:center">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;
+              padding:0;width:100%;max-width:780px;max-height:92vh;overflow:hidden;margin:20px;display:flex;flex-direction:column">
+
+    <!-- Header (não vai pro PDF) -->
+    <div class="ordem-view-no-print" style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--s3)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700">📦 Visualizar Ordem</div>
+        <span id="ordem-view-status-badge" style="font-family:var(--fmono);font-size:10px;padding:2px 8px;border-radius:10px">—</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="veltroOrdemPrint()" type="button" id="ordem-view-btn-print"
+          style="background:var(--accent);border:none;color:#0A0C10;padding:7px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer">🖨️ Gerar PDF</button>
+        <button onclick="veltroOrdemViewFechar()" type="button"
+          style="background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--muted);padding:5px 10px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+    </div>
+
+    <!-- Conteúdo (vai pro PDF) -->
+    <div id="ordem-view-conteudo" style="overflow-y:auto;padding:24px 28px;background:#FFFFFF;color:#0A0C10;flex:1">
+      <!-- preenchido dinamicamente -->
+    </div>
+  </div>
+</div>
+
+<!-- CSS de impressão pra PDF limpo -->
+<style id="ordem-print-styles">
+@media print {
+  body * { visibility: hidden; }
+  #ordem-view-conteudo, #ordem-view-conteudo * { visibility: visible; }
+  #ordem-view-conteudo {
+    position: absolute; left: 0; top: 0; width: 100%;
+    background: white !important; color: black !important;
+    padding: 20mm !important;
+  }
+  .ordem-view-no-print { display: none !important; }
+  @page { size: A4; margin: 0; }
+}
+</style>
+
 <!-- ═══════════════════════════════════════════════════════════
      📋 MODAL: Lista de Ordens de Compra
      ═══════════════════════════════════════════════════════════ -->
