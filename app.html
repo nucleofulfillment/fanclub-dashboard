@@ -15549,6 +15549,303 @@ function veltroAbrirEditarEmpresa(empId) {
       modal.style.display = 'flex';
     }
   } catch(e){}
+
+  // Renderiza lista de fornecedores (DEPOIS de setar data-empresa-id)
+  try {
+    veltroForncCancelarForm(); // garante que form esteja oculto
+    veltroForncRenderLista();
+  } catch(e){ console.warn('[Edit] Render fornecedores:', e); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   🏭 FORNECEDORES — CRUD por empresa (localStorage)
+   Chave: veltro_fornecedores_<empresaId>
+   Estrutura: [{ id, nome, leadTime, contato, formaPagamento, adiantamento, parcelas, observacoes, criadoEm }]
+   ═══════════════════════════════════════════════════════════ */
+
+var VELTRO_FORNC_KEY = 'veltro_fornecedores_';
+
+function veltroForncGetAll(empresaId) {
+  if(!empresaId) return [];
+  try {
+    var raw = localStorage.getItem(VELTRO_FORNC_KEY + empresaId);
+    if(!raw) return [];
+    var arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch(e) {
+    console.warn('[Fornecedores] Erro ao ler localStorage:', e);
+    return [];
+  }
+}
+
+function veltroForncSaveAll(empresaId, lista) {
+  if(!empresaId) return false;
+  try {
+    localStorage.setItem(VELTRO_FORNC_KEY + empresaId, JSON.stringify(lista || []));
+    return true;
+  } catch(e) {
+    console.error('[Fornecedores] Erro ao salvar:', e);
+    return false;
+  }
+}
+
+function veltroForncGetEmpresaIdAtual() {
+  var modal = document.getElementById('veltro-edit-empresa-modal');
+  if(!modal) return null;
+  return modal.getAttribute('data-empresa-id');
+}
+
+/* Mapa pra exibir forma de pagamento de forma amigável */
+var FORNC_PAGAMENTO_LABELS = {
+  'a-vista': 'À vista',
+  '30': '30 dias',
+  '60': '60 dias',
+  '90': '90 dias',
+  '30-60': '30/60 dias',
+  '30-60-90': '30/60/90 dias',
+  '50-50': '50% + 50%',
+  'personalizado': 'Personalizado'
+};
+
+function _forncFormatPagamento(f) {
+  if(!f || !f.formaPagamento) return '—';
+  if(f.formaPagamento === 'personalizado') {
+    var adi = f.adiantamento ? f.adiantamento+'% adt + ' : '';
+    var parc = f.parcelas ? f.parcelas + ' dias' : '';
+    return 'Personalizado: ' + adi + parc;
+  }
+  return FORNC_PAGAMENTO_LABELS[f.formaPagamento] || f.formaPagamento;
+}
+
+/* Renderiza a lista de fornecedores no modal */
+function veltroForncRenderLista() {
+  var empId = veltroForncGetEmpresaIdAtual();
+  var listaEl = document.getElementById('edit-fornecedores-lista');
+  var countEl = document.getElementById('edit-fornecedores-count');
+  if(!listaEl) return;
+
+  var lista = veltroForncGetAll(empId);
+  if(countEl) countEl.textContent = lista.length + (lista.length === 1 ? ' cadastrado' : ' cadastrados');
+
+  if(lista.length === 0) {
+    listaEl.innerHTML = '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);padding:10px;text-align:center;background:var(--s2);border:1px dashed var(--border2);border-radius:6px">Nenhum fornecedor cadastrado ainda</div>';
+    return;
+  }
+
+  // Ordena por nome
+  lista.sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
+
+  listaEl.innerHTML = lista.map(function(f){
+    var pagamentoTxt = _forncFormatPagamento(f);
+    var contatoTxt = f.contato ? ' · ' + f.contato : '';
+    return '<div style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:9px 11px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-family:var(--fmono);font-size:12px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(f.nome||'(sem nome)')+'</div>'+
+        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);margin-top:2px">📅 '+(f.leadTime||25)+'d · 💳 '+pagamentoTxt+contatoTxt+'</div>'+
+        (f.observacoes ? '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:3px;font-style:italic">'+escapeHtml(f.observacoes)+'</div>' : '')+
+      '</div>'+
+      '<div style="display:flex;gap:4px;flex-shrink:0">'+
+        '<button onclick="veltroForncEditar(\''+f.id+'\')" type="button" title="Editar" '+
+          'style="background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);padding:3px 7px;font-size:11px;cursor:pointer">✏️</button>'+
+        '<button onclick="veltroForncRemover(\''+f.id+'\')" type="button" title="Remover" '+
+          'style="background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--red);padding:3px 7px;font-size:11px;cursor:pointer">🗑️</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+/* Helper: escapa HTML pra evitar quebra de layout */
+function escapeHtml(s) {
+  if(!s) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+/* Abre form em modo "novo" */
+function veltroForncAbrirCadastro() {
+  var form = document.getElementById('edit-fornecedor-form');
+  if(!form) return;
+  // Limpa campos
+  document.getElementById('edit-fornc-id').value = '';
+  document.getElementById('edit-fornc-nome').value = '';
+  document.getElementById('edit-fornc-lead').value = '25';
+  document.getElementById('edit-fornc-contato').value = '';
+  document.getElementById('edit-fornc-pagamento').value = 'a-vista';
+  document.getElementById('edit-fornc-adiantamento').value = '0';
+  document.getElementById('edit-fornc-parcelas').value = '';
+  document.getElementById('edit-fornc-obs').value = '';
+  document.getElementById('edit-fornc-erro').textContent = '';
+  document.getElementById('edit-fornecedor-form-titulo').textContent = 'Novo Fornecedor';
+  // Esconde personalizado
+  document.getElementById('edit-fornc-personalizado').style.display = 'none';
+  // Mostra form
+  form.style.display = 'block';
+  // Foca no nome
+  setTimeout(function(){ try { document.getElementById('edit-fornc-nome').focus(); } catch(e){} }, 50);
+}
+
+function veltroForncCancelarForm() {
+  var form = document.getElementById('edit-fornecedor-form');
+  if(form) form.style.display = 'none';
+  try { document.getElementById('edit-fornc-erro').textContent = ''; } catch(e){}
+}
+
+function veltroForncTogglePersonalizado() {
+  var sel = document.getElementById('edit-fornc-pagamento');
+  var bloco = document.getElementById('edit-fornc-personalizado');
+  if(!sel || !bloco) return;
+  bloco.style.display = (sel.value === 'personalizado') ? 'block' : 'none';
+}
+
+/* Carrega dados do fornecedor no form pra edição */
+function veltroForncEditar(forncId) {
+  var empId = veltroForncGetEmpresaIdAtual();
+  var lista = veltroForncGetAll(empId);
+  var f = lista.find(function(x){ return x.id === forncId; });
+  if(!f) {
+    alert('Fornecedor não encontrado');
+    return;
+  }
+
+  // Abre form em modo edição
+  var form = document.getElementById('edit-fornecedor-form');
+  if(!form) return;
+
+  document.getElementById('edit-fornc-id').value = f.id;
+  document.getElementById('edit-fornc-nome').value = f.nome || '';
+  document.getElementById('edit-fornc-lead').value = f.leadTime || 25;
+  document.getElementById('edit-fornc-contato').value = f.contato || '';
+  document.getElementById('edit-fornc-pagamento').value = f.formaPagamento || 'a-vista';
+  document.getElementById('edit-fornc-adiantamento').value = f.adiantamento || 0;
+  document.getElementById('edit-fornc-parcelas').value = f.parcelas || '';
+  document.getElementById('edit-fornc-obs').value = f.observacoes || '';
+  document.getElementById('edit-fornc-erro').textContent = '';
+  document.getElementById('edit-fornecedor-form-titulo').textContent = 'Editando: ' + (f.nome || '');
+
+  // Mostra personalizado se for o caso
+  document.getElementById('edit-fornc-personalizado').style.display = (f.formaPagamento === 'personalizado') ? 'block' : 'none';
+
+  form.style.display = 'block';
+  // Scroll suave pro form
+  setTimeout(function(){ try { form.scrollIntoView({behavior:'smooth', block:'nearest'}); } catch(e){} }, 50);
+}
+
+function veltroForncRemover(forncId) {
+  var empId = veltroForncGetEmpresaIdAtual();
+  var lista = veltroForncGetAll(empId);
+  var f = lista.find(function(x){ return x.id === forncId; });
+  if(!f) return;
+
+  if(!confirm('Remover fornecedor "' + (f.nome || '?') + '"?\n\nEsta ação não pode ser desfeita.')) return;
+
+  var novaLista = lista.filter(function(x){ return x.id !== forncId; });
+  if(veltroForncSaveAll(empId, novaLista)) {
+    veltroForncRenderLista();
+  } else {
+    alert('Erro ao remover. Tente novamente.');
+  }
+}
+
+function veltroForncSalvar() {
+  var erroEl = document.getElementById('edit-fornc-erro');
+  if(erroEl) erroEl.textContent = '';
+
+  var empId = veltroForncGetEmpresaIdAtual();
+  if(!empId) {
+    if(erroEl) erroEl.textContent = 'Erro: empresa não identificada';
+    return;
+  }
+
+  var id = (document.getElementById('edit-fornc-id').value || '').trim();
+  var nome = (document.getElementById('edit-fornc-nome').value || '').trim();
+  var leadTime = parseInt(document.getElementById('edit-fornc-lead').value || '25', 10);
+  var contato = (document.getElementById('edit-fornc-contato').value || '').trim();
+  var formaPagamento = document.getElementById('edit-fornc-pagamento').value;
+  var adiantamento = parseFloat(document.getElementById('edit-fornc-adiantamento').value || '0');
+  var parcelas = (document.getElementById('edit-fornc-parcelas').value || '').trim();
+  var observacoes = (document.getElementById('edit-fornc-obs').value || '').trim();
+
+  // Validações
+  if(!nome) {
+    if(erroEl) erroEl.textContent = 'Nome é obrigatório';
+    return;
+  }
+  if(!leadTime || leadTime < 1 || leadTime > 365) {
+    if(erroEl) erroEl.textContent = 'Lead time deve ser entre 1 e 365 dias';
+    return;
+  }
+  if(formaPagamento === 'personalizado') {
+    if(adiantamento < 0 || adiantamento > 100) {
+      if(erroEl) erroEl.textContent = 'Adiantamento deve ser entre 0 e 100%';
+      return;
+    }
+    if(!parcelas) {
+      if(erroEl) erroEl.textContent = 'Personalizado: informe pelo menos uma parcela em dias (ex: 30,60)';
+      return;
+    }
+    // Valida formato das parcelas
+    var parcArr = parcelas.split(',').map(function(s){ return s.trim(); });
+    for(var i=0; i<parcArr.length; i++) {
+      var n = parseInt(parcArr[i], 10);
+      if(!n || n < 0 || n > 365) {
+        if(erroEl) erroEl.textContent = 'Parcelas: cada valor deve ser um número de dias entre 0 e 365 (ex: 30,60,90)';
+        return;
+      }
+    }
+  }
+
+  var lista = veltroForncGetAll(empId);
+
+  // Detecta se é edição ou novo
+  var isEdit = !!id;
+  if(isEdit) {
+    // Atualiza existente
+    var idx = lista.findIndex(function(x){ return x.id === id; });
+    if(idx === -1) {
+      if(erroEl) erroEl.textContent = 'Fornecedor não encontrado';
+      return;
+    }
+    lista[idx] = {
+      id: id,
+      nome: nome,
+      leadTime: leadTime,
+      contato: contato,
+      formaPagamento: formaPagamento,
+      adiantamento: adiantamento,
+      parcelas: parcelas,
+      observacoes: observacoes,
+      criadoEm: lista[idx].criadoEm,
+      atualizadoEm: Date.now()
+    };
+  } else {
+    // Verifica duplicata por nome (mesma empresa)
+    var jaExiste = lista.find(function(x){ return (x.nome||'').toLowerCase() === nome.toLowerCase(); });
+    if(jaExiste) {
+      if(erroEl) erroEl.textContent = 'Já existe um fornecedor com esse nome';
+      return;
+    }
+    // Cria novo
+    var novoId = 'frn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    lista.push({
+      id: novoId,
+      nome: nome,
+      leadTime: leadTime,
+      contato: contato,
+      formaPagamento: formaPagamento,
+      adiantamento: adiantamento,
+      parcelas: parcelas,
+      observacoes: observacoes,
+      criadoEm: Date.now()
+    });
+  }
+
+  if(veltroForncSaveAll(empId, lista)) {
+    veltroForncRenderLista();
+    veltroForncCancelarForm();
+  } else {
+    if(erroEl) erroEl.textContent = 'Erro ao salvar. Tente novamente.';
+  }
 }
 
 function veltroFecharEditarEmpresa() {
@@ -16019,6 +16316,108 @@ window.addEventListener('load', function() {
       <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:5px;line-height:1.5">
         Usado no Estoque: clicar num SKU abre busca na loja. Suporta <code style="color:var(--accent)">{sku}</code> como placeholder.<br>
         Exemplos: <code>https://lojadalaluna.com.br</code> · <code>https://shop.com/produtos/{sku}</code>
+      </div>
+    </div>
+
+    <!-- Fornecedores -->
+    <div style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#FB923C;
+             text-transform:uppercase;letter-spacing:1px">🏭 Fornecedores</div>
+        <span id="edit-fornecedores-count" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2)">0 cadastrados</span>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-bottom:10px;line-height:1.5">
+        Cadastre os fornecedores usados na geração de Ordens de Compra.
+      </div>
+
+      <!-- Lista de fornecedores existentes -->
+      <div id="edit-fornecedores-lista" style="margin-bottom:8px"></div>
+
+      <!-- Botão adicionar -->
+      <button onclick="veltroForncAbrirCadastro()" type="button"
+        style="width:100%;padding:10px;background:rgba(251,146,60,.10);border:1px dashed rgba(251,146,60,.40);
+               border-radius:8px;color:#FB923C;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer">
+        ➕ Adicionar Fornecedor
+      </button>
+
+      <!-- Form de cadastro/edição (oculto por padrão) -->
+      <div id="edit-fornecedor-form" style="display:none;margin-top:10px;padding:14px;background:var(--s2);border:1px solid var(--border2);border-radius:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div id="edit-fornecedor-form-titulo" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#FB923C;text-transform:uppercase;letter-spacing:.5px">Novo Fornecedor</div>
+          <button onclick="veltroForncCancelarForm()" type="button"
+            style="background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer">✕</button>
+        </div>
+
+        <input type="hidden" id="edit-fornc-id">
+
+        <div style="margin-bottom:10px">
+          <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:3px">NOME *</label>
+          <input id="edit-fornc-nome" type="text" placeholder="Ex: Confecções Maria"
+            style="width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:7px 9px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;box-sizing:border-box">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:3px">LEAD TIME (dias) *</label>
+            <input id="edit-fornc-lead" type="number" min="1" max="365" value="25" placeholder="25"
+              style="width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:7px 9px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:3px">CONTATO</label>
+            <input id="edit-fornc-contato" type="text" placeholder="(47) 99999-9999"
+              style="width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:7px 9px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;box-sizing:border-box">
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px">
+          <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:3px">FORMA DE PAGAMENTO *</label>
+          <select id="edit-fornc-pagamento" onchange="veltroForncTogglePersonalizado()"
+            style="width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:7px 9px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;box-sizing:border-box">
+            <option value="a-vista">À vista (na entrega)</option>
+            <option value="30">30 dias após entrega</option>
+            <option value="60">60 dias após entrega</option>
+            <option value="90">90 dias após entrega</option>
+            <option value="30-60">30/60 dias</option>
+            <option value="30-60-90">30/60/90 dias</option>
+            <option value="50-50">50% adiantamento + 50% entrega</option>
+            <option value="personalizado">Personalizado ↓</option>
+          </select>
+        </div>
+
+        <!-- Personalizado (oculto por padrão) -->
+        <div id="edit-fornc-personalizado" style="display:none;background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:10px;margin-bottom:10px">
+          <div style="font-family:var(--fmono);font-size:9px;color:var(--accent);text-transform:uppercase;margin-bottom:8px">Pagamento personalizado</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:3px">% ADIANTAMENTO</label>
+              <input id="edit-fornc-adiantamento" type="number" min="0" max="100" value="0" placeholder="0"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:3px">PARCELAS (dias separados por vírgula)</label>
+              <input id="edit-fornc-parcelas" type="text" placeholder="30,60,90"
+                style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;box-sizing:border-box">
+            </div>
+          </div>
+          <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);line-height:1.5">
+            💡 Ex: adiantamento 30%, parcelas <code style="color:var(--accent)">30,60</code> → 30% no pedido + 35% em 30d + 35% em 60d
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:3px">OBSERVAÇÕES</label>
+          <textarea id="edit-fornc-obs" rows="2" placeholder="Notas livres sobre o fornecedor"
+            style="width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:7px 9px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;box-sizing:border-box;resize:vertical"></textarea>
+        </div>
+
+        <div id="edit-fornc-erro" style="font-family:var(--fmono);font-size:10px;color:var(--red);min-height:14px;margin-bottom:8px"></div>
+
+        <div style="display:flex;gap:6px">
+          <button onclick="veltroForncCancelarForm()" type="button"
+            style="flex:1;padding:8px;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-family:var(--fmono);font-size:11px;cursor:pointer">Cancelar</button>
+          <button onclick="veltroForncSalvar()" type="button"
+            style="flex:2;padding:8px;background:#FB923C;border:none;border-radius:6px;color:#0A0C10;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer">💾 Salvar Fornecedor</button>
+        </div>
       </div>
     </div>
 
