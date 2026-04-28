@@ -16228,15 +16228,19 @@ function veltroOrdemIncrementarSeq() {
 
 /* Resolve a empresa atual (mesmo padrão usado pelos fornecedores) */
 function veltroOrdemGetEmpresaIdAtual() {
-  // Estratégia 1: sessão ativa
+  // Estratégia 1: função padrão do sistema
   try {
-    var raw = localStorage.getItem(VELTRO_SESSAO_KEY);
-    if(raw) {
-      var s = JSON.parse(raw);
-      if(s && s.empresaId) return s.empresaId;
+    if(typeof veltroGetEmpresaAtual === 'function') {
+      var id = veltroGetEmpresaAtual();
+      if(id) return id;
     }
   } catch(e){}
-  // Estratégia 2: variável global
+  // Estratégia 2: lê direto da chave (string, não JSON)
+  try {
+    var raw = localStorage.getItem(VELTRO_SESSAO_KEY);
+    if(raw) return raw;
+  } catch(e){}
+  // Estratégia 3: variável global
   try { if(typeof window._veltroEmpresaAtual !== 'undefined') return window._veltroEmpresaAtual; } catch(e){}
   return null;
 }
