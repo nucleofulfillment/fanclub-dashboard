@@ -3256,6 +3256,13 @@ body.light body::before { opacity: 0; }
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
+   VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
+═══════════════════════════════════════════════════════════════ */
+var VELTRO_BUILD_VERSION = '2026.04.28.0712';
+console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
+  'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
+
+/* ═══════════════════════════════════════════════════════════════
    CONSTANTES & CONFIGURAÇÕES
 ═══════════════════════════════════════════════════════════════ */
 const SAMPLE = [];
@@ -10602,6 +10609,20 @@ function projRenderLista(dadosOpcional) {
 }
 
 /* ─ Render uma linha de SKU pai (com possível detalhe expandido) ─ */
+/* 🆕 Verifica se um SKU pai tem ordens ATIVAS (em produção) */
+function projTemOrdemAtiva(skuPai) {
+  try {
+    if(typeof veltroOrdemGetEmpresaIdAtual !== 'function') return 0;
+    var empId = veltroOrdemGetEmpresaIdAtual();
+    if(!empId) return 0;
+    if(typeof veltroOrdensGetAll !== 'function') return 0;
+    var ordens = veltroOrdensGetAll(empId);
+    return ordens.filter(function(o){
+      return o.skuPai === skuPai && o.status === 'em-producao';
+    }).length;
+  } catch(e) { return 0; }
+}
+
 function projLinhaSkuPai(it) {
   var fR  = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
   var fR2 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
@@ -10623,12 +10644,18 @@ function projLinhaSkuPai(it) {
   var isExpanded = !!_projExpandidos[it.skuPai];
   var arrow = isExpanded ? '▼' : '▶';
 
+  // 🆕 Verifica se já tem ordem ativa pra esse SKU
+  var qtdOrdens = projTemOrdemAtiva(it.skuPai);
+  var badgeOrdem = qtdOrdens > 0
+    ? '<span style="display:inline-flex;align-items:center;gap:3px;background:#60A5FA15;border:1px solid #60A5FA40;color:#60A5FA;padding:1px 7px;border-radius:8px;font-family:var(--fmono);font-size:9px;font-weight:600;margin-left:6px;letter-spacing:.3px" title="'+qtdOrdens+' ordem(ns) em produção pra este produto">📦 EM ORDEM'+(qtdOrdens > 1 ? ' ('+qtdOrdens+')' : '')+'</span>'
+    : '';
+
   // Linha principal
   var linha =
     '<div class="proj-row '+it.status+(isExpanded?' expanded':'')+'" onclick="projToggleDetalhe(\''+it.skuPai+'\')">'+
       '<div class="proj-status-badge'+(statusInfo.pulse?' pulse':'')+'" title="'+statusInfo.label+'">'+statusInfo.icon+'</div>'+
       '<div style="min-width:0">'+
-        '<div style="font-family:var(--fhead);font-size:13px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(it.nome||'').replace(/"/g,'&quot;')+'">'+(it.nome||it.skuPai)+'</div>'+
+        '<div style="font-family:var(--fhead);font-size:13px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(it.nome||'').replace(/"/g,'&quot;')+'">'+(it.nome||it.skuPai)+badgeOrdem+'</div>'+
         '<div style="font-family:var(--fmono);font-size:10px;margin-top:2px">'+
           '<span style="color:var(--accent)">'+it.skuPai+'</span>'+
           '<span style="color:var(--muted2);margin-left:8px">· cobertura '+coberturaTxt+'</span>'+
@@ -16569,8 +16596,11 @@ function veltroOrdemSalvar() {
       btn.style.background = 'var(--accent)';
     }
   }, 1500);
-  // Atualiza badge contador
+  // Atualiza badge contador + re-render lista (pra mostrar tag "Em ordem")
   veltroOrdensAtualizarBadge();
+  if(typeof projRender === 'function') {
+    try { projRender(); } catch(e){}
+  }
 }
 
 /* ─ Listagem de ordens (modal simples) ─ */
@@ -16840,7 +16870,7 @@ function veltroOrdemView(ordemId) {
     // Tabela de itens
     '<div style="margin-bottom:14px">'+
       '<div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">📋 ITENS DA PRODUÇÃO</div>'+
-      '<div style="font-size:13px;color:#0A0C10;font-weight:600;margin-bottom:6px">'+escapeHtml(o.nome || o.skuPai)+' ('+escapeHtml(o.skuPai)+')</div>'+
+      '<div style="font-size:13px;color:#0A0C10;font-weight:600;margin-bottom:6px">'+escapeHtml(o.nome || o.skuPai)+' <span style="color:#999;font-weight:400;font-size:12px">('+escapeHtml(o.skuPai)+')</span></div>'+
       '<table style="width:100%;border-collapse:collapse;font-size:11px">'+
         '<thead>'+
           '<tr style="background:#0A0C10;color:#FFF">'+
@@ -16919,6 +16949,7 @@ function veltroOrdemMudarStatus(ordemId, novoStatus) {
   if(veltroOrdensSaveAll(empId, lista)) {
     veltroOrdensListaRender();
     veltroOrdensAtualizarBadge();
+    if(typeof projRender === 'function') { try { projRender(); } catch(e){} }
   }
 }
 
@@ -16933,6 +16964,7 @@ function veltroOrdemRemover(ordemId) {
   if(veltroOrdensSaveAll(empId, novaLista)) {
     veltroOrdensListaRender();
     veltroOrdensAtualizarBadge();
+    if(typeof projRender === 'function') { try { projRender(); } catch(e){} }
   }
 }
 
@@ -17359,7 +17391,7 @@ window.addEventListener('load', function() {
 <!-- ═══════════════════════════════════════════════════════════
      👁️ MODAL: Visualizar Ordem (com PDF)
      ═══════════════════════════════════════════════════════════ -->
-<div id="veltro-ordem-view-modal" style="display:none;position:fixed;inset:0;z-index:99999;
+<div id="veltro-ordem-view-modal" style="display:none;position:fixed;inset:0;z-index:100001;
      background:rgba(0,0,0,.85);backdrop-filter:blur(8px);align-items:center;justify-content:center">
   <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;
               padding:0;width:100%;max-width:780px;max-height:92vh;overflow:hidden;margin:20px;display:flex;flex-direction:column">
