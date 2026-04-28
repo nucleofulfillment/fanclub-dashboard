@@ -2931,21 +2931,13 @@ body.light body::before { opacity: 0; }
     <main class="main">
 
       <!-- Header -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
-        <div>
-          <h1 style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px">🎯 Projeção de Estoque</h1>
-          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted)">Lista priorizada de produtos que precisam de produção · Calculado por SKU pai</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button id="proj-toggle-config" onclick="projToggleConfig()" class="btn-ghost"
-            style="background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 14px;border-radius:8px;font-family:var(--fmono);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px">
-            ⚙️ Configurações
-          </button>
-        </div>
+      <div style="margin-bottom:16px">
+        <h1 style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px">🎯 Projeção de Estoque</h1>
+        <div style="font-family:var(--fmono);font-size:11px;color:var(--muted)">Lista priorizada de produtos que precisam de produção · Calculado por SKU pai</div>
       </div>
 
       <!-- Configurações (oculto por padrão) -->
-      <div id="proj-config-panel" style="display:none;background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+      <div id="proj-config-panel" style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 16px;margin-bottom:16px">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
           <div style="font-family:var(--fmono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">⚙️ Configurações</div>
           <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2)">Salva automaticamente</div>
@@ -9783,14 +9775,8 @@ function projAplicarConfigNoFormulario() {
 }
 
 function projToggleConfig() {
-  var p = document.getElementById('proj-config-panel');
-  if(!p) return;
-  if(p.style.display === 'none' || !p.style.display) {
-    projAplicarConfigNoFormulario();
-    p.style.display = 'block';
-  } else {
-    p.style.display = 'none';
-  }
+  // Config agora é sempre visível — esta função apenas re-aplica os valores no formulário
+  projAplicarConfigNoFormulario();
 }
 
 function projFiltroStatus(btnEl, status) {
@@ -9842,22 +9828,84 @@ function projCalcularDados() {
     });
   }
 
-  // Ordena meses cronologicamente (mais recente primeiro)
+  // 🆕 Parser robusto: detecta sigla do mês a partir de chaves variadas
+  // ('abr', 'abr26', 'abril', 'abril-26', 'abril 26', 'abril2026', etc.)
+  // Retorna { sigla, ano } ou null se não reconhecer
   var SIGLAS_ORDEM = {jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12};
-  var mesesArr = Array.from(mesesDisponiveis).map(function(mk){
-    var m = mk.match(/^([a-z]+)(\d+)$/);
-    if(!m) return { mk: mk, ord: 0 };
-    var sigla = m[1].substring(0,3);
-    var ano = parseInt(m[2]);
-    if(ano < 100) ano += 2000;
-    var mesNum = SIGLAS_ORDEM[sigla] || 0;
-    return { mk: mk, ord: ano * 100 + mesNum };
-  }).filter(function(o){ return o.ord > 0; });
-  mesesArr.sort(function(a,b){ return b.ord - a.ord; });
+  var NOMES_MES = {
+    janeiro:'jan', fevereiro:'fev', marco:'mar', 'março':'mar', abril:'abr',
+    maio:'mai', junho:'jun', julho:'jul', agosto:'ago', setembro:'set',
+    outubro:'out', novembro:'nov', dezembro:'dez'
+  };
+  function _parseChavemes(chave) {
+    if(!chave) return null;
+    var s = String(chave).toLowerCase().replace(/[\s/_]/g,'-');
+    // Tenta extrair sigla (3 letras) + ano opcional
+    var m = s.match(/^([a-z]+)(?:-?(\d{2,4}))?/);
+    if(!m) return null;
+    var nomeOuSigla = m[1];
+    var anoStr = m[2];
+    var sigla;
+    if(SIGLAS_ORDEM[nomeOuSigla]) {
+      sigla = nomeOuSigla;
+    } else if(NOMES_MES[nomeOuSigla]) {
+      sigla = NOMES_MES[nomeOuSigla];
+    } else if(nomeOuSigla.length >= 3) {
+      // Tenta primeiras 3 letras
+      var tres = nomeOuSigla.substring(0,3);
+      if(SIGLAS_ORDEM[tres]) sigla = tres;
+    }
+    if(!sigla) return null;
+    var ano = parseInt(anoStr || '0');
+    if(ano > 0 && ano < 100) ano += 2000;
+    if(ano === 0) ano = new Date().getFullYear(); // assume ano corrente se não tiver ano
+    return { sigla: sigla, ano: ano };
+  }
 
-  // Separar dois conjuntos de meses (pode haver sobreposição)
-  var mesesVenda = new Set(mesesArr.slice(0, nMesesVenda).map(function(o){ return o.mk; }));
-  var mesesTop   = new Set(mesesArr.slice(0, nMesesTop).map(function(o){ return o.mk; }));
+  // 🆕 Agrupa as chaves por mês real (sigla+ano)
+  // Ex: ['abr26', 'abr', 'abril-26', 'abril'] → todos viram chave única "abr-2026"
+  var grupoPorChaveReal = {}; // { 'abr-2026': ['abr26', 'abr', 'abril-26', 'abril'] }
+  Array.from(mesesDisponiveis).forEach(function(mk){
+    var info = _parseChavemes(mk);
+    if(!info) return;
+    var chaveReal = info.sigla + '-' + info.ano;
+    if(!grupoPorChaveReal[chaveReal]) grupoPorChaveReal[chaveReal] = [];
+    grupoPorChaveReal[chaveReal].push(mk);
+  });
+
+  // Lista única de meses reais, ordenada (mais recente primeiro)
+  var mesesArr = Object.keys(grupoPorChaveReal).map(function(chaveReal){
+    var parts = chaveReal.split('-');
+    var sigla = parts[0];
+    var ano = parseInt(parts[1]);
+    return {
+      chaveReal: chaveReal,
+      sigla: sigla,
+      ano: ano,
+      ord: ano * 100 + (SIGLAS_ORDEM[sigla] || 0),
+      chavesOriginais: grupoPorChaveReal[chaveReal]
+    };
+  }).sort(function(a,b){ return b.ord - a.ord; });
+
+  console.log('[Projeção] Meses reais detectados:', mesesArr.map(function(o){
+    return o.sigla+'/'+(o.ano%100)+' (chaves: '+o.chavesOriginais.join(', ')+')';
+  }));
+
+  // Separar dois conjuntos de meses reais
+  var mesesVendaReais = mesesArr.slice(0, nMesesVenda);
+  var mesesTopReais   = mesesArr.slice(0, nMesesTop);
+
+  // 🆕 Helper: dado um produto e um mês real, retorna a quantidade USANDO O MAIOR valor entre as chaves duplicadas
+  // (já que 'abr26' e 'abril-26' provavelmente têm o mesmo valor, mas pode ter pequenas diferenças)
+  function _qtdNoMesReal(porMes, chavesOriginais) {
+    if(!porMes) return 0;
+    var max = 0;
+    chavesOriginais.forEach(function(mk){
+      var v = porMes[mk] || 0;
+      if(v > max) max = v;
+    });
+    return max;
+  }
 
   // 2) Map estoque por pai (soma todas variações)
   var estoquePorPai = {};
@@ -9885,16 +9933,21 @@ function projCalcularDados() {
       if(!sku) return;
       var pai = (typeof _extrairSkuPai === 'function') ? (_extrairSkuPai(sku) || sku) : sku;
 
-      // 🆕 Calcula soma pra cada período separadamente
+      // 🆕 Calcula soma usando MESES REAIS (não chaves duplicadas).
+      // Antes: somava 'abr26' + 'abr' + 'abril-26' = mesmo mês 3x
+      // Agora: pra cada mês real, pega o MAIOR valor entre as chaves duplicadas (= valor único do mês)
       var qtdVenda = 0, gmvVenda = 0;
       var qtdTop = 0;
 
       if(p.por_mes && Object.keys(p.por_mes).length > 0) {
-        Object.keys(p.por_mes).forEach(function(mk){
-          var qtd = p.por_mes[mk] || 0;
-          var gmv = (p.gmv_por_mes||{})[mk] || 0;
-          if(mesesVenda.has(mk)) { qtdVenda += qtd; gmvVenda += gmv; }
-          if(mesesTop.has(mk))   { qtdTop   += qtd; }
+        // Soma vendas pelos meses reais do período de venda
+        mesesVendaReais.forEach(function(mr){
+          qtdVenda += _qtdNoMesReal(p.por_mes,     mr.chavesOriginais);
+          gmvVenda += _qtdNoMesReal(p.gmv_por_mes, mr.chavesOriginais);
+        });
+        // Soma vendas pelos meses reais do período de top (pode ser diferente)
+        mesesTopReais.forEach(function(mr){
+          qtdTop += _qtdNoMesReal(p.por_mes, mr.chavesOriginais);
         });
       } else {
         // Fallback: produto sem por_mes detalhado, usa total
@@ -10076,8 +10129,9 @@ function projCalcularDados() {
     cfg: cfg,
     nMesesVenda: nMesesVenda,
     nMesesTop: nMesesTop,
-    mesesVenda: Array.from(mesesVenda),
-    mesesTop: Array.from(mesesTop),
+    // 🆕 Retorna meses reais (deduplicados) com formato sigla+ano curto
+    mesesVenda: mesesVendaReais.map(function(o){ return o.sigla + (o.ano%100); }),
+    mesesTop:   mesesTopReais.map(function(o){ return o.sigla + (o.ano%100); }),
     mesesDisponiveis: mesesArr.length
   };
 }
