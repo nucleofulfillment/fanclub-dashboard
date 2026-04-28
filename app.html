@@ -3359,7 +3359,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX4';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX5';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -17918,6 +17918,138 @@ function raioxToggleParams() {
   p.style.display = p.style.display === 'none' ? 'block' : 'none';
 }
 
+/* ─── 📈 BASELINE + LINHAS AUXILIARES ───────────────────
+   Calcula média móvel (baseline), e gera linhas simuladas
+   de Mídia, Estoque e Mercado pra ilustrar o conceito.
+   Tudo derivado do GMV real (escala plausível). */
+
+function raioxCalcularBaseline(dadosDiarios) {
+  var keys = Object.keys(dadosDiarios).sort();
+  var valores = keys.map(function(k){ return dadosDiarios[k].gmv || 0; });
+
+  // Média móvel de 7 dias (suaviza picos)
+  var baseline = valores.map(function(_, i){
+    var ini = Math.max(0, i - 6);
+    var fim = i + 1;
+    var slice = valores.slice(ini, fim);
+    return slice.reduce(function(s,v){ return s+v; }, 0) / slice.length;
+  });
+
+  return baseline;
+}
+
+/* Gera linhas auxiliares fictícias mas plausíveis */
+function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
+  var keys = Object.keys(dadosDiarios).sort();
+  var valores = keys.map(function(k){ return dadosDiarios[k].gmv || 0; });
+  var media = valores.reduce(function(s,v){ return s+v; }, 0) / valores.length;
+
+  // Parâmetros por cenário (afeta intensidade das linhas auxiliares)
+  var params = {
+    'critico': { midiaTrend: -0.45, estoqueTrend: -0.55, mercadoTrend: -0.20 },
+    'saudavel': { midiaTrend: 0.30, estoqueTrend: 0.10, mercadoTrend: 0.25 },
+    'misto':   { midiaTrend: -0.30, estoqueTrend: -0.15, mercadoTrend: 0.18 },
+    'real':    { midiaTrend: -0.20, estoqueTrend: 0.05, mercadoTrend: 0.10 }
+  };
+  var p = params[cenario] || params['misto'];
+
+  // Linha "Impacto Mídia" — começa equilibrada, vai descendo (custo subindo = ROAS caindo)
+  var midia = valores.map(function(v, i){
+    var indice = i / Math.max(1, keys.length - 1);
+    var base = media * 0.85;
+    var trend = base * p.midiaTrend * indice;
+    var seed = (i * 41 + 13) % 100 / 100;
+    var ruido = base * 0.06 * (seed * 2 - 1);
+    return Math.max(0, base + trend + ruido);
+  });
+
+  // Linha "Pressão Estoque" — sobe quando estoque baixa (vira problema)
+  var estoque = valores.map(function(v, i){
+    var indice = i / Math.max(1, keys.length - 1);
+    var base = media * 0.70;
+    // Pressão sobe (= ruim) com tempo se trend negativo
+    var trend = base * Math.abs(p.estoqueTrend) * indice * (p.estoqueTrend < 0 ? 1 : -0.5);
+    var seed = (i * 23 + 7) % 100 / 100;
+    var ruido = base * 0.05 * (seed * 2 - 1);
+    return Math.max(0, base + trend + ruido);
+  });
+
+  // Linha "Tendência Mercado" — oscila com tendência geral
+  var mercado = valores.map(function(v, i){
+    var indice = i / Math.max(1, keys.length - 1);
+    var base = media * 0.95;
+    var trend = base * p.mercadoTrend * indice;
+    var seed = (i * 17 + 3) % 100 / 100;
+    var ruido = base * 0.08 * (seed * 2 - 1);
+    return Math.max(0, base + trend + ruido);
+  });
+
+  return { midia: midia, estoque: estoque, mercado: mercado };
+}
+
+/* Detecta pontos de alerta (outliers) na linha de vendas */
+function raioxDetectarAlertasGrafico(dadosDiarios, baseline) {
+  var keys = Object.keys(dadosDiarios).sort();
+  var alertas = [];
+
+  keys.forEach(function(k, i){
+    var valor = dadosDiarios[k].gmv || 0;
+    var base = baseline[i] || 0;
+    if(base === 0) return;
+
+    var desvio = (valor - base) / base; // -1 a +inf
+    var data = new Date(k + 'T00:00:00');
+    var dataLabel = String(data.getDate()).padStart(2,'0') + '/' + String(data.getMonth()+1).padStart(2,'0');
+
+    if(desvio < -0.30) {
+      alertas.push({
+        index: i,
+        label: keys[i],
+        dataLabel: dataLabel,
+        tipo: 'queda',
+        cor: '#F43F5E',
+        icone: '🔴',
+        valor: valor,
+        baseline: base,
+        desvio: Math.round(desvio * 100),
+        motivo: 'Queda relevante (-'+Math.abs(Math.round(desvio*100))+'% vs baseline)'
+      });
+    } else if(desvio > 0.40) {
+      alertas.push({
+        index: i,
+        label: keys[i],
+        dataLabel: dataLabel,
+        tipo: 'pico',
+        cor: '#FCD34D',
+        icone: '🟡',
+        valor: valor,
+        baseline: base,
+        desvio: Math.round(desvio * 100),
+        motivo: 'Pico atípico (+'+Math.round(desvio*100)+'% vs baseline)'
+      });
+    } else if(i > 1 && Math.abs(valor - valores_array(dadosDiarios)[i-1]) / Math.max(1, valores_array(dadosDiarios)[i-1]) > 0.35) {
+      // Mudança brusca dia-a-dia
+      alertas.push({
+        index: i,
+        label: keys[i],
+        dataLabel: dataLabel,
+        tipo: 'mudanca',
+        cor: '#60A5FA',
+        icone: '🔵',
+        valor: valor,
+        baseline: base,
+        desvio: Math.round(desvio * 100),
+        motivo: 'Mudança de padrão dia-a-dia'
+      });
+    }
+  });
+
+  return alertas;
+}
+function valores_array(dadosDiarios) {
+  return Object.keys(dadosDiarios).sort().map(function(k){ return dadosDiarios[k].gmv || 0; });
+}
+
 /* 🎬 Mini-modal pra escolher cenário demo */
 function raioxAbrirSeletorDemo() {
   var modoAtual = raioxGetModoDemo();
@@ -18322,12 +18454,23 @@ function raioxGerarDiagnosticos(analise) {
     placeholder: true
   });
 
-  // Ordenar: críticos primeiro, depois alertas, atenção, positivo, info
+  // 🆕 Ordenar pela DISTÂNCIA da baseline (severidade + magnitude da queda/desvio).
+  // Críticos vão primeiro; dentro do mesmo nível, ordena pelo % de variação absoluto.
   var ordem = { 'critico': 0, 'alerta': 1, 'atencao': 2, 'positivo': 3, 'info': 4 };
+  function _magnitudeDiag(d) {
+    // Tenta extrair % do diagnóstico pra dar peso à magnitude
+    var m = (d.desc || '').match(/(\d+)%/);
+    var pct = m ? parseInt(m[1], 10) : 0;
+    // Placeholders ficam por último
+    if(d.placeholder) return -1;
+    return pct;
+  }
   diags.sort(function(a,b){
     var oa = ordem[a.severidade] !== undefined ? ordem[a.severidade] : 5;
     var ob = ordem[b.severidade] !== undefined ? ordem[b.severidade] : 5;
-    return oa - ob;
+    if(oa !== ob) return oa - ob;
+    // Mesma severidade: maior magnitude primeiro
+    return _magnitudeDiag(b) - _magnitudeDiag(a);
   });
 
   return diags;
@@ -18385,22 +18528,43 @@ function raioxRender() {
 
   // 📊 GRÁFICO HERO (topo, full-width — mesma estrutura do dashboard principal)
   html +=
-    '<div class="slabel" style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">vendas · últimos 30 dias</div>'+
+    '<div class="slabel" style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">vendas · prioriza tempo atual</div>'+
     '<div class="card fu" style="margin-bottom:14px">'+
       '<div class="ch">'+
         '<div>'+
           '<div class="ct" style="font-size:17px">Evolução de Vendas</div>'+
-          '<div class="cs">GMV diário · consolidado e por canal</div>'+
+          '<div class="cs">Tempo atual · vendas reais vs equilíbrio</div>'+
         '</div>'+
-        '<div style="display:flex;gap:6px">'+
-          '<button onclick="window._raioxModoChart=\'consolidado\';_raioxDesenharChart()" id="raiox-btn-consol" '+
-            'style="padding:5px 12px;background:var(--s2);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">Consolidado</button>'+
-          '<button onclick="window._raioxModoChart=\'canais\';_raioxDesenharChart()" id="raiox-btn-canais" '+
-            'style="padding:5px 12px;background:var(--s2);border:1px solid var(--border);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">Por canal</button>'+
+        '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">'+
+          // Janelas temporais
+          '<div style="display:flex;gap:4px;background:var(--s2);padding:2px;border-radius:7px;border:1px solid var(--border)">'+
+            '<button onclick="raioxSetJanela(\'24h\')" id="raiox-jan-24h" type="button" '+
+              'style="padding:4px 10px;background:transparent;border:1px solid transparent;color:var(--muted);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer">24h</button>'+
+            '<button onclick="raioxSetJanela(\'10d\')" id="raiox-jan-10d" type="button" '+
+              'style="padding:4px 10px;background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">10 dias</button>'+
+            '<button onclick="raioxSetJanela(\'30d\')" id="raiox-jan-30d" type="button" '+
+              'style="padding:4px 10px;background:transparent;border:1px solid transparent;color:var(--muted);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer">30 dias</button>'+
+          '</div>'+
+          // Modo
+          '<div style="display:flex;gap:6px">'+
+            '<button onclick="window._raioxModoChart=\'consolidado\';_raioxDesenharChart()" id="raiox-btn-consol" '+
+              'style="padding:5px 12px;background:var(--s2);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">Consolidado</button>'+
+            '<button onclick="window._raioxModoChart=\'canais\';_raioxDesenharChart()" id="raiox-btn-canais" '+
+              'style="padding:5px 12px;background:var(--s2);border:1px solid var(--border);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">Por canal</button>'+
+          '</div>'+
+          // Toggle linhas auxiliares
+          '<button onclick="raioxToggleLinhasAux()" id="raiox-toggle-aux" type="button" title="Mostrar/ocultar linhas auxiliares (Mídia, Estoque, Mercado)" '+
+            'style="padding:5px 10px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.50);color:#A78BFA;border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">📈 Linhas Aux</button>'+
         '</div>'+
       '</div>'+
-      '<div style="position:relative;height:300px;max-height:300px">'+
+      '<div style="position:relative;height:320px;max-height:320px">'+
         '<canvas id="raiox-chart"></canvas>'+
+      '</div>'+
+      // Disclaimer compacto
+      '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:10px;line-height:1.6;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+        '<span>⚖ <strong style="color:#9CA3AF">Equilíbrio</strong>: média móvel 7d</span> · '+
+        '<span>🔬 <strong style="color:#A78BFA">Linhas auxiliares</strong>: simuladas pra demonstração visual</span> · '+
+        '<span>🔴🟡🔵 <strong>Pontos</strong>: alertas detectados (hover pra detalhes)</span>'+
       '</div>'+
     '</div>';
 
@@ -18565,50 +18729,101 @@ function _raioxDesenharChart(dadosDiarios) {
 
   // Dados em cache se não passou
   if(!dadosDiarios) {
-    var cfg = raioxGetConfig();
     dadosDiarios = raioxVendasPorDia(30);
   }
 
-  var keys = Object.keys(dadosDiarios).sort();
-  var labels = keys.map(function(k){
-    var d = new Date(k+'T00:00:00');
-    return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
-  });
+  // 🪟 Aplicar janela temporal selecionada
+  var janela = window._raioxJanela || '10d'; // '24h' | '10d' | '30d'
+  var keys30 = Object.keys(dadosDiarios).sort();
+  var keys;
+  if(janela === '24h') {
+    keys = keys30.slice(-2); // ontem + hoje (granularidade dia)
+  } else if(janela === '10d') {
+    keys = keys30.slice(-10);
+  } else {
+    keys = keys30;
+  }
+  // Para 24h, vamos simular granularidade horária (24 pontos)
+  // Pega o GMV do último dia e divide em curva horária
+  if(janela === '24h') {
+    var hoje = keys30[keys30.length - 1];
+    var gmvHoje = dadosDiarios[hoje] ? dadosDiarios[hoje].gmv : 0;
+    // Distribuição horária típica de e-commerce (picos 11h, 14h, 20h-22h)
+    var distHoraria = [
+      0.005, 0.003, 0.002, 0.002, 0.003, 0.005, 0.010, 0.020, // 0-7h
+      0.035, 0.055, 0.070, 0.082, 0.075, 0.080, 0.085, 0.075, // 8-15h
+      0.060, 0.055, 0.050, 0.060, 0.075, 0.080, 0.060, 0.030  // 16-23h
+    ];
+    var dadosHorarios = {};
+    var keysHorarias = [];
+    for(var h = 0; h < 24; h++) {
+      var k = 'h' + h;
+      keysHorarias.push(k);
+      var seed = (h * 17 + 11) % 100 / 100;
+      var ruido = 1 + (seed * 2 - 1) * 0.15;
+      dadosHorarios[k] = {
+        gmv: gmvHoje * distHoraria[h] * ruido,
+        pedidos: Math.round(gmvHoje * distHoraria[h] / 165),
+        canais: {}
+      };
+    }
+    keys = keysHorarias;
+    dadosDiarios = dadosHorarios;
+  }
+
+  // Labels
+  var labels;
+  if(janela === '24h') {
+    labels = keys.map(function(k){
+      var h = parseInt(k.replace('h',''), 10);
+      return String(h).padStart(2,'0') + ':00';
+    });
+  } else {
+    labels = keys.map(function(k){
+      var d = new Date(k+'T00:00:00');
+      return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+    });
+  }
 
   var modo = window._raioxModoChart || 'consolidado';
 
-  // Atualiza estilo dos botões
+  // Atualiza estilo dos botões de janela
+  ['raiox-jan-24h','raiox-jan-10d','raiox-jan-30d'].forEach(function(id){
+    var btn = document.getElementById(id);
+    if(!btn) return;
+    var ativo = id === 'raiox-jan-' + janela;
+    btn.style.borderColor = ativo ? 'var(--accent)' : 'var(--border)';
+    btn.style.color = ativo ? 'var(--accent)' : 'var(--muted)';
+    btn.style.fontWeight = ativo ? '600' : '400';
+  });
+
+  // Atualiza estilo dos botões de modo
   try {
     var bC = document.getElementById('raiox-btn-consol');
     var bK = document.getElementById('raiox-btn-canais');
     if(bC && bK) {
-      var ativoStyle = ['var(--accent)','var(--accent)','600'];
-      var inativoStyle = ['var(--border2)','var(--muted)','400'];
-      var c = modo === 'consolidado' ? ativoStyle : inativoStyle;
-      var k = modo === 'canais' ? ativoStyle : inativoStyle;
+      var aS = ['var(--accent)','var(--accent)','600'];
+      var iS = ['var(--border)','var(--muted)','400'];
+      var c = modo === 'consolidado' ? aS : iS;
+      var k = modo === 'canais' ? aS : iS;
       bC.style.borderColor = c[0]; bC.style.color = c[1]; bC.style.fontWeight = c[2];
       bK.style.borderColor = k[0]; bK.style.color = k[1]; bK.style.fontWeight = k[2];
     }
   } catch(e){}
 
-  var datasets;
-  if(modo === 'consolidado') {
-    datasets = [{
-      label: 'GMV total',
-      data: keys.map(function(k){ return Math.round(dadosDiarios[k].gmv); }),
-      borderColor: '#6EE7B7',
-      backgroundColor: 'rgba(110,231,183,.08)',
-      borderWidth: 2,
-      fill: true,
-      tension: 0.3,
-      pointRadius: 2,
-      pointHoverRadius: 5
-    }];
-  } else {
-    // Por canal
+  // ─── Datasets ───
+  var datasets = [];
+  var cenario = raioxGetModoDemo();
+  // Linhas auxiliares ativas? (por padrão ligadas em demo, desligadas em real)
+  var linhasAux = window._raioxLinhasAux === undefined
+    ? (cenario !== 'real')
+    : !!window._raioxLinhasAux;
+
+  if(modo === 'canais') {
+    // ─── MODO POR CANAL ───
     var canaisSet = {};
-    keys.forEach(function(k){ Object.keys(dadosDiarios[k].canais).forEach(function(c){ canaisSet[c]=true; }); });
-    var canaisArr = Object.keys(canaisSet).slice(0, 6); // top 6
+    keys.forEach(function(k){ Object.keys(dadosDiarios[k].canais || {}).forEach(function(c){ canaisSet[c]=true; }); });
+    var canaisArr = Object.keys(canaisSet).slice(0, 6);
     var cores = ['#6EE7B7','#A78BFA','#FCD34D','#60A5FA','#FB923C','#F87171'];
     datasets = canaisArr.map(function(c, i){
       return {
@@ -18618,15 +18833,125 @@ function _raioxDesenharChart(dadosDiarios) {
         backgroundColor: cores[i] + '15',
         borderWidth: 2,
         fill: false,
-        tension: 0.3,
+        tension: 0.35,
         pointRadius: 2,
-        pointHoverRadius: 5
+        pointHoverRadius: 6
       };
     });
+  } else {
+    // ─── MODO CONSOLIDADO ───
+    var dadosVendas = keys.map(function(k){ return Math.round(dadosDiarios[k].gmv || 0); });
+
+    // Linha principal: vendas reais
+    datasets.push({
+      label: '📊 Vendas',
+      data: dadosVendas,
+      borderColor: '#6EE7B7',
+      backgroundColor: 'rgba(110,231,183,.10)',
+      borderWidth: 2.5,
+      fill: true,
+      tension: 0.35,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      order: 1
+    });
+
+    // Linha de equilíbrio (baseline) — média móvel
+    var baseline = raioxCalcularBaseline(dadosDiarios);
+    datasets.push({
+      label: '⚖ Equilíbrio (baseline)',
+      data: baseline.map(function(v){ return Math.round(v); }),
+      borderColor: '#9CA3AF',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      borderDash: [6, 4],
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      order: 5
+    });
+
+    // Linhas auxiliares (semi-transparentes)
+    if(linhasAux) {
+      var aux = raioxGerarLinhasAuxiliares(dadosDiarios, cenario);
+
+      datasets.push({
+        label: '📢 Mídia 🔬',
+        data: aux.midia.map(function(v){ return Math.round(v); }),
+        borderColor: 'rgba(167,139,250,.55)',
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        order: 6
+      });
+      datasets.push({
+        label: '📦 Estoque 🔬',
+        data: aux.estoque.map(function(v){ return Math.round(v); }),
+        borderColor: 'rgba(251,146,60,.55)',
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        order: 7
+      });
+      datasets.push({
+        label: '🌐 Mercado 🔬',
+        data: aux.mercado.map(function(v){ return Math.round(v); }),
+        borderColor: 'rgba(96,165,250,.55)',
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        order: 8
+      });
+    }
+
+    // ─── PONTOS DE ALERTA (em cima da linha principal) ───
+    var alertas = raioxDetectarAlertasGrafico(dadosDiarios, baseline);
+    var alertasPorIdx = {};
+    alertas.forEach(function(a){ alertasPorIdx[a.index] = a; });
+
+    if(alertas.length > 0) {
+      datasets.push({
+        label: '⚠ Alertas',
+        data: keys.map(function(k, i){
+          return alertasPorIdx[i] ? Math.round(dadosDiarios[k].gmv) : null;
+        }),
+        borderColor: 'transparent',
+        backgroundColor: keys.map(function(k, i){
+          return alertasPorIdx[i] ? alertasPorIdx[i].cor : 'transparent';
+        }),
+        pointBackgroundColor: keys.map(function(k, i){
+          return alertasPorIdx[i] ? alertasPorIdx[i].cor : 'transparent';
+        }),
+        pointBorderColor: '#0A0C10',
+        pointBorderWidth: 2,
+        pointRadius: keys.map(function(k, i){
+          return alertasPorIdx[i] ? 7 : 0;
+        }),
+        pointHoverRadius: 9,
+        showLine: false,
+        order: 0,
+        // Guarda alertas pra tooltip usar
+        _alertasMap: alertasPorIdx
+      });
+      // Guarda na window pra tooltip acessar
+      window._raioxAlertasAtuais = alertasPorIdx;
+    } else {
+      window._raioxAlertasAtuais = {};
+    }
   }
 
   if(_raioxChartInstance) {
-    _raioxChartInstance.destroy();
+    try { _raioxChartInstance.destroy(); } catch(e){}
   }
 
   _raioxChartInstance = new Chart(ctx, {
@@ -18635,21 +18960,47 @@ function _raioxDesenharChart(dadosDiarios) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: { duration: 900, easing: 'easeOutQuart' },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
-          display: modo === 'canais',
-          labels: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 } }
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: {
+            color: '#9ca3af',
+            font: { family: 'JetBrains Mono', size: 10 },
+            usePointStyle: true,
+            boxWidth: 8,
+            padding: 12,
+            filter: function(item){
+              // Esconde a legenda do dataset Alertas (é só visual via pontos)
+              return item.text !== '⚠ Alertas';
+            }
+          }
         },
         tooltip: {
-          backgroundColor: 'rgba(10,12,16,.95)',
+          backgroundColor: 'rgba(10,12,16,.96)',
           borderColor: 'rgba(110,231,183,.30)',
           borderWidth: 1,
-          titleFont: { family: 'Syne' },
-          bodyFont: { family: 'JetBrains Mono' },
+          padding: 10,
+          titleFont: { family: 'Syne', size: 12, weight: '700' },
+          bodyFont: { family: 'JetBrains Mono', size: 11 },
           callbacks: {
             label: function(ctx){
-              return ctx.dataset.label+': R$ '+(ctx.parsed.y||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
+              var lbl = ctx.dataset.label || '';
+              if(lbl === '⚠ Alertas') {
+                var alerta = (window._raioxAlertasAtuais || {})[ctx.dataIndex];
+                if(alerta) {
+                  return [
+                    alerta.icone + ' ' + alerta.motivo,
+                    'R$ ' + (alerta.valor||0).toLocaleString('pt-BR',{maximumFractionDigits:0}),
+                    'Esperado: R$ ' + Math.round(alerta.baseline).toLocaleString('pt-BR')
+                  ];
+                }
+                return null;
+              }
+              return lbl + ': R$ ' + (ctx.parsed.y||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
             }
           }
         }
@@ -18657,19 +19008,47 @@ function _raioxDesenharChart(dadosDiarios) {
       scales: {
         x: {
           grid: { color: 'rgba(255,255,255,.04)' },
-          ticks: { color: '#6b7280', font: { family: 'JetBrains Mono', size: 9 }, maxRotation: 0 }
+          ticks: {
+            color: '#6b7280',
+            font: { family: 'JetBrains Mono', size: 9 },
+            maxRotation: 0,
+            autoSkipPadding: 12
+          }
         },
         y: {
           grid: { color: 'rgba(255,255,255,.04)' },
           ticks: {
             color: '#6b7280',
             font: { family: 'JetBrains Mono', size: 9 },
-            callback: function(v){ return 'R$ '+(v/1000).toFixed(0)+'k'; }
+            callback: function(v){
+              if(v >= 1000) return 'R$ '+(v/1000).toFixed(0)+'k';
+              return 'R$ '+v;
+            }
           }
         }
       }
     }
   });
+}
+
+/* Toggle janela temporal */
+function raioxSetJanela(j) {
+  window._raioxJanela = j;
+  _raioxDesenharChart();
+}
+
+/* Toggle linhas auxiliares */
+function raioxToggleLinhasAux() {
+  window._raioxLinhasAux = !window._raioxLinhasAux;
+  // Atualiza botão
+  var btn = document.getElementById('raiox-toggle-aux');
+  if(btn) {
+    var ativo = window._raioxLinhasAux;
+    btn.style.background = ativo ? 'rgba(167,139,250,.15)' : 'var(--s2)';
+    btn.style.borderColor = ativo ? 'rgba(167,139,250,.50)' : 'var(--border)';
+    btn.style.color = ativo ? '#A78BFA' : 'var(--muted)';
+  }
+  _raioxDesenharChart();
 }
 
 function veltroFecharEditarEmpresa() {
