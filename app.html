@@ -3273,10 +3273,16 @@ body.light body::before { opacity: 0; }
           </div>
           <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:6px">Diagnóstico inteligente da operação · Termômetro do negócio</div>
         </div>
-        <button onclick="raioxToggleParams()" id="raiox-btn-params" type="button"
-          style="background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:9px 14px;border-radius:8px;font-family:var(--fmono);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0">
-          ⚙️ <span>Parâmetros</span>
-        </button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button onclick="raioxAbrirSeletorDemo()" id="raiox-btn-demo" type="button"
+            style="background:rgba(252,211,77,.08);border:1px solid rgba(252,211,77,.30);color:#FCD34D;padding:9px 14px;border-radius:8px;font-family:var(--fmono);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0;font-weight:600">
+            🎬 <span>Demo</span>
+          </button>
+          <button onclick="raioxToggleParams()" id="raiox-btn-params" type="button"
+            style="background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:9px 14px;border-radius:8px;font-family:var(--fmono);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0">
+            ⚙️ <span>Parâmetros</span>
+          </button>
+        </div>
       </div>
 
       <!-- Painel de parâmetros (oculto por padrão) -->
@@ -3351,7 +3357,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX2';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX3';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -17714,10 +17720,247 @@ function raioxAplicarConfigForm() {
   try { document.getElementById('raiox-cfg-sens').value = c.sensibilidade; } catch(e){}
 }
 
+/* ─── 🎬 MODO DEMO — dados fictícios realistas pra demonstração ───
+   Permite alternar entre cenários: real, crítico, saudável, misto.
+   Salva em sessionStorage (some ao fechar navegador). */
+
+function raioxGetModoDemo() {
+  try { return sessionStorage.getItem('veltro_raiox_demo') || 'real'; } catch(e) { return 'real'; }
+}
+
+function raioxSetModoDemo(modo) {
+  try {
+    if(modo === 'real') sessionStorage.removeItem('veltro_raiox_demo');
+    else sessionStorage.setItem('veltro_raiox_demo', modo);
+  } catch(e){}
+  raioxRender();
+}
+
+/* Gera dados fictícios mas realistas por cenário.
+   Retorna o mesmo formato de raioxComparaPeriodos() + raioxAnaliseEstoque(). */
+function raioxGerarDadosDemo(cenario) {
+  // Helper: gera dia com leve variação
+  function _hoje(diasAtras) {
+    var d = new Date();
+    d.setHours(0,0,0,0);
+    d.setDate(d.getDate() - diasAtras);
+    return d.toISOString().slice(0, 10);
+  }
+
+  var dadosDiarios = {};
+  var hoje = new Date();
+  hoje.setHours(0,0,0,0);
+
+  // Define parâmetros do cenário
+  var params = {
+    'critico': {
+      gmvBase: 8500,           // GMV diário médio anterior
+      varGeral: -0.32,         // -32% no período recente
+      ruido: 0.18,
+      canais: {
+        'Shopee':         { peso: 0.55, varRecente: -0.40 },
+        'Mercado Livre':  { peso: 0.25, varRecente: -0.18 },
+        'Loja Própria':   { peso: 0.12, varRecente: -0.25 },
+        'Shein':          { peso: 0.08, varRecente: -0.15 }
+      },
+      estoque: { rupturaCount: 14, totalA: 35, criticos: [
+        { sku: 'LN0205-AZ', nome: 'Conjunto Magic Unicorn Verde', cobertura: 2, estoque: 18 },
+        { sku: 'TRX88-AZ', nome: 'Conjunto Boys Brigade Azul', cobertura: 0, estoque: 0 },
+        { sku: 'KKB038-CQ', nome: 'Skateboards Caqui Keki Boys', cobertura: 4, estoque: 32 }
+      ]}
+    },
+    'saudavel': {
+      gmvBase: 9800,
+      varGeral: 0.28,          // +28%
+      ruido: 0.10,
+      canais: {
+        'Shopee':         { peso: 0.45, varRecente: 0.32 },
+        'Mercado Livre':  { peso: 0.30, varRecente: 0.45 },
+        'Loja Própria':   { peso: 0.15, varRecente: 0.18 },
+        'Shein':          { peso: 0.07, varRecente: 0.22 },
+        'TikTok Shop':    { peso: 0.03, varRecente: 0.55 }
+      },
+      estoque: { rupturaCount: 1, totalA: 35, criticos: [
+        { sku: 'LN0699-RS', nome: 'Cherry Rosa Laluna', cobertura: 6, estoque: 45 }
+      ]}
+    },
+    'misto': {
+      gmvBase: 9200,
+      varGeral: 0.30,          // dispara janela 7d com bom delta
+      ruido: 0.10,
+      canais: {
+        'Shopee':         { peso: 0.45, varRecente: -0.55 },  // queda forte
+        'Mercado Livre':  { peso: 0.28, varRecente: 0.65 },   // alta forte
+        'Loja Própria':   { peso: 0.14, varRecente: 0.10 },
+        'Shein':          { peso: 0.08, varRecente: 0.25 },
+        'Dafiti':         { peso: 0.05, varRecente: -0.15 }
+      },
+      estoque: { rupturaCount: 5, totalA: 35, criticos: [
+        { sku: 'LN0205-AZ', nome: 'Conjunto Magic Unicorn Verde', cobertura: 3, estoque: 22 },
+        { sku: 'TRX88-AZ', nome: 'Conjunto Boys Brigade Azul', cobertura: 5, estoque: 48 },
+        { sku: 'KKB038-CQ', nome: 'Skateboards Caqui Keki Boys', cobertura: 6, estoque: 67 }
+      ]}
+    }
+  };
+  var p = params[cenario] || params['misto'];
+
+  // Gera 30 dias (de 29 dias atrás até hoje) com variação realista
+  // Primeira metade = "anterior", segunda metade = "recente" (com variação aplicada)
+  for(var i = 29; i >= 0; i--) {
+    var data = _hoje(i);
+    var d = new Date(data + 'T00:00:00');
+    var diaSemana = d.getDay(); // 0=dom, 6=sáb
+
+    // Boost de fim de semana (sábado mais alto)
+    var boost = 1.0;
+    if(diaSemana === 6) boost = 1.18;       // sábado
+    else if(diaSemana === 0) boost = 1.05;  // domingo
+    else if(diaSemana === 1) boost = 0.92;  // segunda mais fraca
+
+    // Aplicar variação progressiva: dia mais antigo = base, dia recente = base*(1+varGeral)
+    var indiceDia = (29 - i);  // 0..29
+    var fatorPeriodo = 1 + (p.varGeral * (indiceDia / 29));
+
+    // Ruído aleatório (mas determinístico por dia, pra dados estáveis)
+    var seed = (indiceDia * 31 + 17) % 100 / 100;  // 0..1
+    var ruido = 1 + (seed * 2 - 1) * p.ruido;
+
+    var gmvDia = p.gmvBase * boost * fatorPeriodo * ruido;
+
+    dadosDiarios[data] = { gmv: 0, pedidos: 0, canais: {} };
+
+    // Distribui por canal
+    Object.keys(p.canais).forEach(function(canal){
+      var c = p.canais[canal];
+      var fatorCanal = 1 + (c.varRecente * (indiceDia / 29));
+      var gmvCanal = gmvDia * c.peso * fatorCanal;
+      var pedidosCanal = Math.round(gmvCanal / 165); // ticket médio R$ 165
+
+      dadosDiarios[data].canais[canal] = {
+        gmv: Math.round(gmvCanal),
+        pedidos: pedidosCanal
+      };
+      dadosDiarios[data].gmv += Math.round(gmvCanal);
+      dadosDiarios[data].pedidos += pedidosCanal;
+    });
+  }
+
+  // Calcula totais e variações usando o mesmo método de raioxComparaPeriodos
+  var keys = Object.keys(dadosDiarios).sort();
+  var cfg = raioxGetConfig();
+  var meio = keys.length - cfg.dias;
+  var anterior = keys.slice(0, meio);
+  var recente = keys.slice(meio);
+
+  function somaJanela(janela) {
+    var total = { gmv: 0, pedidos: 0, canais: {} };
+    janela.forEach(function(k){
+      var d = dadosDiarios[k];
+      total.gmv += d.gmv;
+      total.pedidos += d.pedidos;
+      Object.keys(d.canais).forEach(function(c){
+        if(!total.canais[c]) total.canais[c] = { gmv: 0, pedidos: 0 };
+        total.canais[c].gmv += d.canais[c].gmv;
+        total.canais[c].pedidos += d.canais[c].pedidos;
+      });
+    });
+    return total;
+  }
+
+  var totA = somaJanela(anterior);
+  var totR = somaJanela(recente);
+
+  function pct(novo, antigo) {
+    if(antigo === 0) return novo > 0 ? 100 : 0;
+    return Math.round(((novo - antigo) / antigo) * 100);
+  }
+
+  var canaisVariacao = [];
+  var todosCanais = {};
+  Object.keys(totA.canais).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(totR.canais).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(todosCanais).forEach(function(c){
+    var ga = (totA.canais[c] || {gmv:0}).gmv;
+    var gr = (totR.canais[c] || {gmv:0}).gmv;
+    canaisVariacao.push({
+      canal: c,
+      gmvAnterior: ga,
+      gmvRecente: gr,
+      variacao: pct(gr, ga)
+    });
+  });
+  canaisVariacao.sort(function(a,b){ return Math.abs(b.variacao) - Math.abs(a.variacao); });
+
+  return {
+    vendas: {
+      diasJanela: cfg.dias,
+      totalAnterior: totA,
+      totalRecente: totR,
+      varGmv: pct(totR.gmv, totA.gmv),
+      varPedidos: pct(totR.pedidos, totA.pedidos),
+      canais: canaisVariacao,
+      dadosDiarios: dadosDiarios
+    },
+    estoque: {
+      skusRuptura: p.estoque.rupturaCount,
+      totalSkusA: p.estoque.totalA,
+      percRuptura: Math.round((p.estoque.rupturaCount / p.estoque.totalA) * 100),
+      criticos: p.estoque.criticos
+    }
+  };
+}
+
 function raioxToggleParams() {
   var p = document.getElementById('raiox-params-panel');
   if(!p) return;
   p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+/* 🎬 Mini-modal pra escolher cenário demo */
+function raioxAbrirSeletorDemo() {
+  var modoAtual = raioxGetModoDemo();
+  var existing = document.getElementById('raiox-demo-modal');
+  if(existing) existing.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'raiox-demo-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.onclick = function(e){ if(e.target === modal) modal.remove(); };
+
+  var opt = function(id, icone, label, desc, cor) {
+    var ativo = modoAtual === id;
+    return '<button onclick="raioxSetModoDemo(\''+id+'\');document.getElementById(\'raiox-demo-modal\').remove()" type="button" '+
+      'style="text-align:left;background:'+(ativo?cor+'18':'var(--s2)')+';border:1px solid '+(ativo?cor:'var(--border2)')+';border-radius:10px;padding:14px;cursor:pointer;width:100%;display:flex;align-items:center;gap:14px;transition:all .2s">'+
+        '<div style="font-size:28px;flex-shrink:0">'+icone+'</div>'+
+        '<div style="flex:1">'+
+          '<div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:'+(ativo?cor:'var(--text)')+';margin-bottom:3px">'+escapeHtml(label)+(ativo?' ✓':'')+'</div>'+
+          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);line-height:1.5">'+escapeHtml(desc)+'</div>'+
+        '</div>'+
+      '</button>';
+  };
+
+  modal.innerHTML =
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'+
+        '<div>'+
+          '<div style="font-family:var(--fhead);font-size:16px;font-weight:700;color:var(--text)">🎬 Modo Demo</div>'+
+          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">Escolha um cenário pra demonstrar visualmente</div>'+
+        '</div>'+
+        '<button onclick="document.getElementById(\'raiox-demo-modal\').remove()" type="button" '+
+          'style="background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--muted);width:32px;height:32px;cursor:pointer;font-size:14px">✕</button>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:10px">'+
+        opt('real',     '📊', 'Dados Reais',         'Operação atual da empresa (sem simulação)', '#6EE7B7') +
+        opt('misto',    '🎯', 'Cenário Misto',       'Operação real: alguns alertas + alguns positivos', '#FCD34D') +
+        opt('saudavel', '✅', 'Cenário Saudável',    'Tudo crescendo, operação em alta', '#10B981') +
+        opt('critico',  '🚨', 'Cenário Crítico',     'Vendas caindo, ruptura, mídia mal — todos os alarmes', '#F43F5E') +
+      '</div>'+
+      '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.6">'+
+        '💡 O cenário escolhido fica salvo só nesta sessão (some ao fechar o navegador). Use pra demonstrar pra clientes potenciais como o Raio X funciona em diferentes situações.'+
+      '</div>'+
+    '</div>';
+
+  document.body.appendChild(modal);
 }
 
 /* Mostra/esconde a aba na sidebar dependendo de ser admin master */
@@ -18103,17 +18346,40 @@ function raioxRender() {
   raioxAplicarConfigForm();
   var cfg = raioxGetConfig();
 
-  // Gera análise
-  var analise = {
-    vendas: raioxComparaPeriodos(cfg.dias),
-    estoque: raioxAnaliseEstoque()
-  };
+  // 🎬 Modo demo: gera dados fictícios se ativo
+  var modoDemo = raioxGetModoDemo();
+  var analise;
+  if(modoDemo !== 'real') {
+    analise = raioxGerarDadosDemo(modoDemo);
+  } else {
+    analise = {
+      vendas: raioxComparaPeriodos(cfg.dias),
+      estoque: raioxAnaliseEstoque()
+    };
+  }
+
   var term = raioxCalcularTermometro(analise);
   var diags = raioxGerarDiagnosticos(analise);
 
   // ─── HTML ──
 
   var html = '';
+
+  // 🎬 Faixa de modo demo ativo
+  if(modoDemo !== 'real') {
+    var labelDemo = { 'misto': 'Misto', 'critico': 'Crítico', 'saudavel': 'Saudável' }[modoDemo] || modoDemo;
+    html +=
+      '<div style="background:linear-gradient(90deg,rgba(252,211,77,.10),rgba(252,211,77,.04));border:1px solid rgba(252,211,77,.30);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<span style="font-size:18px">🎬</span>'+
+          '<div>'+
+            '<div style="font-family:var(--fhead);font-size:12px;font-weight:600;color:#FCD34D">Modo Demo · Cenário '+labelDemo+'</div>'+
+            '<div style="font-family:var(--fmono);font-size:10px;color:rgba(252,211,77,.7);margin-top:2px">Dados fictícios pra demonstração visual da interface</div>'+
+          '</div>'+
+        '</div>'+
+        '<button onclick="raioxSetModoDemo(\'real\')" type="button" style="background:transparent;border:1px solid rgba(252,211,77,.40);color:#FCD34D;padding:6px 12px;border-radius:6px;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer">↩️ Voltar pro real</button>'+
+      '</div>';
+  }
 
   // 🌡️ TERMÔMETRO PRINCIPAL
   html +=
