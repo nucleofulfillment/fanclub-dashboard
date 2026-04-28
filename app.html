@@ -6340,89 +6340,51 @@ async function _tentarCSV(urlBase) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   🆕 Brute-force: detecta abas mensais quando o feed worksheets falha
-   Estratégia: tenta carregar variações de nomes mensais conhecidas.
-   Cada tentativa que retorna conteúdo válido = aba existe.
+   🆕 Detecta abas REAIS extraindo do HTML da planilha (não bruteforce)
+   Funciona sem publicação na web — só precisa de link compartilhado.
+   Retorna lista de {nome, gid} pra carregamento por gid (não por nome).
    ═══════════════════════════════════════════════════════════ */
-async function _bruteForceDetectarAbasMensais(urlBase) {
-  var anoAtual = new Date().getFullYear();
-  var anosTentar = [anoAtual, anoAtual - 1]; // ano corrente + anterior
-  var meses = ['Janeiro','Fevereiro','Março','Marco','Abril','Maio','Junho',
-               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+async function _detectarAbasViaHTML(sheetId) {
+  // Tenta a versão "/edit" do Google Sheets — retorna HTML com info das abas
+  // mesmo sem estar publicado, desde que seja link compartilhado
+  var urls = [
+    'https://docs.google.com/spreadsheets/d/' + sheetId + '/edit',
+    'https://docs.google.com/spreadsheets/d/' + sheetId + '/htmlview'
+  ];
 
-  // URL base sem &sheet= e sem &gid=
-  var base = urlBase.split('&sheet=')[0].split('&gid=')[0];
+  for(var i = 0; i < urls.length; i++) {
+    try {
+      var res = await fetch(urls[i]);
+      if(!res.ok) continue;
+      var html = await res.text();
 
-  // Gera lista de nomes candidatos
-  var candidatos = [];
-  anosTentar.forEach(function(ano){
-    var yy = String(ano).slice(-2);
-    var yyyy = String(ano);
-    meses.forEach(function(mes){
-      var mesLow = mes.toLowerCase();
-      // Variações comuns de nomenclatura
-      candidatos.push(mes + '-' + yy);          // Janeiro-26
-      candidatos.push(mes + ' ' + yy);          // Janeiro 26
-      candidatos.push(mes + '-' + yyyy);        // Janeiro-2026
-      candidatos.push(mesLow + '-' + yy);       // janeiro-26
-      candidatos.push(mes.substring(0,3) + '-' + yy);    // Jan-26
-      candidatos.push(mes.substring(0,3).toLowerCase() + '-' + yy); // jan-26
-    });
-  });
+      // Estratégia 1: padrão "sheetId":NUMERO,"title":"NOME"
+      var pattern1 = /"sheetId":(\d+),"title":"([^"]+)"/g;
+      var abas = [];
+      var match;
+      while((match = pattern1.exec(html)) !== null) {
+        abas.push({ gid: match[1], nome: match[2] });
+      }
+      if(abas.length > 0) {
+        console.log('[Pedidos] ✅ Detectou abas via HTML edit (' + abas.length + ' abas)');
+        return abas;
+      }
 
-  // Testa cada candidato em paralelo via CSV (mais leve que JSON)
-  // Usa endpoint gviz que aceita &sheet= mesmo sem publicação na web
-  var checkUrl = base + '&tqx=out:csv';
-  console.log('[Pedidos] Brute-force testando '+candidatos.length+' nomes possíveis (paralelo)...');
-
-  var promessas = candidatos.map(function(nome){
-    var url = checkUrl + '&sheet=' + encodeURIComponent(nome);
-    // HEAD-like: pegamos só os primeiros bytes pra confirmar que tem conteúdo
-    return fetch(url, { method: 'GET' })
-      .then(function(r){
-        if(!r.ok) return null;
-        return r.text().then(function(t){
-          // CSV válido tem pelo menos algumas centenas de chars (header + 1 linha)
-          // Erro vem como HTML curto ou JSON pequeno
-          if(t && t.length > 200 && !t.toLowerCase().includes('<html')) {
-            return nome;
-          }
-          return null;
-        });
-      })
-      .catch(function(){ return null; });
-  });
-
-  var resultados = await Promise.all(promessas);
-  var validos = resultados.filter(Boolean);
-
-  // De-duplica (por sigla+ano normalizado)
-  // Ex: 'Janeiro-26' e 'Jan-26' apontam pro mesmo mês
-  var SIGLAS = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
-  var NOMES = {janeiro:'jan',fevereiro:'fev','março':'mar',marco:'mar',abril:'abr',
-               maio:'mai',junho:'jun',julho:'jul',agosto:'ago',setembro:'set',
-               outubro:'out',novembro:'nov',dezembro:'dez'};
-  var jaVisto = {};
-  var deduplicados = [];
-  validos.forEach(function(nome){
-    var s = String(nome).toLowerCase().replace(/[\s\/_]/g,'-');
-    var m = s.match(/^([a-z]+)(?:-?(\d{2,4}))?/);
-    if(!m) return;
-    var p = m[1];
-    var sigla = SIGLAS[p] ? p : NOMES[p] ? NOMES[p] : (p.length>=3 && SIGLAS[p.substring(0,3)] ? p.substring(0,3) : null);
-    if(!sigla) return;
-    var ano = parseInt(m[2]||'0');
-    if(ano > 0 && ano < 100) ano += 2000;
-    if(ano === 0) ano = new Date().getFullYear();
-    var chave = sigla + '-' + ano;
-    if(!jaVisto[chave]) {
-      jaVisto[chave] = true;
-      deduplicados.push(nome); // mantém o nome original (pra usar como aba na hora de carregar)
+      // Estratégia 2: padrão alternativo "items":[...]
+      var pattern2 = /\{"id":"(\d+)","title":"([^"]+)"/g;
+      while((match = pattern2.exec(html)) !== null) {
+        abas.push({ gid: match[1], nome: match[2] });
+      }
+      if(abas.length > 0) {
+        console.log('[Pedidos] ✅ Detectou abas via HTML alternativo (' + abas.length + ' abas)');
+        return abas;
+      }
+    } catch(e) {
+      console.warn('[Pedidos] Erro ao fetch HTML:', e.message);
     }
-  });
+  }
 
-  console.log('[Pedidos] Brute-force encontrou '+validos.length+' nomes válidos, '+deduplicados.length+' meses únicos');
-  return deduplicados;
+  return null;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -6432,6 +6394,13 @@ async function _bruteForceDetectarAbasMensais(urlBase) {
    Se não encontrar → fallback pra loadGS tradicional (1 aba só).
    ═══════════════════════════════════════════════════════════ */
 async function loadGSMultiAba(url) {
+  // 🛡️ Trava de segurança: cliente pode desligar multi-aba via console
+  // (localStorage.setItem('veltro_disable_multiaba', '1') depois reload)
+  if(localStorage.getItem('veltro_disable_multiaba') === '1') {
+    console.log('[Pedidos] Multi-aba desabilitado (veltro_disable_multiaba=1) — usando carregamento tradicional');
+    return await loadGS(url);
+  }
+
   // Extrai o sheetId da URL
   var sheetId = null;
   try {
@@ -6445,32 +6414,22 @@ async function loadGSMultiAba(url) {
     return await loadGS(url);
   }
 
-  // Tenta descobrir abas
-  var abas = null;
+  // 🆕 ESTRATÉGIA NOVA: extrai abas REAIS do HTML (com gid + nome)
+  // Carregar por GID é à prova de erros — Google não tem como retornar aba errada
+  var abasReais = null;
   try {
-    abas = await _descobrirAbas(sheetId);
+    abasReais = await _detectarAbasViaHTML(sheetId);
   } catch(e) {
-    console.warn('[Pedidos] Falha ao descobrir abas:', e);
+    console.warn('[Pedidos] Falha ao detectar abas via HTML:', e);
   }
 
-  // 🆕 FALLBACK BRUTE-FORCE: se feed não funcionou, tenta nomes mensais conhecidos direto
-  // Funciona quando planilha não está "publicada na web" mas tem link público de visualização
-  if(!abas || abas.length === 0) {
-    console.log('[Pedidos] Feed falhou — tentando detectar abas mensais por brute-force...');
-    abas = await _bruteForceDetectarAbasMensais(url);
-    if(abas && abas.length > 0) {
-      console.log('[Pedidos] ✅ Brute-force encontrou:', abas);
-    }
-  }
-
-  // Não conseguiu listar nem por brute-force → fallback tradicional
-  if(!abas || abas.length === 0) {
+  // Não conseguiu listar → fallback tradicional
+  if(!abasReais || abasReais.length === 0) {
     console.log('[Pedidos] Nenhuma aba detectada, usando carregamento tradicional');
     return await loadGS(url);
   }
 
-  // Filtra abas mensais (mesma regra do _parseChavemes da Projeção)
-  // Padrões aceitos: Janeiro-26, janeiro 26, jan-26, jan26, abril-2026, etc.
+  // Filtra abas mensais
   var SIGLAS_MES = {jan:1, fev:2, mar:3, abr:4, mai:5, jun:6, jul:7, ago:8, set:9, out:10, nov:11, dez:12};
   var NOMES_MES = {
     janeiro:'jan', fevereiro:'fev', marco:'mar', 'março':'mar', abril:'abr',
@@ -6496,12 +6455,26 @@ async function loadGSMultiAba(url) {
     return { sigla: sigla, ano: ano, mesNum: SIGLAS_MES[sigla], ord: ano * 100 + SIGLAS_MES[sigla] };
   }
 
-  var abasMensais = abas
-    .map(function(nome){
-      var info = _detectarMesAba(nome);
-      return info ? { nome: nome, info: info } : null;
+  // Pra cada aba real, verifica se é mensal e guarda gid+nome+info
+  var abasMensais = abasReais
+    .map(function(aba){
+      var info = _detectarMesAba(aba.nome);
+      return info ? { nome: aba.nome, gid: aba.gid, info: info } : null;
     })
     .filter(Boolean);
+
+  // 🆕 De-duplica abas mensais (caso planilha tenha 'Janeiro-26' e 'Jan-26' apontando pro mesmo mês)
+  // Usa o GID pra preservar abas distintas
+  var jaVisto = {};
+  abasMensais = abasMensais.filter(function(a){
+    var chave = a.info.sigla + '-' + a.info.ano;
+    if(jaVisto[chave]) {
+      console.log('[Pedidos] ⚠️ Aba duplicada ignorada: "'+a.nome+'" (já tem '+chave+')');
+      return false;
+    }
+    jaVisto[chave] = a.gid;
+    return true;
+  });
 
   // Menos de 2 abas mensais → planilha "antiga" (1 aba só)
   if(abasMensais.length < 2) {
@@ -6513,19 +6486,19 @@ async function loadGSMultiAba(url) {
   abasMensais.sort(function(a,b){ return a.info.ord - b.info.ord; });
 
   console.log('[Pedidos] 🗓️ '+abasMensais.length+' abas mensais detectadas:',
-    abasMensais.map(function(a){ return a.nome+' ('+a.info.sigla+'/'+(a.info.ano%100)+')'; }));
+    abasMensais.map(function(a){ return a.nome+' (gid='+a.gid+')'; }));
 
-  // URL base (com gid removido)
+  // URL base (sem &sheet= e sem &gid=)
   var urlBase = url.split('&sheet=')[0].split('&gid=')[0];
 
-  // Carrega cada aba em paralelo
+  // 🆕 Carrega cada aba POR GID (não por nome) — à prova do bug do Google
   var promessas = abasMensais.map(function(aba){
-    var urlAba = urlBase + '&sheet=' + encodeURIComponent(aba.nome) + '&nocache=' + Date.now();
+    var urlAba = urlBase + '&gid=' + encodeURIComponent(aba.gid) + '&nocache=' + Date.now();
     return loadGS(urlAba)
-      .then(function(rows){ return { aba: aba.nome, rows: rows, ok: true }; })
+      .then(function(rows){ return { aba: aba.nome, gid: aba.gid, rows: rows, ok: true }; })
       .catch(function(e){
-        console.warn('[Pedidos] ❌ Falha ao carregar "'+aba.nome+'":', e.message || e);
-        return { aba: aba.nome, rows: [], ok: false, erro: e };
+        console.warn('[Pedidos] ❌ Falha ao carregar "'+aba.nome+'" (gid='+aba.gid+'):', e.message || e);
+        return { aba: aba.nome, gid: aba.gid, rows: [], ok: false, erro: e };
       });
   });
 
@@ -6572,7 +6545,7 @@ async function loadGSMultiAba(url) {
   // Guarda diagnóstico
   window._veltroUltimoCarregamento = {
     fonte: 'multi-aba',
-    abas: abasMensais.map(function(a){ return a.nome; }),
+    abas: abasMensais.map(function(a){ return a.nome+' (gid='+a.gid+')'; }),
     abasOk: totalSucesso,
     abasFalha: totalFalha,
     linhas: todasLinhas.length,
