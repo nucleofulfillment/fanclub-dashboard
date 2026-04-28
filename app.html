@@ -2943,6 +2943,9 @@ body.light body::before { opacity: 0; }
         </button>
       </div>
 
+      <!-- 🆕 Banner de entregas detectadas (auto-detect) -->
+      <div id="proj-banner-entregas" style="display:none;background:rgba(252,211,77,.06);border:1px solid rgba(252,211,77,.30);border-radius:10px;margin-bottom:14px;overflow:hidden"></div>
+
       <!-- Configurações (oculto por padrão) -->
       <div id="proj-config-panel" style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 16px;margin-bottom:16px">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
@@ -3258,7 +3261,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.0750';
+var VELTRO_BUILD_VERSION = '2026.04.28.0900';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -10485,6 +10488,11 @@ function projRender() {
 
   // 🆕 Atualiza badge de ordens em produção no header
   if(typeof veltroOrdensAtualizarBadge === 'function') veltroOrdensAtualizarBadge();
+
+  // 🆕 Detecta e renderiza banner de entregas
+  if(typeof veltroOrdemRenderBannerEntregas === 'function') {
+    setTimeout(function(){ veltroOrdemRenderBannerEntregas(); }, 50);
+  }
 }
 
 /* ─ Render KPIs ─ */
@@ -15737,6 +15745,9 @@ function veltroRenderListaEmpresas() {
   // 🆕 Atualizar resumo de status
   veltroAtualizarResumoAdmin();
 
+  // 🧪 Atualizar select da área de testes (se DOM existir)
+  try { if(typeof veltroPopularSelectTesteEmpresas === 'function') veltroPopularSelectTesteEmpresas(); } catch(e){}
+
   var el = document.getElementById('admin-lista-empresas');
   if(!el) return;
   var usuarios = veltroGetUsuarios();
@@ -16179,6 +16190,11 @@ function veltroAbrirEditarEmpresa(empId) {
     }
   } catch(e){}
   try { document.getElementById('edit-loja-url').value = veltroGetLojaUrl(empId); } catch(e){}
+  try {
+    // 🆕 Carrega tolerância de auto-detect
+    var tolEl = document.getElementById('edit-ordem-tolerancia');
+    if(tolEl) tolEl.value = veltroOrdemGetTolerancia(empId);
+  } catch(e){}
   try { document.getElementById('edit-erro').textContent = ''; } catch(e){}
 
   // Renderiza grid de canais com os ativos atuais marcados
@@ -16505,6 +16521,47 @@ function veltroForncSalvar() {
 
 var VELTRO_ORDENS_KEY = 'veltro_ordens_';
 var VELTRO_ORDEM_SEQ_KEY = 'veltro_ordem_seq';
+var VELTRO_ORDEM_CFG_KEY = 'veltro_ordem_cfg_';
+var VELTRO_ORDEM_IGNORADAS_KEY = 'veltro_ordem_ignoradas_'; // sessão
+
+/* Tolerância pra auto-detect (default 70%) */
+function veltroOrdemGetTolerancia(empresaId) {
+  if(!empresaId) return 70;
+  try {
+    var raw = localStorage.getItem(VELTRO_ORDEM_CFG_KEY + empresaId);
+    if(!raw) return 70;
+    var cfg = JSON.parse(raw);
+    var t = parseInt(cfg.tolerancia, 10);
+    if(isNaN(t) || t < 10 || t > 100) return 70;
+    return t;
+  } catch(e) { return 70; }
+}
+
+function veltroOrdemSetTolerancia(empresaId, tolerancia) {
+  if(!empresaId) return false;
+  try {
+    var t = parseInt(tolerancia, 10);
+    if(isNaN(t) || t < 10) t = 70;
+    if(t > 100) t = 100;
+    localStorage.setItem(VELTRO_ORDEM_CFG_KEY + empresaId, JSON.stringify({ tolerancia: t }));
+    return true;
+  } catch(e) { return false; }
+}
+
+/* Lista de IDs de ordens "ignoradas por agora" (volátil, por sessão) */
+function veltroOrdemGetIgnoradas() {
+  try {
+    if(!window._veltroOrdemIgnoradas) window._veltroOrdemIgnoradas = [];
+    return window._veltroOrdemIgnoradas;
+  } catch(e) { return []; }
+}
+function veltroOrdemAddIgnorada(ordemId) {
+  try {
+    var arr = veltroOrdemGetIgnoradas();
+    if(arr.indexOf(ordemId) === -1) arr.push(ordemId);
+    window._veltroOrdemIgnoradas = arr;
+  } catch(e){}
+}
 
 function veltroOrdensGetAll(empresaId) {
   if(!empresaId) return [];
@@ -17186,6 +17243,168 @@ function veltroOrdemRemover(ordemId) {
   }
 }
 
+/* ─ 🆕 AUTO-DETECT ENTREGUE — verifica e renderiza banner ─ */
+
+/* Compara estoque inicial (snapshot na criação) com estoque ATUAL (do estoque.js já carregado).
+   Retorna lista de ordens "em-producao" que parecem entregues conforme % de tolerância. */
+function veltroOrdemDetectarEntregas() {
+  try {
+    var empId = veltroOrdemGetEmpresaIdAtual();
+    if(!empId) return [];
+    var tolerancia = veltroOrdemGetTolerancia(empId); // %
+    var ordens = veltroOrdensGetAll(empId).filter(function(o){
+      return o.status === 'em-producao' && o.estoqueInicialPorSku;
+    });
+    if(ordens.length === 0) return [];
+
+    // Pega estoque atual do dataset Veltro (já carregado em memória)
+    // Usa o map de estoque atual: tenta varias fontes em ordem
+    var estoqueMap = {};
+    try {
+      // Fonte preferida: window._veltroEstoqueAtual ou window.estoqueData
+      if(window._veltroEstoqueAtual && typeof window._veltroEstoqueAtual === 'object') {
+        estoqueMap = window._veltroEstoqueAtual;
+      } else if(window.estoqueData && typeof window.estoqueData === 'object') {
+        // Pode ser map sku→qtd ou array
+        if(Array.isArray(window.estoqueData)) {
+          window.estoqueData.forEach(function(it){ if(it && it.sku) estoqueMap[it.sku] = it.estoque || 0; });
+        } else {
+          estoqueMap = window.estoqueData;
+        }
+      } else if(typeof projCalcularDados === 'function') {
+        // Última opção: extrai do cálculo da projeção
+        var dados = projCalcularDados();
+        (dados.itens || []).forEach(function(it){
+          (it.variacoes||[]).forEach(function(v){
+            if(v.sku) estoqueMap[v.sku] = v.estoque || 0;
+          });
+        });
+      }
+    } catch(e) {
+      console.warn('[Auto-detect] Erro ao montar mapa de estoque:', e);
+    }
+
+    var ignoradas = veltroOrdemGetIgnoradas();
+    var resultado = [];
+
+    ordens.forEach(function(o){
+      if(ignoradas.indexOf(o.id) !== -1) return;
+
+      var pedido = o.qtdTotal || 0;
+      if(pedido === 0) return;
+
+      // Soma quanto chegou (atual - inicial), por SKU da ordem, descartando negativos
+      var chegou = 0;
+      (o.variacoes || []).forEach(function(v){
+        var inicial = (o.estoqueInicialPorSku && o.estoqueInicialPorSku[v.sku]) || 0;
+        var atual = estoqueMap[v.sku];
+        if(typeof atual !== 'number') return; // SKU não encontrado no estoque atual
+        var delta = atual - inicial;
+        if(delta > 0) chegou += delta;
+      });
+
+      var perc = Math.round((chegou / pedido) * 100);
+      if(perc >= tolerancia) {
+        resultado.push({
+          ordem: o,
+          chegou: chegou,
+          pedido: pedido,
+          perc: perc
+        });
+      }
+    });
+
+    // Ordena por % decrescente (mais "entregue" primeiro)
+    resultado.sort(function(a,b){ return b.perc - a.perc; });
+    return resultado;
+  } catch(e) {
+    console.warn('[Auto-detect] Erro:', e);
+    return [];
+  }
+}
+
+/* Renderiza o banner de entregas detectadas no topo da Projeção */
+function veltroOrdemRenderBannerEntregas() {
+  var detectadas = veltroOrdemDetectarEntregas();
+  var container = document.getElementById('proj-banner-entregas');
+  if(!container) return;
+
+  if(detectadas.length === 0) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  container.style.display = 'block';
+  // Estado: aberto (todas visíveis) ou só header
+  var aberto = !!window._veltroBannerEntregasAberto;
+
+  var headerHtml =
+    '<div onclick="veltroBannerEntregasToggle()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 14px">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">'+
+        '<div style="font-size:18px">📦</div>'+
+        '<div style="min-width:0">'+
+          '<div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:#FCD34D">'+
+            detectadas.length + (detectadas.length === 1 ? ' entrega detectada' : ' entregas detectadas') + ' · pronta(s) pra confirmar'+
+          '</div>'+
+          '<div style="font-family:var(--fmono);font-size:10px;color:rgba(252,211,77,.7);margin-top:2px">Estoque desses produtos aumentou conforme as ordens. Confirme se chegaram.</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-family:var(--fmono);font-size:11px;color:#FCD34D;flex-shrink:0">'+(aberto ? '▼' : '▶')+'</div>'+
+    '</div>';
+
+  var listaHtml = '';
+  if(aberto) {
+    listaHtml = '<div style="border-top:1px solid rgba(252,211,77,.20)">';
+    detectadas.forEach(function(d){
+      var o = d.ordem;
+      listaHtml +=
+        '<div style="padding:10px 14px;border-bottom:1px solid rgba(252,211,77,.10)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">'+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+                '<span style="font-family:var(--fmono);font-size:12px;font-weight:600;color:var(--accent)">'+escapeHtml(o.numero)+'</span>'+
+                '<span style="font-family:var(--fmono);font-size:10px;background:rgba(252,211,77,.15);color:#FCD34D;padding:2px 7px;border-radius:8px;font-weight:600">'+d.perc+'%</span>'+
+              '</div>'+
+              '<div style="font-family:var(--fhead);font-size:12px;color:var(--text);margin-top:3px;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(o.nome||o.skuPai)+'</div>'+
+              '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">'+
+                'Pedido: '+(o.qtdTotal||0).toLocaleString('pt-BR')+' un. · Chegou: ~'+d.chegou.toLocaleString('pt-BR')+' un.'+
+                ' · 🏭 '+escapeHtml(o.fornecedorNome||'?')+
+              '</div>'+
+            '</div>'+
+          '</div>'+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+            '<button onclick="veltroOrdemConfirmarEntregaBanner(\''+o.id+'\')" type="button" '+
+              'style="background:#10B981;border:none;color:#0A0C10;padding:6px 12px;border-radius:6px;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer">✅ Confirmar entrega</button>'+
+            '<button onclick="veltroOrdemIgnorarBanner(\''+o.id+'\')" type="button" '+
+              'style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:6px 12px;border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">⏭️ Ignorar por agora</button>'+
+            '<button onclick="veltroOrdemView(\''+o.id+'\')" type="button" '+
+              'style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:6px 12px;border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;margin-left:auto">👁️ Ver ordem</button>'+
+          '</div>'+
+        '</div>';
+    });
+    listaHtml += '</div>';
+  }
+
+  container.innerHTML = headerHtml + listaHtml;
+}
+
+function veltroBannerEntregasToggle() {
+  window._veltroBannerEntregasAberto = !window._veltroBannerEntregasAberto;
+  veltroOrdemRenderBannerEntregas();
+}
+
+function veltroOrdemConfirmarEntregaBanner(ordemId) {
+  veltroOrdemMudarStatus(ordemId, 'entregue');
+  // Re-render
+  veltroOrdemRenderBannerEntregas();
+}
+
+function veltroOrdemIgnorarBanner(ordemId) {
+  veltroOrdemAddIgnorada(ordemId);
+  veltroOrdemRenderBannerEntregas();
+}
+
 /* Atualiza badge no botão "Ordens" do header da Projeção */
 function veltroOrdensAtualizarBadge() {
   try {
@@ -17203,6 +17422,122 @@ function veltroOrdensAtualizarBadge() {
       }
     }
   } catch(e){}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   🧪 ÁREA DE TESTES — só admin, pra simular fluxo de cliente novo
+   ═══════════════════════════════════════════════════════════ */
+
+function veltroPopularSelectTesteEmpresas() {
+  try {
+    var sel = document.getElementById('admin-teste-empresa-select');
+    if(!sel) return;
+    var users = veltroGetUsuarios() || [];
+    sel.innerHTML = '<option value="">— Escolha uma empresa —</option>' +
+      users.map(function(u){
+        return '<option value="'+escapeHtml(u.id)+'">'+escapeHtml(u.nome || u.id)+' ('+escapeHtml(u.id)+')</option>';
+      }).join('');
+  } catch(e) {}
+}
+
+function veltroResetarEmpresaTeste() {
+  if(!_veltroAdminAutenticado) return;
+  var sel = document.getElementById('admin-teste-empresa-select');
+  if(!sel || !sel.value) {
+    alert('Escolha uma empresa primeiro');
+    return;
+  }
+  var empresaId = sel.value;
+  var users = veltroGetUsuarios();
+  var emp = users.find(function(u){ return u.id === empresaId; });
+  if(!emp) { alert('Empresa não encontrada'); return; }
+
+  if(!confirm(
+    'Resetar "'+(emp.nome || empresaId)+'" neste navegador?\n\n' +
+    'O que acontece:\n' +
+    '✅ Empresa removida deste navegador\n' +
+    '✅ Senha hash apagada local\n' +
+    '✅ Sessão removida\n' +
+    '⚠️ Configurações de fornecedores e ordens dessa empresa também serão apagadas neste navegador\n\n' +
+    'Outros dispositivos (e seu PC do trabalho) NÃO são afetados.\n' +
+    'Próximo acesso pelo link de convite com #k=... mostrará a tela "Crie sua senha".'
+  )) return;
+
+  try {
+    // Remove empresa do array
+    var novos = users.filter(function(u){ return u.id !== empresaId; });
+    veltroSaveUsuarios(novos);
+
+    // Remove sessão se for a empresa atual
+    var sessao = localStorage.getItem(VELTRO_SESSAO_KEY);
+    if(sessao === empresaId) localStorage.removeItem(VELTRO_SESSAO_KEY);
+
+    // Remove sessão de senha
+    try { localStorage.removeItem(VELTRO_SENHA_SESSAO_PREFIX + empresaId); } catch(e){}
+
+    // Remove configurações específicas da empresa
+    var keysParaRemover = [];
+    for(var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if(!k) continue;
+      if(k === 'veltro_proj_cfg_' + empresaId) keysParaRemover.push(k);
+      else if(k === 'veltro_canais_ativos_' + empresaId) keysParaRemover.push(k);
+      else if(k === 'veltro_loja_url_' + empresaId) keysParaRemover.push(k);
+      else if(k === 'veltro_links_' + empresaId) keysParaRemover.push(k);
+      else if(k === 'veltro_fornecedores_' + empresaId) keysParaRemover.push(k);
+      else if(k === 'veltro_ordens_' + empresaId) keysParaRemover.push(k);
+    }
+    keysParaRemover.forEach(function(k){ localStorage.removeItem(k); });
+
+    console.log('[Veltro Teste] ✅ Empresa "'+empresaId+'" resetada neste navegador. Removidas '+keysParaRemover.length+' chaves de config.');
+
+    // Atualiza UI
+    veltroRenderListaEmpresas();
+    veltroPopularSelectTesteEmpresas();
+    sel.value = '';
+
+    alert('✅ "'+(emp.nome || empresaId)+'" resetada neste navegador!\n\nAgora abra o link de convite (com #k=...) numa aba nova pra testar o fluxo de cliente.');
+  } catch(e) {
+    console.error('[Veltro Teste] Erro ao resetar:', e);
+    alert('❌ Erro ao resetar: ' + e.message);
+  }
+}
+
+function veltroLimparTudoTeste() {
+  if(!_veltroAdminAutenticado) return;
+  if(!confirm(
+    '⚠️ APAGAR TODOS OS DADOS Veltro deste navegador?\n\n' +
+    'Será apagado:\n' +
+    '• Todas as empresas locais\n' +
+    '• Senhas, sessões e tentativas\n' +
+    '• Fornecedores e ordens de compra\n' +
+    '• Configurações de Projeção\n' +
+    '• URLs de planilhas\n' +
+    '• Cache de pedidos e produtos\n\n' +
+    'Outros dispositivos NÃO são afetados.\n' +
+    'Você precisará re-autenticar no admin com a senha master.\n\n' +
+    'Continuar?'
+  )) return;
+  if(!confirm('Tem CERTEZA? Esta ação não pode ser desfeita neste navegador.')) return;
+
+  try {
+    var keysParaRemover = [];
+    for(var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if(!k) continue;
+      // Remove tudo que começar com "veltro_" ou "fc_" (caches antigos)
+      if(k.indexOf('veltro_') === 0 || k.indexOf('fc_') === 0) {
+        keysParaRemover.push(k);
+      }
+    }
+    keysParaRemover.forEach(function(k){ localStorage.removeItem(k); });
+    console.log('[Veltro Teste] 🗑️ Limpeza total: '+keysParaRemover.length+' chaves removidas');
+    alert('✅ '+keysParaRemover.length+' itens apagados!\n\nO navegador será recarregado.');
+    location.reload();
+  } catch(e) {
+    console.error('[Veltro Teste] Erro ao limpar tudo:', e);
+    alert('❌ Erro: ' + e.message);
+  }
 }
 
 function veltroFecharEditarEmpresa() {
@@ -17313,6 +17648,15 @@ async function veltroSalvarEdicaoEmpresa() {
     veltroSetLojaUrl(empId, lojaUrl);
     console.log('[Edit] Loja URL: "'+lojaUrl+'"');
   } catch(e){ console.warn('[Edit] Erro lojaUrl:', e); }
+
+  // 🆕 Salvar tolerância de auto-detect
+  try {
+    var tolEl = document.getElementById('edit-ordem-tolerancia');
+    if(tolEl) {
+      var tol = parseInt(tolEl.value, 10);
+      if(!isNaN(tol)) veltroOrdemSetTolerancia(empId, tol);
+    }
+  } catch(e){ console.warn('[Edit] Erro tolerância:', e); }
 
   // Feedback visual no botão
   try {
@@ -17540,6 +17884,47 @@ window.addEventListener('load', function() {
              text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Empresas Cadastradas</div>
         <div id="admin-lista-empresas"></div>
       </div>
+
+      <!-- 🧪 Área de testes (só admin) -->
+      <details style="margin-top:24px;background:var(--s2);border:1px solid var(--border2);border-radius:10px">
+        <summary style="cursor:pointer;padding:12px 14px;font-family:var(--fmono);font-size:11px;color:#FB923C;font-weight:600;text-transform:uppercase;letter-spacing:.5px;list-style:none;display:flex;align-items:center;gap:8px">
+          🧪 <span>Área de Testes (avançado)</span>
+        </summary>
+        <div style="padding:0 14px 14px 14px">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);line-height:1.6;margin-bottom:12px">
+            Use só pra <strong>testar fluxos</strong> de cliente novo nesse navegador. Não afeta outros dispositivos nem outros navegadores.
+          </div>
+
+          <!-- Resetar empresa específica -->
+          <div style="background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
+            <div style="font-family:var(--fmono);font-size:10px;color:var(--text);font-weight:600;margin-bottom:4px">🔁 Resetar empresa neste navegador</div>
+            <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);line-height:1.5;margin-bottom:8px">
+              Remove a empresa local pra simular acesso de cliente novo. No próximo acesso ao link de convite (com #k=...), aparece a tela "Crie sua senha".
+            </div>
+            <div style="display:flex;gap:6px">
+              <select id="admin-teste-empresa-select" style="flex:1;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none">
+                <option value="">— Escolha uma empresa —</option>
+              </select>
+              <button onclick="veltroResetarEmpresaTeste()" type="button"
+                style="padding:7px 12px;background:rgba(251,146,60,.10);border:1px solid rgba(251,146,60,.30);border-radius:6px;color:#FB923C;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">
+                Resetar
+              </button>
+            </div>
+          </div>
+
+          <!-- Limpar tudo -->
+          <div style="background:var(--s1);border:1px solid rgba(244,63,94,.20);border-radius:8px;padding:12px">
+            <div style="font-family:var(--fmono);font-size:10px;color:#F43F5E;font-weight:600;margin-bottom:4px">🗑️ Limpar TODOS os dados deste navegador</div>
+            <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);line-height:1.5;margin-bottom:8px">
+              Apaga TODOS os dados Veltro deste navegador (empresas, fornecedores, ordens, configurações). Como se fosse navegador novo. Não afeta outros dispositivos.
+            </div>
+            <button onclick="veltroLimparTudoTeste()" type="button"
+              style="padding:7px 14px;background:rgba(244,63,94,.10);border:1px solid rgba(244,63,94,.30);border-radius:6px;color:#F43F5E;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer">
+              Limpar tudo deste navegador
+            </button>
+          </div>
+        </div>
+      </details>
     </div>
 
   </div>
@@ -17864,6 +18249,25 @@ window.addEventListener('load', function() {
       <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:5px;line-height:1.5">
         Usado no Estoque: clicar num SKU abre busca na loja. Suporta <code style="color:var(--accent)">{sku}</code> como placeholder.<br>
         Exemplos: <code>https://lojadalaluna.com.br</code> · <code>https://shop.com/produtos/{sku}</code>
+      </div>
+    </div>
+
+    <!-- 🆕 Configurações de Ordem de Compra -->
+    <div style="margin-bottom:18px;background:rgba(110,231,183,.04);border:1px solid rgba(110,231,183,.15);border-radius:10px;padding:12px 14px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--accent);
+           text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">⚙️ Ordem de Compra · Auto-detecção</div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <label style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);flex:1">
+          Tolerância pra detectar entrega:
+        </label>
+        <input type="number" id="edit-ordem-tolerancia" min="10" max="100" step="5" value="70"
+          style="width:80px;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);outline:none;text-align:right;color-scheme:dark">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);font-weight:600">%</span>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);line-height:1.5">
+        Quando o estoque aumentar esse % do valor pedido, o sistema sugere marcar a ordem como entregue.<br>
+        Recomendado: <strong>70%</strong> (cobre pequenas perdas/ajustes). Use 100% se quiser confirmação só com tudo entregue.
       </div>
     </div>
 
