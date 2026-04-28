@@ -2946,37 +2946,76 @@ body.light body::before { opacity: 0; }
 
       <!-- Configurações (oculto por padrão) -->
       <div id="proj-config-panel" style="display:none;background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:20px">
-        <div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px">⚙️ Configurações da Projeção</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
-          <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">PERÍODO DE VENDA (dias)</label>
-            <input id="proj-cfg-periodo-venda" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+        <div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">⚙️ Configurações da Projeção</div>
+        <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6">Ajuste os parâmetros do cálculo. Os valores são salvos automaticamente.</div>
+
+        <!-- Bloco 1: período de análise -->
+        <div style="background:var(--s1);border:1px solid var(--s3);border-radius:8px;padding:14px;margin-bottom:12px">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📊 Período de análise</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+            <div>
+              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px" title="Quantos dias passados são usados para calcular a taxa diária de vendas. Default 30 dias = vendas do último mês.">PERÍODO DE VENDA (dias) ⓘ</label>
+              <input id="proj-cfg-periodo-venda" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()"
+                title="Quantos dias passados o sistema considera como base. Ex: 30 = 'vendi X em 30 dias'"
+                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+            </div>
+            <div>
+              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px" title="Quantos dias futuros o sistema deve garantir estoque. Default 60 dias.">PROJETAR PARA (dias) ⓘ</label>
+              <input id="proj-cfg-periodo-proj" type="number" min="1" max="365" value="60" onchange="projSalvarConfig()"
+                title="Quantos dias futuros queremos cobrir. Ex: 60 = quero ter estoque pra 2 meses"
+                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+            </div>
           </div>
-          <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">PROJETAR PARA (dias)</label>
-            <input id="proj-cfg-periodo-proj" type="number" min="1" max="365" value="60" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-          </div>
-          <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">URGENTE SE COBERTURA &lt; (dias)</label>
-            <input id="proj-cfg-urgente" type="number" min="1" max="365" value="7" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-          </div>
-          <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">ATENÇÃO SE COBERTURA &lt; (dias)</label>
-            <input id="proj-cfg-atencao" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-          </div>
-          <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">TOP X BESTSELLERS (exceção)</label>
-            <input id="proj-cfg-top-n" type="number" min="0" max="500" value="50" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
-          </div>
-          <div>
-            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">PERÍODO DO TOP (dias)</label>
-            <input id="proj-cfg-top-periodo" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:10px;line-height:1.6">
+            💡 <strong style="color:var(--text)">Como funciona:</strong> sistema calcula <code style="color:var(--accent)">taxa_diária = vendido ÷ período_venda</code>, depois <code style="color:var(--accent)">previsibilidade = taxa_diária × período_projeção</code>, e finalmente <code style="color:var(--accent)">pedir = previsibilidade − estoque</code>.
           </div>
         </div>
-        <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:12px;line-height:1.6">
-          💡 <strong>Top X bestsellers</strong>: produtos com vendas zeradas no período mas que estão entre os mais vendidos podem entrar na lista mesmo assim. Configure como 0 pra desativar essa exceção.
+
+        <!-- Bloco 2: limites de status -->
+        <div style="background:var(--s1);border:1px solid var(--s3);border-radius:8px;padding:14px;margin-bottom:12px">
+          <div style="font-family:var(--fmono);font-size:10px;color:#F59E0B;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🚦 Limites de status</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+            <div>
+              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">🚨 URGENTE SE COBERTURA &lt; (dias)</label>
+              <input id="proj-cfg-urgente" type="number" min="1" max="365" value="7" onchange="projSalvarConfig()"
+                title="Cobertura abaixo desse limite = produto urgente"
+                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+            </div>
+            <div>
+              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">⚠️ ATENÇÃO SE COBERTURA &lt; (dias)</label>
+              <input id="proj-cfg-atencao" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()"
+                title="Cobertura abaixo desse limite (mas acima do urgente) = produto em atenção"
+                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+            </div>
+          </div>
         </div>
+
+        <!-- Bloco 3: top bestsellers -->
+        <div style="background:var(--s1);border:1px solid var(--s3);border-radius:8px;padding:14px">
+          <div style="font-family:var(--fmono);font-size:10px;color:#FB923C;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🔥 Top bestsellers (exceção)</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+            <div>
+              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">TOP X BESTSELLERS</label>
+              <input id="proj-cfg-top-n" type="number" min="0" max="500" value="50" onchange="projSalvarConfig()"
+                title="0 = desativa essa exceção"
+                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+            </div>
+            <div>
+              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">PERÍODO DO TOP (dias)</label>
+              <input id="proj-cfg-top-periodo" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()"
+                title="Período base pra identificar bestsellers"
+                style="width:100%;background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+            </div>
+          </div>
+          <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:10px;line-height:1.6">
+            💡 <strong style="color:var(--text)">Por que isso existe:</strong> produtos zerados no período não entram naturalmente na lista (porque não têm vendas). Mas se eram <strong>top bestsellers antes de zerar</strong>, vale produzir mesmo assim. Configure 0 pra desativar.
+          </div>
+        </div>
+
       </div>
+
+      <!-- Mini-info: fórmula em uso (atualizada em tempo real) -->
+      <div id="proj-formula-info" style="font-family:var(--fmono);font-size:11px;color:var(--muted);background:var(--s2);border:1px solid var(--s3);border-radius:8px;padding:10px 14px;margin-bottom:12px;line-height:1.6"></div>
 
       <!-- KPIs -->
       <div id="proj-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px"></div>
@@ -10016,6 +10055,7 @@ function projRender() {
 /* ─ Render KPIs ─ */
 function projRenderKPIs(dados) {
   var el = document.getElementById('proj-kpis');
+  var elInfo = document.getElementById('proj-formula-info');
   if(!el) return;
 
   if(!dados || dados.erro === 'sem-dados') {
@@ -10024,7 +10064,18 @@ function projRenderKPIs(dados) {
       '<div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">Aguardando dados</div>'+
       '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);line-height:1.6">Configure planilhas de Estoque e Produtos Vendidos<br>na engrenagem ⚙️ pra começar a usar a Projeção</div>'+
     '</div>';
+    if(elInfo) elInfo.innerHTML = '';
     return;
+  }
+
+  // Atualiza info-box com a fórmula em uso
+  if(elInfo && dados.cfg) {
+    var c = dados.cfg;
+    elInfo.innerHTML =
+      '📐 <strong style="color:var(--text)">Cálculo em uso:</strong> '+
+      'Considerando vendas dos últimos <strong style="color:var(--accent)">'+c.periodoVenda+' dias</strong>, '+
+      'calculando estoque necessário pra <strong style="color:var(--accent)">'+c.periodoProj+' dias</strong> futuros. '+
+      '<span style="color:var(--muted2)">Urgente &lt;'+c.urgente+'d cobertura · Atenção &lt;'+c.atencao+'d · Top '+c.topN+' bestsellers entram mesmo zerados</span>';
   }
 
   var k = dados.kpis;
@@ -10112,8 +10163,9 @@ function projRenderLista(dadosOpcional) {
 
 /* ─ Render uma linha de SKU pai (com possível detalhe expandido) ─ */
 function projLinhaSkuPai(it) {
-  var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
-  var fN = function(n){ return (n||0).toLocaleString('pt-BR'); };
+  var fR  = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+  var fR2 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var fN  = function(n){ return (n||0).toLocaleString('pt-BR'); };
 
   var statusInfo = {
     'urgente':    { icon:'🚨', label:'URGENTE',     pulse:true,  cor:'var(--red)' },
@@ -10147,7 +10199,7 @@ function projLinhaSkuPai(it) {
       '<div style="text-align:right;font-family:var(--fmono);font-size:12px;color:'+(it.totalEstoque<=0?'var(--red)':'var(--text)')+'">'+fN(it.totalEstoque)+'</div>'+
       '<div style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--muted)">'+fN(it.totalPrev)+'</div>'+
       '<div style="text-align:right;font-family:var(--fmono);font-size:13px;font-weight:600;color:'+statusInfo.cor+'">'+fN(it.totalPedir)+'</div>'+
-      '<div style="text-align:right;font-family:var(--fmono);font-size:11px;color:'+(it.custoUnit>0?'var(--text)':'var(--muted2)')+'">'+(it.custoUnit>0?fR(it.custoUnit):'—')+'</div>'+
+      '<div style="text-align:right;font-family:var(--fmono);font-size:11px;color:'+(it.custoUnit>0?'var(--text)':'var(--muted2)')+'">'+(it.custoUnit>0?fR2(it.custoUnit):'—')+'</div>'+
       '<div style="text-align:right;font-family:var(--fmono);font-size:12px;font-weight:600;color:'+(it.investimento>0?'var(--accent)':'var(--muted2)')+'">'+(it.investimento>0?fR(it.investimento):'—')+'</div>'+
       '<div style="text-align:center;font-family:var(--fmono);font-size:10px;color:var(--muted)">'+arrow+'</div>'+
     '</div>';
