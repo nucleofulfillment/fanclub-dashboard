@@ -10266,6 +10266,19 @@ var _projStatusCacheTTL = 5000; // 5s — recalcula se passou disso
 function projInvalidarCache() {
   _projStatusCache = null;
   _projStatusCacheTimestamp = 0;
+  // 🆕 Se a página de Projeção estiver aberta, força re-render com dados novos.
+  // Resolve bug onde usuário entrava na Projeção ANTES das planilhas terminarem
+  // de carregar — tela mostrava "Aguardando dados" e não recalculava sozinha.
+  try {
+    var pagProj = document.getElementById('page-projecao');
+    if(pagProj && pagProj.classList.contains('active')) {
+      // Pequeno delay pra evitar render duplicado quando vários loads disparam juntos
+      if(window._projRenderTimer) clearTimeout(window._projRenderTimer);
+      window._projRenderTimer = setTimeout(function(){
+        try { projRender(); } catch(e) { console.error('[Projeção auto-render]', e); }
+      }, 200);
+    }
+  } catch(e) {}
 }
 
 function _projGetStatusCache() {
