@@ -262,7 +262,7 @@ body::before {
 }
 .proj-detail {
   background:var(--s1); border-bottom:1px solid var(--s3);
-  padding:16px 22px; padding-left:62px;
+  padding:0 0 18px 0;
 }
 .proj-detail-table {
   width:100%; border-collapse:collapse; font-family:var(--fmono); font-size:11px;
@@ -10229,49 +10229,65 @@ function projDetalheExpandido(it) {
   var fN = function(n){ return (n||0).toLocaleString('pt-BR'); };
   var fP = function(n){ return ((n||0)*100).toFixed(1).replace('.',',') + '%'; };
 
-  // Tabela de variações
+  // Grid usa as MESMAS larguras da linha principal pra alinhar perfeitamente:
+  // 36px (status) | 1fr (produto) | 80px (vend) | 80px (est) | 80px (prev) | 80px (pedir) | 110px (custo) | 130px (invest) | 36px (arrow)
+  var gridCols = '36px 1fr 80px 80px 80px 80px 110px 130px 36px';
+
+  // Tabela de variações com grid (alinha com a linha pai)
   var temVariacoes = it.variacoes && it.variacoes.length > 0;
   var tabelaVariacoes = '';
   if(temVariacoes) {
-    tabelaVariacoes =
-      '<table class="proj-detail-table">'+
-        '<thead>'+
-          '<tr>'+
-            '<th>SKU</th>'+
-            '<th style="text-align:right">Vendido</th>'+
-            '<th style="text-align:right">Estoque</th>'+
-            '<th style="text-align:right">Prev.</th>'+
-            '<th style="text-align:right">Pedir</th>'+
-          '</tr>'+
-        '</thead>'+
-        '<tbody>'+
-          it.variacoes.map(function(v){
-            return '<tr>'+
-              '<td><span style="color:var(--accent)">'+v.sku+'</span></td>'+
-              '<td style="text-align:right">'+fN(v.vendido)+'</td>'+
-              '<td style="text-align:right;color:'+(v.estoque<=0?'var(--red)':'var(--text)')+'">'+fN(v.estoque)+'</td>'+
-              '<td style="text-align:right;color:var(--muted)">'+fN(v.previsibilidade)+'</td>'+
-              '<td style="text-align:right;color:var(--accent);font-weight:600">'+fN(v.pedir)+'</td>'+
-            '</tr>';
-          }).join('')+
-        '</tbody>'+
-        '<tfoot>'+
-          '<tr>'+
-            '<td>TOTAL</td>'+
-            '<td style="text-align:right">'+fN(it.totalVendido)+'</td>'+
-            '<td style="text-align:right">'+fN(it.totalEstoque)+'</td>'+
-            '<td style="text-align:right">'+fN(it.totalPrev)+'</td>'+
-            '<td style="text-align:right;color:var(--accent)">'+fN(it.totalPedir)+'</td>'+
-          '</tr>'+
-        '</tfoot>'+
-      '</table>';
+    // Header da sub-tabela
+    var headerVar =
+      '<div style="display:grid;grid-template-columns:'+gridCols+';gap:10px;padding:8px 18px;border-bottom:1px solid var(--s3);font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px">'+
+        '<div></div>'+
+        '<div>SKU da variação</div>'+
+        '<div style="text-align:right">Vendido</div>'+
+        '<div style="text-align:right">Estoque</div>'+
+        '<div style="text-align:right">Prev.</div>'+
+        '<div style="text-align:right">Pedir</div>'+
+        '<div></div>'+
+        '<div></div>'+
+        '<div></div>'+
+      '</div>';
+
+    // Linhas das variações
+    var linhasVar = it.variacoes.map(function(v){
+      return '<div style="display:grid;grid-template-columns:'+gridCols+';gap:10px;padding:8px 18px;border-bottom:1px solid rgba(255,255,255,.025);font-family:var(--fmono);font-size:11px">'+
+        '<div></div>'+
+        '<div style="color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+v.sku+'</div>'+
+        '<div style="text-align:right;color:var(--text)">'+fN(v.vendido)+'</div>'+
+        '<div style="text-align:right;color:'+(v.estoque<=0?'var(--red)':'var(--text)')+'">'+fN(v.estoque)+'</div>'+
+        '<div style="text-align:right;color:var(--muted)">'+fN(v.previsibilidade)+'</div>'+
+        '<div style="text-align:right;color:var(--accent);font-weight:600">'+fN(v.pedir)+'</div>'+
+        '<div></div>'+
+        '<div></div>'+
+        '<div></div>'+
+      '</div>';
+    }).join('');
+
+    // Linha total
+    var totalVar =
+      '<div style="display:grid;grid-template-columns:'+gridCols+';gap:10px;padding:10px 18px;border-top:1px solid var(--s3);font-family:var(--fmono);font-size:11px;font-weight:600;background:rgba(110,231,183,.03)">'+
+        '<div></div>'+
+        '<div style="color:var(--text)">TOTAL</div>'+
+        '<div style="text-align:right;color:var(--text)">'+fN(it.totalVendido)+'</div>'+
+        '<div style="text-align:right;color:'+(it.totalEstoque<=0?'var(--red)':'var(--text)')+'">'+fN(it.totalEstoque)+'</div>'+
+        '<div style="text-align:right;color:var(--muted)">'+fN(it.totalPrev)+'</div>'+
+        '<div style="text-align:right;color:var(--accent)">'+fN(it.totalPedir)+'</div>'+
+        '<div></div>'+
+        '<div></div>'+
+        '<div></div>'+
+      '</div>';
+
+    tabelaVariacoes = headerVar + linhasVar + totalVar;
   } else {
     tabelaVariacoes = '<div style="padding:20px;text-align:center;color:var(--muted);font-family:var(--fmono);font-size:11px">Sem variações detalhadas</div>';
   }
 
   // Cards financeiros
   var cards =
-    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;padding:0 18px">'+
       '<div class="proj-mini-card">'+
         '<div class="proj-mini-card-label">Custo unitário</div>'+
         '<div class="proj-mini-card-value">'+(it.custoUnit>0?fR2(it.custoUnit):'<span style="color:var(--muted2);font-size:11px">não cadastrado</span>')+'</div>'+
