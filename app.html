@@ -1298,6 +1298,13 @@ body.light body::before { opacity: 0; }
       <span>Resumos</span>
       <span class="sync-dot" title="Recebe dados de Financeiro e Marketing"></span>
     </div>
+
+    <!-- 🚀 Raio X (BETA) — oculto por padrão, ativado pra admin -->
+    <div class="nav-item nav-raiox" id="nav-raiox" onclick="showPage('raiox',this)" data-page="raiox" data-label="Raio X" style="display:none;position:relative;border-top:1px solid var(--border);margin-top:8px;padding-top:14px">
+      <span class="nav-icon">🚀</span>
+      <span>Raio X</span>
+      <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-family:var(--fmono);font-size:8px;background:linear-gradient(135deg,#A78BFA,#6EE7B7);color:#0A0C10;padding:1px 6px;border-radius:8px;font-weight:700;letter-spacing:.5px">BETA</span>
+    </div>
   </div>
 
   <div style="margin-top:auto;padding:12px 16px;border-top:1px solid var(--border)" class="sidebar-footer-text">
@@ -3250,6 +3257,89 @@ body.light body::before { opacity: 0; }
     </main>
   </div>
 
+  <!-- ═══════════════════════════════════════════════════════════
+       🚀 PAGE: RAIO X (BETA) — só admin master
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="page-raiox" class="page">
+    <main class="main">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <h1 style="font-family:var(--fhead);font-size:24px;font-weight:700;color:var(--text);margin:0">🚀 Raio X</h1>
+            <span style="font-family:var(--fmono);font-size:9px;background:linear-gradient(135deg,#A78BFA,#6EE7B7);color:#0A0C10;padding:3px 9px;border-radius:10px;font-weight:700;letter-spacing:.5px">BETA</span>
+            <span style="font-family:var(--fmono);font-size:9px;background:rgba(244,63,94,.10);border:1px solid rgba(244,63,94,.25);color:#F87171;padding:2px 8px;border-radius:8px;font-weight:600">🔐 Admin only</span>
+          </div>
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:6px">Diagnóstico inteligente da operação · Termômetro do negócio</div>
+        </div>
+        <button onclick="raioxToggleParams()" id="raiox-btn-params" type="button"
+          style="background:var(--s2);border:1px solid var(--border2);color:var(--text);padding:9px 14px;border-radius:8px;font-family:var(--fmono);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ⚙️ <span>Parâmetros</span>
+        </button>
+      </div>
+
+      <!-- Painel de parâmetros (oculto por padrão) -->
+      <div id="raiox-params-panel" style="display:none;background:var(--s2);border:1px solid var(--border2);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">⚙️ Parâmetros de Análise</div>
+          <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2)">Salva automaticamente</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Quantos dias usar pra detectar variação">📅 ANÁLISE (dias)</label>
+            <input id="raiox-cfg-dias" type="number" min="1" max="60" value="7" onchange="raioxSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Variação ±X% nas vendas dispara alerta">📊 VENDAS &gt;% VAR</label>
+            <input id="raiox-cfg-var-vendas" type="number" min="1" max="100" value="15" onchange="raioxSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Variação no custo de mídia (CPC, gasto) que dispara alerta">📢 MÍDIA &gt;% VAR</label>
+            <input id="raiox-cfg-var-midia" type="number" min="1" max="100" value="20" onchange="raioxSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="SKU com cobertura abaixo desse limite = ruptura iminente">📦 RUPTURA (dias)</label>
+            <input id="raiox-cfg-ruptura" type="number" min="1" max="90" value="7" onchange="raioxSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:4px" title="Quão sensível o termômetro é (1=conservador, 5=alarmista)">🌡️ SENSIBILIDADE</label>
+            <select id="raiox-cfg-sens" onchange="raioxSalvarConfig()"
+              style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:6px 8px;border-radius:6px;font-family:var(--fmono);font-size:12px;color-scheme:dark">
+              <option value="1">1 · Conservador</option>
+              <option value="2">2 · Equilibrado</option>
+              <option value="3" selected>3 · Padrão</option>
+              <option value="4">4 · Atento</option>
+              <option value="5">5 · Alarmista</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:10px;line-height:1.6">
+          💡 Esses parâmetros adaptam o sistema à sua operação. Cada mudança recalcula imediatamente.<br>
+          Sensibilidade afeta o quanto pequenas variações disparam alertas.
+        </div>
+      </div>
+
+      <!-- Container principal: termômetro + alertas -->
+      <div id="raiox-conteudo">
+        <!-- Será preenchido dinamicamente em raioxRender() -->
+      </div>
+
+      <!-- Disclaimer BETA -->
+      <div style="margin-top:24px;padding:12px 14px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.20);border-radius:10px;font-family:var(--fmono);font-size:10px;color:#A78BFA;line-height:1.7">
+        <strong>🧪 Esta funcionalidade está em BETA.</strong>
+        Diagnósticos com tag <span style="background:rgba(252,211,77,.15);color:#FCD34D;padding:1px 6px;border-radius:4px;font-weight:600">🔬 Simulado</span>
+        usam dados fictícios pra ilustrar a interface — serão reais quando você integrar Meta Ads, Google Ads e demais fontes.
+        Diagnósticos sem tag são baseados em <strong>dados reais</strong> da sua operação.
+      </div>
+
+    </main>
+  </div>
+
 </div>
 
 
@@ -3261,7 +3351,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.0900';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX1';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -7151,6 +7241,17 @@ function showPage(pageId, navEl) {
   if(pageId === 'fluxocaixa') renderFluxoCaixaPage();
   if(pageId === 'projecao') {
     try { projRender(); } catch(e){ console.error('[Projeção]', e); }
+  }
+  // 🚀 Raio X (BETA): só admin, render no momento que entrar
+  if(pageId === 'raiox') {
+    try {
+      if(!window._veltroAdminAutenticado) {
+        alert('Raio X é restrito ao admin master.\nFaça login pelo /app primeiro.');
+        showPage('dashboard');
+        return;
+      }
+      raioxRender();
+    } catch(e){ console.error('[Raio X]', e); }
   }
   // If financeiro page, sincroniza filtros locais e recalcula com filtro global atual
   if(pageId === 'financeiro') {
@@ -15498,17 +15599,22 @@ function veltroAbrirAdmin() {
 function veltroFecharAdmin() {
   var modal = document.getElementById('veltro-admin-modal');
   if(modal) modal.style.display = 'none';
-  _veltroAdminAutenticado = false;
+  // 🆕 NÃO zera _veltroAdminAutenticado — fica válido na sessão atual
+  // pra permitir acesso ao Raio X sem precisar relogar.
+  // É zerado só ao recarregar página ou logout.
 }
 function veltroAutenticarAdmin() {
   var senha = (document.getElementById('admin-senha-input')||{}).value||'';
   if(senha === VELTRO_SENHA_ADMIN) {
     _veltroAdminAutenticado = true;
+    window._veltroAdminAutenticado = true; // 🆕 expor pra outros módulos (Raio X)
     try{ document.getElementById('admin-auth-block').style.display = 'none'; }catch(e){}
     try{ document.getElementById('admin-painel').style.display = 'block'; }catch(e){}
     veltroRenderListaEmpresas();
     // 🆕 Renderizar grid de canais (todos marcados por padrão)
     try { veltroRenderCanaisGrid(); } catch(e) { console.warn('[Veltro] Erro ao renderizar canais:', e); }
+    // 🚀 Atualiza visibilidade da aba Raio X na sidebar
+    try { raioxAtualizarVisibilidadeNav(); } catch(e){}
   } else {
     try{ document.getElementById('admin-auth-erro').textContent = '❌ Senha incorreta'; }catch(e){}
     try{ document.getElementById('admin-senha-input').value = ''; }catch(e){}
@@ -17538,6 +17644,702 @@ function veltroLimparTudoTeste() {
     console.error('[Veltro Teste] Erro ao limpar tudo:', e);
     alert('❌ Erro: ' + e.message);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   🚀 RAIO X (BETA) — Diagnóstico Inteligente
+   Acesso: só admin master (verificado via _veltroAdminAutenticado)
+   ═══════════════════════════════════════════════════════════ */
+
+var RAIOX_CFG_KEY = 'veltro_raiox_cfg';
+
+/* Defaults dos parâmetros */
+var RAIOX_DEFAULTS = {
+  dias: 7,
+  varVendas: 15,    // %
+  varMidia: 20,     // %
+  ruptura: 7,       // dias de cobertura
+  sensibilidade: 3  // 1-5
+};
+
+function raioxGetConfig() {
+  try {
+    var raw = localStorage.getItem(RAIOX_CFG_KEY);
+    if(!raw) return Object.assign({}, RAIOX_DEFAULTS);
+    var c = JSON.parse(raw);
+    return Object.assign({}, RAIOX_DEFAULTS, c);
+  } catch(e) { return Object.assign({}, RAIOX_DEFAULTS); }
+}
+
+function raioxSaveConfig(cfg) {
+  try { localStorage.setItem(RAIOX_CFG_KEY, JSON.stringify(cfg)); } catch(e){}
+}
+
+function raioxSalvarConfig() {
+  var cfg = {
+    dias: parseInt((document.getElementById('raiox-cfg-dias')||{}).value || '7', 10),
+    varVendas: parseInt((document.getElementById('raiox-cfg-var-vendas')||{}).value || '15', 10),
+    varMidia: parseInt((document.getElementById('raiox-cfg-var-midia')||{}).value || '20', 10),
+    ruptura: parseInt((document.getElementById('raiox-cfg-ruptura')||{}).value || '7', 10),
+    sensibilidade: parseInt((document.getElementById('raiox-cfg-sens')||{}).value || '3', 10)
+  };
+  raioxSaveConfig(cfg);
+  raioxRender();
+}
+
+function raioxAplicarConfigForm() {
+  var c = raioxGetConfig();
+  try { document.getElementById('raiox-cfg-dias').value = c.dias; } catch(e){}
+  try { document.getElementById('raiox-cfg-var-vendas').value = c.varVendas; } catch(e){}
+  try { document.getElementById('raiox-cfg-var-midia').value = c.varMidia; } catch(e){}
+  try { document.getElementById('raiox-cfg-ruptura').value = c.ruptura; } catch(e){}
+  try { document.getElementById('raiox-cfg-sens').value = c.sensibilidade; } catch(e){}
+}
+
+function raioxToggleParams() {
+  var p = document.getElementById('raiox-params-panel');
+  if(!p) return;
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+/* Mostra/esconde a aba na sidebar dependendo de ser admin master */
+function raioxAtualizarVisibilidadeNav() {
+  var nav = document.getElementById('nav-raiox');
+  if(!nav) return;
+  // Visível só se autenticou no admin master nesta sessão
+  var isAdmin = !!window._veltroAdminAutenticado;
+  nav.style.display = isAdmin ? 'flex' : 'none';
+}
+
+/* ─── ENGINE DE ANÁLISE ─────────────────────────────────────
+   Cálculos sobre dados reais do sistema:
+   - Vendas (de allRows / getPedidos)
+   - Canais (separação por canal)
+   - Estoque (de _veltroEstoqueAtual / projCalcularDados)
+   ─────────────────────────────────────────────────────────── */
+
+function _raioxParseDataPedido(s) {
+  if(!s) return null;
+  // dd/mm/aaaa hh:mm
+  var m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(!m) return null;
+  var dia = parseInt(m[1], 10);
+  var mes = parseInt(m[2], 10) - 1;
+  var ano = parseInt(m[3], 10);
+  if(ano < 100) ano += 2000;
+  var d = new Date(ano, mes, dia);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/* Agrega vendas por dia (últimos N dias) */
+function raioxVendasPorDia(diasJanela) {
+  diasJanela = diasJanela || 30;
+  var resultado = {}; // { 'YYYY-MM-DD': { gmv: 0, pedidos: 0, canais: {} } }
+
+  if(typeof allRows === 'undefined' || !Array.isArray(allRows)) return resultado;
+
+  var hoje = new Date();
+  hoje.setHours(0,0,0,0);
+  var limite = new Date(hoje);
+  limite.setDate(limite.getDate() - diasJanela + 1);
+
+  // Inicializa todos os dias da janela com zero
+  for(var i = 0; i < diasJanela; i++) {
+    var d = new Date(limite);
+    d.setDate(d.getDate() + i);
+    var key = d.toISOString().slice(0, 10);
+    resultado[key] = { gmv: 0, pedidos: 0, canais: {} };
+  }
+
+  var canalIdx = (typeof _colIdx !== 'undefined' && _colIdx.canal !== undefined) ? _colIdx.canal : 17;
+  var dataIdx = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
+  var valorIdx = (typeof _colIdx !== 'undefined' && _colIdx.valor !== undefined) ? _colIdx.valor : 30;
+
+  allRows.forEach(function(r){
+    if(!r || !r[dataIdx]) return;
+    var d = _raioxParseDataPedido(r[dataIdx]);
+    if(!d) return;
+    if(d < limite || d > hoje) return;
+
+    var key = d.toISOString().slice(0, 10);
+    if(!resultado[key]) return;
+
+    var v = parseFloat(String(r[valorIdx]||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+    var canal = String(r[canalIdx] || 'Outros').trim() || 'Outros';
+
+    resultado[key].gmv += v;
+    resultado[key].pedidos += 1;
+    if(!resultado[key].canais[canal]) resultado[key].canais[canal] = { gmv: 0, pedidos: 0 };
+    resultado[key].canais[canal].gmv += v;
+    resultado[key].canais[canal].pedidos += 1;
+  });
+
+  return resultado;
+}
+
+/* Compara duas janelas (recente vs anterior) e calcula variação */
+function raioxComparaPeriodos(diasJanela) {
+  var dados = raioxVendasPorDia(diasJanela * 2); // pega o dobro pra ter recente + anterior
+  var keys = Object.keys(dados).sort();
+  var meio = Math.floor(keys.length / 2);
+  var anterior = keys.slice(0, meio);
+  var recente = keys.slice(meio);
+
+  function somaJanela(janela) {
+    var total = { gmv: 0, pedidos: 0, canais: {} };
+    janela.forEach(function(k){
+      var d = dados[k];
+      total.gmv += d.gmv;
+      total.pedidos += d.pedidos;
+      Object.keys(d.canais).forEach(function(c){
+        if(!total.canais[c]) total.canais[c] = { gmv: 0, pedidos: 0 };
+        total.canais[c].gmv += d.canais[c].gmv;
+        total.canais[c].pedidos += d.canais[c].pedidos;
+      });
+    });
+    return total;
+  }
+
+  var totA = somaJanela(anterior);
+  var totR = somaJanela(recente);
+
+  function pct(novo, antigo) {
+    if(antigo === 0) return novo > 0 ? 100 : 0;
+    return Math.round(((novo - antigo) / antigo) * 100);
+  }
+
+  // Variação geral
+  var varGmv = pct(totR.gmv, totA.gmv);
+  var varPedidos = pct(totR.pedidos, totA.pedidos);
+
+  // Variação por canal
+  var canaisVariacao = [];
+  var todosCanais = {};
+  Object.keys(totA.canais).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(totR.canais).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(todosCanais).forEach(function(c){
+    var ga = (totA.canais[c] || {gmv:0}).gmv;
+    var gr = (totR.canais[c] || {gmv:0}).gmv;
+    if(ga + gr < 100) return; // canal muito pequeno, ignora
+    canaisVariacao.push({
+      canal: c,
+      gmvAnterior: ga,
+      gmvRecente: gr,
+      variacao: pct(gr, ga)
+    });
+  });
+  canaisVariacao.sort(function(a,b){ return Math.abs(b.variacao) - Math.abs(a.variacao); });
+
+  return {
+    diasJanela: diasJanela,
+    totalAnterior: totA,
+    totalRecente: totR,
+    varGmv: varGmv,
+    varPedidos: varPedidos,
+    canais: canaisVariacao,
+    dadosDiarios: dados
+  };
+}
+
+/* Análise de estoque: % SKUs Curva A em ruptura */
+function raioxAnaliseEstoque() {
+  var cfg = raioxGetConfig();
+  var resultado = { skusRuptura: 0, totalSkusA: 0, percRuptura: 0, criticos: [] };
+
+  try {
+    if(typeof projCalcularDados !== 'function') return resultado;
+    var dados = projCalcularDados();
+    if(!dados || !dados.itens) return resultado;
+
+    // Top 20% (Curva A) — ordenado por vendido
+    var ordenados = dados.itens.slice().sort(function(a,b){ return (b.vendido||0) - (a.vendido||0); });
+    var corteA = Math.max(1, Math.ceil(ordenados.length * 0.2));
+    var skusA = ordenados.slice(0, corteA);
+
+    resultado.totalSkusA = skusA.length;
+    skusA.forEach(function(it){
+      // cobertura: estoque / (vendido / dias_venda)
+      var taxa = (it.vendido || 0) / Math.max(1, it.diasVenda || 30);
+      var cobertura = taxa > 0 ? (it.estoqueTotal || 0) / taxa : 999;
+      if(cobertura < cfg.ruptura) {
+        resultado.skusRuptura++;
+        if(resultado.criticos.length < 5) {
+          resultado.criticos.push({
+            sku: it.skuPai,
+            nome: it.nome,
+            cobertura: Math.round(cobertura),
+            estoque: it.estoqueTotal || 0
+          });
+        }
+      }
+    });
+
+    resultado.percRuptura = resultado.totalSkusA > 0
+      ? Math.round((resultado.skusRuptura / resultado.totalSkusA) * 100)
+      : 0;
+  } catch(e) {
+    console.warn('[Raio X] Erro análise estoque:', e);
+  }
+
+  return resultado;
+}
+
+/* Calcula score do termômetro (0-100) e cor */
+function raioxCalcularTermometro(analise) {
+  var cfg = raioxGetConfig();
+  var sens = cfg.sensibilidade; // 1-5
+
+  // Pontuação inicial: 100 (saudável)
+  var score = 100;
+  var fatores = [];
+
+  // Vendas: penalidade se variação negativa significativa
+  if(analise.vendas && analise.vendas.varGmv < -cfg.varVendas) {
+    var penal = Math.min(40, Math.abs(analise.vendas.varGmv) * sens * 0.6);
+    score -= penal;
+    fatores.push({ tipo: 'vendas-queda', peso: penal, descr: 'Vendas caíram ' + Math.abs(analise.vendas.varGmv) + '%' });
+  } else if(analise.vendas && analise.vendas.varGmv > cfg.varVendas) {
+    fatores.push({ tipo: 'vendas-alta', peso: 0, descr: 'Vendas subiram ' + analise.vendas.varGmv + '%' });
+  }
+
+  // Estoque: penalidade se muitos SKUs A em ruptura
+  if(analise.estoque && analise.estoque.percRuptura > 0) {
+    var penalEst = Math.min(35, analise.estoque.percRuptura * sens * 0.5);
+    score -= penalEst;
+    fatores.push({ tipo: 'estoque-ruptura', peso: penalEst, descr: analise.estoque.skusRuptura + ' de ' + analise.estoque.totalSkusA + ' SKUs Curva A em ruptura' });
+  }
+
+  // Canais com queda forte
+  if(analise.vendas && analise.vendas.canais) {
+    var canaisCriticos = analise.vendas.canais.filter(function(c){ return c.variacao < -cfg.varVendas * 1.5; });
+    if(canaisCriticos.length > 0) {
+      var penalCanal = Math.min(20, canaisCriticos.length * sens * 3);
+      score -= penalCanal;
+      fatores.push({ tipo: 'canal-queda', peso: penalCanal, descr: canaisCriticos.length + ' canal(is) com queda forte' });
+    }
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  // Cor e label
+  var status, cor, icone, label;
+  if(score >= 80) {
+    status = 'saudavel'; cor = '#10B981'; icone = '🟢'; label = 'Saudável';
+  } else if(score >= 60) {
+    status = 'atencao'; cor = '#FCD34D'; icone = '🟡'; label = 'Atenção';
+  } else if(score >= 40) {
+    status = 'alerta'; cor = '#FB923C'; icone = '🟠'; label = 'Alerta';
+  } else {
+    status = 'critico'; cor = '#F43F5E'; icone = '🔴'; label = 'Crítico';
+  }
+
+  return { score: score, status: status, cor: cor, icone: icone, label: label, fatores: fatores };
+}
+
+/* Gera lista de diagnósticos baseados na análise */
+function raioxGerarDiagnosticos(analise) {
+  var cfg = raioxGetConfig();
+  var diags = [];
+
+  // ─── Diagnósticos REAIS ───
+
+  // Vendas em queda (geral)
+  if(analise.vendas.varGmv < -cfg.varVendas) {
+    var conf = Math.min(95, 60 + Math.abs(analise.vendas.varGmv) * 2);
+    diags.push({
+      tipo: 'vendas-queda',
+      severidade: analise.vendas.varGmv < -cfg.varVendas * 2 ? 'critico' : 'alerta',
+      titulo: 'Queda nas vendas',
+      desc: 'GMV caiu ' + Math.abs(analise.vendas.varGmv) + '% nos últimos ' + cfg.dias + ' dias vs período anterior.',
+      detalhe: 'GMV recente: R$ ' + analise.vendas.totalRecente.gmv.toLocaleString('pt-BR',{maximumFractionDigits:0}) +
+               ' · Anterior: R$ ' + analise.vendas.totalAnterior.gmv.toLocaleString('pt-BR',{maximumFractionDigits:0}),
+      confianca: Math.round(conf),
+      simulado: false
+    });
+  } else if(analise.vendas.varGmv > cfg.varVendas) {
+    diags.push({
+      tipo: 'vendas-alta',
+      severidade: 'positivo',
+      titulo: 'Vendas em crescimento',
+      desc: 'GMV subiu ' + analise.vendas.varGmv + '% nos últimos ' + cfg.dias + ' dias.',
+      detalhe: 'Continue monitorando estoque e mídia pra sustentar o ritmo.',
+      confianca: 85,
+      simulado: false
+    });
+  }
+
+  // Canais em queda forte
+  (analise.vendas.canais || []).forEach(function(c){
+    if(c.variacao < -cfg.varVendas) {
+      diags.push({
+        tipo: 'canal-queda',
+        severidade: c.variacao < -cfg.varVendas * 2 ? 'critico' : 'alerta',
+        titulo: 'Queda em ' + c.canal,
+        desc: c.canal + ' caiu ' + Math.abs(c.variacao) + '% no GMV.',
+        detalhe: 'Recente: R$ ' + c.gmvRecente.toLocaleString('pt-BR',{maximumFractionDigits:0}) +
+                 ' · Anterior: R$ ' + c.gmvAnterior.toLocaleString('pt-BR',{maximumFractionDigits:0}),
+        confianca: Math.min(90, 65 + Math.abs(c.variacao) * 1.5),
+        simulado: false
+      });
+    } else if(c.variacao > cfg.varVendas) {
+      diags.push({
+        tipo: 'canal-alta',
+        severidade: 'positivo',
+        titulo: c.canal + ' em alta',
+        desc: c.canal + ' subiu ' + c.variacao + '% no GMV.',
+        detalhe: 'Recente: R$ ' + c.gmvRecente.toLocaleString('pt-BR',{maximumFractionDigits:0}),
+        confianca: 80,
+        simulado: false
+      });
+    }
+  });
+
+  // Estoque em ruptura
+  if(analise.estoque.skusRuptura > 0) {
+    var sev = analise.estoque.percRuptura >= 30 ? 'critico' :
+              analise.estoque.percRuptura >= 15 ? 'alerta' : 'atencao';
+    diags.push({
+      tipo: 'estoque-ruptura',
+      severidade: sev,
+      titulo: 'Risco de ruptura · Curva A',
+      desc: analise.estoque.skusRuptura + ' SKUs da Curva A com cobertura abaixo de ' + cfg.ruptura + ' dias.',
+      detalhe: (analise.estoque.criticos.slice(0,3).map(function(c){
+        return c.sku + ' (' + c.cobertura + 'd)';
+      }).join(' · ')) || 'Verifique a Projeção de Estoque.',
+      confianca: 92,
+      simulado: false,
+      acao: { label: 'Ver Projeção', onclick: "showPage('projecao')" }
+    });
+  }
+
+  // ─── Diagnósticos SIMULADOS (até integrar APIs) ───
+
+  // Mídia: ROAS caindo (simulado)
+  diags.push({
+    tipo: 'midia-roas',
+    severidade: 'alerta',
+    titulo: 'ROAS em queda · Meta Ads',
+    desc: 'ROAS caiu de 3.2 → 1.8 nos últimos ' + cfg.dias + ' dias. CPC subiu 24%.',
+    detalhe: 'Custo recente: R$ 8.420 · Receita atribuída: R$ 15.150',
+    confianca: 72,
+    simulado: true
+  });
+
+  // Mídia: Google Ads (simulado)
+  diags.push({
+    tipo: 'midia-google',
+    severidade: 'positivo',
+    titulo: 'Google Ads performando',
+    desc: 'CPA caiu 12% e conversões subiram 18%.',
+    detalhe: 'Custo: R$ 3.200 · CPA: R$ 22 (era R$ 25)',
+    confianca: 80,
+    simulado: true
+  });
+
+  // Mercado macro (simulado)
+  diags.push({
+    tipo: 'mercado-macro',
+    severidade: 'positivo',
+    titulo: 'Mercado em movimento',
+    desc: 'Categoria com tendência de alta nas buscas (+15% no Google Trends).',
+    detalhe: 'Pico esperado nos próximos 7-10 dias.',
+    confianca: 65,
+    simulado: true
+  });
+
+  // Sazonalidade (placeholder)
+  diags.push({
+    tipo: 'sazonalidade',
+    severidade: 'info',
+    titulo: 'Análise sazonal indisponível',
+    desc: 'Aguardando histórico de 12+ meses.',
+    detalhe: 'Comparação ano anterior estará disponível em jan/2027.',
+    confianca: 100,
+    simulado: false,
+    placeholder: true
+  });
+
+  // Ordenar: críticos primeiro, depois alertas, atenção, positivo, info
+  var ordem = { 'critico': 0, 'alerta': 1, 'atencao': 2, 'positivo': 3, 'info': 4 };
+  diags.sort(function(a,b){
+    var oa = ordem[a.severidade] !== undefined ? ordem[a.severidade] : 5;
+    var ob = ordem[b.severidade] !== undefined ? ordem[b.severidade] : 5;
+    return oa - ob;
+  });
+
+  return diags;
+}
+
+/* ─── RENDER PRINCIPAL ──────────────────────────────────── */
+
+function raioxRender() {
+  if(!window._veltroAdminAutenticado) {
+    var c = document.getElementById('raiox-conteudo');
+    if(c) c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-family:var(--fmono);font-size:12px"><div style="font-size:32px;margin-bottom:10px">🔐</div>Acesso restrito ao admin master.<br>Saia e entre via <code>/app</code> com a senha master.</div>';
+    return;
+  }
+
+  var c = document.getElementById('raiox-conteudo');
+  if(!c) return;
+
+  raioxAplicarConfigForm();
+  var cfg = raioxGetConfig();
+
+  // Gera análise
+  var analise = {
+    vendas: raioxComparaPeriodos(cfg.dias),
+    estoque: raioxAnaliseEstoque()
+  };
+  var term = raioxCalcularTermometro(analise);
+  var diags = raioxGerarDiagnosticos(analise);
+
+  // ─── HTML ──
+
+  var html = '';
+
+  // 🌡️ TERMÔMETRO PRINCIPAL
+  html +=
+    '<div style="background:linear-gradient(135deg,'+term.cor+'12,'+term.cor+'04);border:1px solid '+term.cor+'40;border-radius:16px;padding:24px;margin-bottom:18px">'+
+      '<div style="display:grid;grid-template-columns:1fr 2fr;gap:24px;align-items:center" class="raiox-termo-grid">'+
+        // Lado esquerdo: gauge + score
+        '<div style="text-align:center">'+
+          '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Termômetro do Negócio</div>'+
+          _raioxRenderGauge(term)+
+          '<div style="font-family:var(--fhead);font-size:16px;font-weight:700;color:'+term.cor+';margin-top:12px">'+term.icone+' '+term.label+'</div>'+
+        '</div>'+
+        // Lado direito: fatores
+        '<div>'+
+          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Fatores na pontuação</div>'+
+          (term.fatores.length > 0
+            ? term.fatores.map(function(f){
+              var cor = f.peso > 0 ? '#F43F5E' : '#10B981';
+              return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--s3);font-family:var(--fmono);font-size:11px">'+
+                '<span style="color:var(--text)">'+escapeHtml(f.descr)+'</span>'+
+                (f.peso > 0
+                  ? '<span style="color:'+cor+';font-weight:600">−'+Math.round(f.peso)+'</span>'
+                  : '<span style="color:'+cor+';font-weight:600">✓</span>')+
+              '</div>';
+            }).join('')
+            : '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted2);padding:8px 0">Operação saudável · sem alertas relevantes.</div>'
+          ) +
+        '</div>'+
+      '</div>'+
+    '</div>';
+
+  // 📋 CARDS DE DIAGNÓSTICO (em grid)
+  html += '<div style="margin-bottom:18px">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  html += '<div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text)">🔍 Diagnósticos</div>';
+  var realCount = diags.filter(function(d){return !d.simulado && !d.placeholder;}).length;
+  var simCount = diags.filter(function(d){return d.simulado;}).length;
+  html += '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted)">'+realCount+' real(is) · '+simCount+' simulado(s)</div>';
+  html += '</div>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">';
+  diags.forEach(function(d){
+    html += _raioxRenderCardDiag(d);
+  });
+  html += '</div></div>';
+
+  // 📊 GRÁFICO DE VENDAS 30 DIAS
+  html += _raioxRenderGrafico(analise.vendas.dadosDiarios);
+
+  c.innerHTML = html;
+
+  // Renderiza o gráfico Chart.js depois do HTML estar no DOM
+  setTimeout(function(){ _raioxDesenharChart(analise.vendas.dadosDiarios); }, 50);
+}
+
+/* SVG Gauge do termômetro */
+function _raioxRenderGauge(term) {
+  var size = 160;
+  var stroke = 14;
+  var radius = (size - stroke) / 2;
+  var circ = 2 * Math.PI * radius;
+  var pct = term.score / 100;
+  var dashOffset = circ * (1 - pct);
+
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="display:block;margin:0 auto">'+
+    // Fundo
+    '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="var(--s3)" stroke-width="'+stroke+'"/>'+
+    // Progresso
+    '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="'+term.cor+'" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" style="transition:stroke-dashoffset .8s ease"/>'+
+    // Texto central
+    '<text x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="42" font-weight="700" fill="'+term.cor+'">'+term.score+'</text>'+
+    '<text x="50%" y="50%" text-anchor="middle" dy="22" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--muted)">/ 100</text>'+
+  '</svg>';
+}
+
+/* Card de diagnóstico individual */
+function _raioxRenderCardDiag(d) {
+  var COR_SEV = {
+    'critico':  { borda: '#F43F5E', bg: 'rgba(244,63,94,.06)',  txt: '#F87171', icone: '🔴' },
+    'alerta':   { borda: '#FB923C', bg: 'rgba(251,146,60,.06)', txt: '#FB923C', icone: '🟠' },
+    'atencao':  { borda: '#FCD34D', bg: 'rgba(252,211,77,.06)', txt: '#FCD34D', icone: '🟡' },
+    'positivo': { borda: '#10B981', bg: 'rgba(16,185,129,.06)', txt: '#10B981', icone: '🟢' },
+    'info':     { borda: '#60A5FA', bg: 'rgba(96,165,250,.06)', txt: '#60A5FA', icone: '🔵' }
+  };
+  var c = COR_SEV[d.severidade] || COR_SEV['info'];
+
+  var tagSimulado = d.simulado
+    ? '<span style="background:rgba(252,211,77,.15);color:#FCD34D;padding:2px 7px;border-radius:8px;font-family:var(--fmono);font-size:9px;font-weight:600;margin-left:6px;letter-spacing:.3px" title="Dados simulados — serão reais ao integrar a fonte">🔬 Simulado</span>'
+    : '';
+  var tagPlaceholder = d.placeholder
+    ? '<span style="background:rgba(96,165,250,.15);color:#60A5FA;padding:2px 7px;border-radius:8px;font-family:var(--fmono);font-size:9px;font-weight:600;margin-left:6px">⏳ Aguardando dados</span>'
+    : '';
+
+  var acao = d.acao
+    ? '<button onclick="'+d.acao.onclick+'" type="button" style="background:transparent;border:1px solid '+c.borda+'40;color:'+c.txt+';padding:5px 10px;border-radius:6px;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;margin-top:8px">'+d.acao.label+' →</button>'
+    : '';
+
+  return '<div style="background:'+c.bg+';border:1px solid '+c.borda+'30;border-left:3px solid '+c.borda+';border-radius:10px;padding:14px;opacity:'+(d.placeholder?0.7:1)+'">'+
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px">'+
+      '<div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:'+c.txt+';display:flex;align-items:center;flex-wrap:wrap">'+
+        c.icone+' '+escapeHtml(d.titulo)+
+        tagSimulado + tagPlaceholder +
+      '</div>'+
+      '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted2);background:var(--s2);padding:2px 7px;border-radius:6px;flex-shrink:0">'+d.confianca+'%</span>'+
+    '</div>'+
+    '<div style="font-family:var(--fmono);font-size:11px;color:var(--text);line-height:1.5;margin-bottom:5px">'+escapeHtml(d.desc)+'</div>'+
+    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">'+escapeHtml(d.detalhe)+'</div>'+
+    acao +
+  '</div>';
+}
+
+/* Container do gráfico */
+function _raioxRenderGrafico(dadosDiarios) {
+  return '<div style="background:var(--s2);border:1px solid var(--border2);border-radius:12px;padding:16px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">'+
+      '<div>'+
+        '<div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text)">📊 Vendas · últimos 30 dias</div>'+
+        '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">GMV diário · consolidado e por canal</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px">'+
+        '<button onclick="window._raioxModoChart=\'consolidado\';_raioxDesenharChart()" id="raiox-btn-consol" style="padding:5px 12px;background:var(--s1);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">Consolidado</button>'+
+        '<button onclick="window._raioxModoChart=\'canais\';_raioxDesenharChart()" id="raiox-btn-canais" style="padding:5px 12px;background:var(--s1);border:1px solid var(--border2);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">Por canal</button>'+
+      '</div>'+
+    '</div>'+
+    '<div style="position:relative;height:280px">'+
+      '<canvas id="raiox-chart"></canvas>'+
+    '</div>'+
+  '</div>';
+}
+
+/* Desenha o chart usando Chart.js (já carregado no head) */
+var _raioxChartInstance = null;
+function _raioxDesenharChart(dadosDiarios) {
+  if(typeof Chart === 'undefined') return;
+  var canvas = document.getElementById('raiox-chart');
+  if(!canvas) return;
+  var ctx = canvas.getContext('2d');
+
+  // Dados em cache se não passou
+  if(!dadosDiarios) {
+    var cfg = raioxGetConfig();
+    dadosDiarios = raioxVendasPorDia(30);
+  }
+
+  var keys = Object.keys(dadosDiarios).sort();
+  var labels = keys.map(function(k){
+    var d = new Date(k+'T00:00:00');
+    return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+  });
+
+  var modo = window._raioxModoChart || 'consolidado';
+
+  // Atualiza estilo dos botões
+  try {
+    var bC = document.getElementById('raiox-btn-consol');
+    var bK = document.getElementById('raiox-btn-canais');
+    if(bC && bK) {
+      var ativoStyle = ['var(--accent)','var(--accent)','600'];
+      var inativoStyle = ['var(--border2)','var(--muted)','400'];
+      var c = modo === 'consolidado' ? ativoStyle : inativoStyle;
+      var k = modo === 'canais' ? ativoStyle : inativoStyle;
+      bC.style.borderColor = c[0]; bC.style.color = c[1]; bC.style.fontWeight = c[2];
+      bK.style.borderColor = k[0]; bK.style.color = k[1]; bK.style.fontWeight = k[2];
+    }
+  } catch(e){}
+
+  var datasets;
+  if(modo === 'consolidado') {
+    datasets = [{
+      label: 'GMV total',
+      data: keys.map(function(k){ return Math.round(dadosDiarios[k].gmv); }),
+      borderColor: '#6EE7B7',
+      backgroundColor: 'rgba(110,231,183,.08)',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.3,
+      pointRadius: 2,
+      pointHoverRadius: 5
+    }];
+  } else {
+    // Por canal
+    var canaisSet = {};
+    keys.forEach(function(k){ Object.keys(dadosDiarios[k].canais).forEach(function(c){ canaisSet[c]=true; }); });
+    var canaisArr = Object.keys(canaisSet).slice(0, 6); // top 6
+    var cores = ['#6EE7B7','#A78BFA','#FCD34D','#60A5FA','#FB923C','#F87171'];
+    datasets = canaisArr.map(function(c, i){
+      return {
+        label: c,
+        data: keys.map(function(k){ return Math.round((dadosDiarios[k].canais[c]||{gmv:0}).gmv); }),
+        borderColor: cores[i],
+        backgroundColor: cores[i] + '15',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.3,
+        pointRadius: 2,
+        pointHoverRadius: 5
+      };
+    });
+  }
+
+  if(_raioxChartInstance) {
+    _raioxChartInstance.destroy();
+  }
+
+  _raioxChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: modo === 'canais',
+          labels: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 } }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(10,12,16,.95)',
+          borderColor: 'rgba(110,231,183,.30)',
+          borderWidth: 1,
+          titleFont: { family: 'Syne' },
+          bodyFont: { family: 'JetBrains Mono' },
+          callbacks: {
+            label: function(ctx){
+              return ctx.dataset.label+': R$ '+(ctx.parsed.y||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: { color: '#6b7280', font: { family: 'JetBrains Mono', size: 9 }, maxRotation: 0 }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: {
+            color: '#6b7280',
+            font: { family: 'JetBrains Mono', size: 9 },
+            callback: function(v){ return 'R$ '+(v/1000).toFixed(0)+'k'; }
+          }
+        }
+      }
+    }
+  });
 }
 
 function veltroFecharEditarEmpresa() {
