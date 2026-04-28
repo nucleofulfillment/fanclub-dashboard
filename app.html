@@ -3362,7 +3362,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX10';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX11';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -17797,23 +17797,32 @@ function raioxGerarDadosDemo(cenario) {
     },
     'misto': {
       gmvBase: 9200,
-      varGeral: 0.30,          // dispara janela 7d com bom delta
-      ruido: 0.18,             // 🆕 ruído maior pra mais variação visual
-      // 🆕 Eventos comerciais: dias específicos com picos/quedas pra demonstrar dinâmica
-      // indiceDia: 0=29 dias atrás, 29=hoje. Multiplica o gmvDia.
+      varGeral: 0.30,
+      ruido: 0.25,             // 🆕 ruído alto pra muita variação dia-a-dia
+      // 🆕 Mais eventos comerciais — assimetria forte
       eventos: {
-        3:  1.45,  // pico (dia 3 — campanha)
-        7:  0.55,  // queda forte (dia 7 — falha de estoque?)
-        12: 1.65,  // mega pico (dia 12 — black friday simulada)
-        13: 1.35,  // pico residual
-        18: 0.62,  // queda (dia 18 — perda de tracking ADS?)
-        22: 1.55,  // pico (dia 22 — promoção marketplace)
-        25: 0.70,  // queda (dia 25)
-        28: 1.40   // pico recente (ontem)
+        2:  0.55,  // queda forte logo no início
+        3:  1.55,  // pico de campanha (recuperação)
+        5:  0.65,  // queda
+        7:  1.45,  // pico
+        9:  0.50,  // queda forte (falha estoque)
+        10: 0.62,  // continua baixo
+        12: 1.75,  // mega pico (BF simulada)
+        13: 1.45,  // pico residual
+        15: 0.70,  // ajuste pós-evento
+        17: 1.30,  // recuperação
+        18: 0.55,  // queda (perda tracking ADS)
+        19: 0.65,
+        21: 1.40,  // novo pico
+        22: 1.60,  // mega promo marketplace
+        24: 0.68,  // queda
+        25: 0.72,
+        27: 1.35,  // alta moderada
+        28: 1.55   // pico recente (ontem)
       },
       canais: {
-        'Shopee':         { peso: 0.45, varRecente: -0.55 },  // queda forte
-        'Mercado Livre':  { peso: 0.28, varRecente: 0.65 },   // alta forte
+        'Shopee':         { peso: 0.45, varRecente: -0.55 },
+        'Mercado Livre':  { peso: 0.28, varRecente: 0.65 },
         'Loja Própria':   { peso: 0.14, varRecente: 0.10 },
         'Shein':          { peso: 0.08, varRecente: 0.25 },
         'Dafiti':         { peso: 0.05, varRecente: -0.15 }
@@ -18352,17 +18361,37 @@ function raioxCalcularTermometro(analise) {
 
   score = Math.max(0, Math.min(100, Math.round(score)));
 
-  // Cor e label
-  var status, cor, icone, label;
-  if(score >= 80) {
-    status = 'saudavel'; cor = '#10B981'; icone = '🟢'; label = 'Saudável';
-  } else if(score >= 60) {
-    status = 'atencao'; cor = '#FCD34D'; icone = '🟡'; label = 'Atenção';
-  } else if(score >= 40) {
-    status = 'alerta'; cor = '#FB923C'; icone = '🟠'; label = 'Alerta';
-  } else {
-    status = 'critico'; cor = '#F43F5E'; icone = '🔴'; label = 'Crítico';
+  // 🆕 Cor DINÂMICA — interpolação rosa→verde conforme score
+  // Score 0   → rosa quente (#EC4899)
+  // Score 50  → laranja morno (#FB923C)
+  // Score 100 → verde frio neon (#6EE7B7)
+  function _interpolarCor(scoreNum) {
+    // 3 paradas: 0 (rosa) | 50 (laranja) | 100 (verde)
+    var stops = [
+      { p: 0,   r: 0xEC, g: 0x48, b: 0x99 },  // #EC4899 rosa
+      { p: 50,  r: 0xFB, g: 0x92, b: 0x3C },  // #FB923C laranja
+      { p: 100, r: 0x6E, g: 0xE7, b: 0xB7 }   // #6EE7B7 verde
+    ];
+    // Acha as 2 paradas adjacentes
+    var s = scoreNum;
+    var a, b;
+    if(s <= 50) { a = stops[0]; b = stops[1]; }
+    else        { a = stops[1]; b = stops[2]; }
+    var t = (s - a.p) / (b.p - a.p); // 0..1 entre as paradas
+    var r = Math.round(a.r + (b.r - a.r) * t);
+    var g = Math.round(a.g + (b.g - a.g) * t);
+    var bb = Math.round(a.b + (b.b - a.b) * t);
+    return 'rgb(' + r + ',' + g + ',' + bb + ')';
   }
+
+  // Status, label, ícone (definem texto), cor é dinâmica
+  var status, icone, label;
+  if(score >= 80)      { status = 'saudavel'; icone = '🟢'; label = 'Saudável'; }
+  else if(score >= 60) { status = 'atencao';  icone = '🟡'; label = 'Atenção'; }
+  else if(score >= 40) { status = 'alerta';   icone = '🟠'; label = 'Alerta'; }
+  else                  { status = 'critico';  icone = '🔴'; label = 'Crítico'; }
+
+  var cor = _interpolarCor(score);
 
   return { score: score, status: status, cor: cor, icone: icone, label: label, fatores: fatores };
 }
@@ -18581,16 +18610,15 @@ function raioxRender() {
             '<button onclick="raioxSetJanela(\'30d\')" id="raiox-jan-30d" type="button" '+
               'style="padding:4px 10px;background:transparent;border:1px solid transparent;color:var(--muted);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer">30 dias</button>'+
           '</div>'+
-          // Modo
-          '<div style="display:flex;gap:6px">'+
-            '<button onclick="window._raioxModoChart=\'consolidado\';_raioxDesenharChart()" id="raiox-btn-consol" '+
-              'style="padding:5px 12px;background:var(--s2);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">Consolidado</button>'+
-            '<button onclick="window._raioxModoChart=\'canais\';_raioxDesenharChart()" id="raiox-btn-canais" '+
-              'style="padding:5px 12px;background:var(--s2);border:1px solid var(--border);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">Por canal</button>'+
-          '</div>'+
-          // Toggle linhas auxiliares — DEFAULT ATIVO
-          '<button onclick="raioxToggleLinhasAux()" id="raiox-toggle-aux" type="button" title="Mostrar/ocultar linhas auxiliares (Marketplace, Mídia, Estoque, Mercado)" '+
-            'style="padding:5px 10px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.50);color:#A78BFA;border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">📈 Linhas Aux</button>'+
+          // 🆕 Dropdown de foco — substitui "Por canal" e "Linhas Aux"
+          '<select id="raiox-foco-select" onchange="raioxSetFoco(this.value)" title="Foco do gráfico — destaca uma categoria específica" '+
+            'style="padding:6px 28px 6px 12px;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22 viewBox=%220 0 10 6%22><path fill=%22%236EE7B7%22 d=%22M0 0l5 6 5-6z%22/></svg>\');background-repeat:no-repeat;background-position:right 10px center;background-size:8px">'+
+            '<option value="consolidado">Consolidado</option>'+
+            '<option value="marketplace">🛒 Marketplace</option>'+
+            '<option value="mercado">🌐 Mercado</option>'+
+            '<option value="midia">📢 Mídia</option>'+
+            '<option value="estoque">📦 Estoque</option>'+
+          '</select>'+
         '</div>'+
       '</div>'+
       '<div style="position:relative;height:320px;max-height:320px">'+
@@ -18601,7 +18629,7 @@ function raioxRender() {
         '<span>🎯 <strong style="color:var(--accent)">Tempo atual</strong>: último dia em destaque</span> · '+
         '<span>⚖ <strong style="color:#9CA3AF">Equilíbrio</strong>: média móvel 7d</span> · '+
         '<span>💡 <strong style="color:var(--accent)">Hover</strong> em qualquer ponto pra ver detalhes</span> · '+
-        '<span>📈 <strong style="color:#A78BFA">Linhas Aux</strong>: Marketplace/Mídia/Estoque/Mercado (🔬 simulado)</span>'+
+        '<span>🔬 <strong style="color:#A78BFA">Indicadores aux</strong>: Marketplace/Mídia/Estoque/Mercado simulados</span>'+
       '</div>'+
     '</div>';
 
@@ -18609,6 +18637,53 @@ function raioxRender() {
   html += '<div class="raiox-split-grid" style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px">';
 
   // 🌡️ TERMÔMETRO (lado esquerdo)
+  // Pega indicadores dos auxiliares pra pílulas (compara último vs média 7d anterior)
+  function _raioxResumoIndicadores() {
+    try {
+      var aux = raioxGerarLinhasAuxiliares(analise.vendas.dadosDiarios, modoDemo || 'real');
+      var keysAux = Object.keys(analise.vendas.dadosDiarios).sort();
+      function _calcVar(arr) {
+        if(!arr || arr.length < 8) return null;
+        var ultimo = arr[arr.length - 1];
+        var medAnterior = 0, count = 0;
+        for(var i = arr.length - 8; i < arr.length - 1; i++) {
+          if(arr[i] !== undefined && arr[i] !== null) { medAnterior += arr[i]; count++; }
+        }
+        if(count === 0) return null;
+        medAnterior /= count;
+        if(medAnterior === 0) return null;
+        return Math.round(((ultimo - medAnterior) / medAnterior) * 100);
+      }
+      var vendasArr = keysAux.map(function(k){ return analise.vendas.dadosDiarios[k].gmv || 0; });
+      return {
+        marketplace: _calcVar(aux.marketplace),
+        mercado:     _calcVar(aux.mercado),
+        midia:       _calcVar(aux.midia),
+        estoque:     _calcVar(aux.estoque),
+        vendas:      _calcVar(vendasArr)
+      };
+    } catch(e) { return null; }
+  }
+  var resumo = _raioxResumoIndicadores();
+
+  // Helper pra pílulas
+  function _raioxPilula(pct) {
+    if(pct === null || pct === undefined) return '<span style="color:var(--muted2);font-family:var(--fmono);font-size:9px">—</span>';
+    var cor, bg, brd, seta;
+    if(pct >= 0) { cor = '#10B981'; bg = 'rgba(16,185,129,.12)'; brd = 'rgba(16,185,129,.40)'; seta = '▲'; }
+    else         { cor = '#F43F5E'; bg = 'rgba(244,63,94,.12)';  brd = 'rgba(244,63,94,.40)';  seta = '▼'; }
+    return '<span style="background:'+bg+';border:1px solid '+brd+';color:'+cor+';padding:2px 7px;border-radius:5px;font-family:var(--fmono);font-size:9.5px;font-weight:700;letter-spacing:.3px">'+seta+' '+(pct >= 0 ? '+' : '')+pct+'%</span>';
+  }
+  function _raioxLinhaIndicador(emoji, nome, cor, pct) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-family:var(--fmono);font-size:11px">'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+cor+';flex-shrink:0"></span>'+
+        '<span style="color:var(--text);font-weight:500">'+emoji+' '+nome+'</span>'+
+      '</div>'+
+      _raioxPilula(pct)+
+    '</div>';
+  }
+
   html +=
     '<div class="card fu">'+
       '<div class="ch">'+
@@ -18621,9 +18696,21 @@ function raioxRender() {
         _raioxRenderGauge(term)+
         '<div style="font-family:var(--fhead);font-size:15px;font-weight:700;color:'+term.cor+';margin-top:14px">'+term.icone+' '+term.label+'</div>'+
       '</div>'+
+      // 🆕 BLOCO RESUMO de indicadores (último vs média 7d anterior)
+      (resumo
+        ? '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Variação · último dia vs média 7d</div>'+
+            _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resumo.vendas)+
+            _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
+            _raioxLinhaIndicador('🌐', 'Mercado',     '#A78BFA', resumo.mercado)+
+            _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resumo.midia)+
+            _raioxLinhaIndicador('📦', 'Estoque',     '#EC4899', resumo.estoque)+
+          '</div>'
+        : ''
+      )+
       // Fatores compactos
       '<div style="border-top:1px solid var(--border);padding-top:12px">'+
-        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fatores</div>'+
+        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fatores · impacto no score</div>'+
         (term.fatores.length > 0
           ? term.fatores.map(function(f){
             var corF = f.peso > 0 ? '#F43F5E' : '#10B981';
@@ -18672,23 +18759,23 @@ function _raioxRenderGauge(term) {
   var circ = 2 * Math.PI * radius;
   var pct = term.score / 100;
   var dashOffset = circ * (1 - pct);
-  // ID único pro gradient (evita conflito se renderizar múltiplas vezes)
-  var gradId = 'raiox-gauge-grad-' + Math.floor(Math.random()*1e6);
 
-  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="display:block;margin:0 auto">'+
-    // 🆕 Gradient roxo → laranja → verde
+  // 🆕 Glow filter ID único pra cada render
+  var glowId = 'raiox-glow-' + Math.floor(Math.random()*1e6);
+
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="display:block;margin:0 auto;overflow:visible">'+
+    // Glow sutil pra dar "neon" no arco
     '<defs>'+
-      '<linearGradient id="'+gradId+'" x1="0%" y1="100%" x2="100%" y2="0%">'+
-        '<stop offset="0%"   stop-color="#A78BFA"/>'+   // roxo
-        '<stop offset="50%"  stop-color="#FB923C"/>'+   // laranja
-        '<stop offset="100%" stop-color="#6EE7B7"/>'+   // verde identidade
-      '</linearGradient>'+
+      '<filter id="'+glowId+'" x="-50%" y="-50%" width="200%" height="200%">'+
+        '<feGaussianBlur stdDeviation="2.5" result="b"/>'+
+        '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'+
+      '</filter>'+
     '</defs>'+
     // Trilho de fundo (cinza)
     '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="var(--s3)" stroke-width="'+stroke+'"/>'+
-    // Progresso com gradient
-    '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="url(#'+gradId+')" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" style="transition:stroke-dashoffset .8s ease"/>'+
-    // Texto central — usa cor do termômetro pra refletir estado atual
+    // Progresso — cor dinâmica conforme score (rosa→laranja→verde)
+    '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="'+term.cor+'" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" filter="url(#'+glowId+')" style="transition:stroke-dashoffset .8s ease, stroke .6s ease"/>'+
+    // Texto central
     '<text x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="38" font-weight="700" fill="'+term.cor+'">'+term.score+'</text>'+
     '<text x="50%" y="50%" text-anchor="middle" dy="20" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--muted)">/ 100</text>'+
   '</svg>';
@@ -18807,7 +18894,8 @@ function _raioxDesenharChart(dadosDiarios) {
     return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
   });
 
-  var modo = window._raioxModoChart || 'consolidado';
+  // 🆕 Foco do gráfico — controla qual linha auxiliar fica em destaque
+  var foco = window._raioxFoco || 'consolidado'; // 'consolidado' | 'marketplace' | 'mercado' | 'midia' | 'estoque'
 
   // Atualiza estilo dos botões de janela
   ['raiox-jan-24h','raiox-jan-10d','raiox-jan-30d'].forEach(function(id){
@@ -18819,69 +18907,23 @@ function _raioxDesenharChart(dadosDiarios) {
     btn.style.fontWeight = ativo ? '600' : '400';
   });
 
-  // Atualiza estilo dos botões de modo
+  // Sincroniza valor do dropdown de foco
   try {
-    var bC = document.getElementById('raiox-btn-consol');
-    var bK = document.getElementById('raiox-btn-canais');
-    if(bC && bK) {
-      var aS = ['var(--accent)','var(--accent)','600'];
-      var iS = ['var(--border)','var(--muted)','400'];
-      var c = modo === 'consolidado' ? aS : iS;
-      var k = modo === 'canais' ? aS : iS;
-      bC.style.borderColor = c[0]; bC.style.color = c[1]; bC.style.fontWeight = c[2];
-      bK.style.borderColor = k[0]; bK.style.color = k[1]; bK.style.fontWeight = k[2];
-    }
+    var sel = document.getElementById('raiox-foco-select');
+    if(sel && sel.value !== foco) sel.value = foco;
   } catch(e){}
 
   // ─── Datasets ───
   var datasets = [];
   var cenario = raioxGetModoDemo();
-  // 🆕 Linhas auxiliares VISÍVEIS por padrão (todas as 5 linhas no gráfico).
-  // Cliente pode ocultar pelo botão "Linhas Aux" se quiser visão limpa.
-  var linhasAux = window._raioxLinhasAux === undefined
-    ? true
-    : !!window._raioxLinhasAux;
 
-  if(modo === 'canais') {
-    // ─── MODO POR CANAL ───
-    var canaisSet = {};
-    keys.forEach(function(k){ Object.keys(dadosDiarios[k].canais || {}).forEach(function(c){ canaisSet[c]=true; }); });
-    var canaisArr = Object.keys(canaisSet).slice(0, 6);
-    var cores = ['#6EE7B7','#A78BFA','#FCD34D','#60A5FA','#FB923C','#F87171'];
-    datasets = canaisArr.map(function(c, i){
-      return {
-        label: c,
-        data: keys.map(function(k){ return Math.round((dadosDiarios[k].canais[c]||{gmv:0}).gmv); }),
-        borderColor: cores[i],
-        backgroundColor: cores[i] + '15',
-        borderWidth: 2,
-        fill: false,
-        tension: 0.35,
-        pointRadius: 2,
-        pointHoverRadius: 6
-      };
-    });
-  } else {
-    // ─── MODO CONSOLIDADO ───
-    var dadosVendas = keys.map(function(k){ return Math.round(dadosDiarios[k].gmv || 0); });
-
-    // Linha principal: vendas reais
-    // ─── Linha principal de Vendas em DOIS datasets:
-    //   1) Histórico (29 dias anteriores) — verde fade transparente
-    //   2) Destaque (últimas 24h/10d) — verde sólido + fill em degradê
-    // ──────────────────────────────────────────────────
+  // ─── MODO CONSOLIDADO (sempre — não há mais modo "canais") ───
+  var dadosVendas = keys.map(function(k){ return Math.round(dadosDiarios[k].gmv || 0); });
 
     // Cria array com null nas posições "fora da janela"
-    // Overlap de 1 ponto entre histórico e destaque pra ligar visualmente as linhas
     function _splitData(arr, idxInicio) {
-      // Histórico: do início até idxInicio (inclusive) — vai até "encostar" no destaque
-      var historico = arr.map(function(v, i){
-        return i <= idxInicio ? v : null;
-      });
-      // Destaque: de idxInicio (inclusive) até o fim
-      var destaque = arr.map(function(v, i){
-        return i >= idxInicio ? v : null;
-      });
+      var historico = arr.map(function(v, i){ return i <= idxInicio ? v : null; });
+      var destaque  = arr.map(function(v, i){ return i >= idxInicio ? v : null; });
       return { historico: historico, destaque: destaque };
     }
     var splitVendas = _splitData(dadosVendas, idxInicioDestaque);
@@ -18915,7 +18957,7 @@ function _raioxDesenharChart(dadosDiarios) {
       borderColor: '#6EE7B7',
       backgroundColor: gradPrincipal,
       borderWidth: 3,
-      fill: 'origin', // 🆕 Fill até y=0, comportamento estável
+      fill: 'origin',
       tension: 0.35,
       pointRadius: 0,
       pointHoverRadius: 6,
@@ -18939,61 +18981,76 @@ function _raioxDesenharChart(dadosDiarios) {
       order: 5
     });
 
-    // Linhas auxiliares — sempre computadas (pra tooltip), todas visíveis por default
-    // 🎨 Paleta nova: laranja (Mídia) / rosa (Estoque) / roxo (Mercado) / amarelo (Marketplace)
+    // 🆕 Lógica de foco: define quais linhas aparecem e a espessura
+    // - Consolidado: todas as 4 linhas auxiliares visíveis com espessura padrão
+    // - Foco específico: só a categoria escolhida visível, ENGROSSADA
+    function _focoConfig(categoria) {
+      // Se Consolidado, todas visíveis com peso normal
+      if(foco === 'consolidado') {
+        return { hidden: false, borderWidth: 1.8 };
+      }
+      // Senão: linha em foco engrossa, outras ocultas
+      var ativa = categoria === foco;
+      return { hidden: !ativa, borderWidth: ativa ? 3 : 1.8 };
+    }
+
+    // Linhas auxiliares — sempre computadas (pra tooltip), visibilidade controlada por foco
     var aux = raioxGerarLinhasAuxiliares(dadosDiarios, cenario);
 
+    var cfgMidia = _focoConfig('midia');
     datasets.push({
       label: '📢 Mídia 🔬',
       data: aux.midia.map(function(v){ return Math.round(v); }),
-      borderColor: '#FB923C', // 🆕 laranja
+      borderColor: '#FB923C',
       backgroundColor: 'transparent',
-      borderWidth: 1.8,
+      borderWidth: cfgMidia.borderWidth,
       fill: false,
       tension: 0.4,
       pointRadius: 0,
       pointHoverRadius: 4,
-      hidden: !linhasAux,
+      hidden: cfgMidia.hidden,
       order: 7
     });
+    var cfgEstoque = _focoConfig('estoque');
     datasets.push({
       label: '📦 Estoque 🔬',
       data: aux.estoque.map(function(v){ return Math.round(v); }),
-      borderColor: '#EC4899', // 🆕 rosa/pink
+      borderColor: '#EC4899',
       backgroundColor: 'transparent',
-      borderWidth: 1.8,
+      borderWidth: cfgEstoque.borderWidth,
       fill: false,
       tension: 0.4,
       pointRadius: 0,
       pointHoverRadius: 4,
-      hidden: !linhasAux,
+      hidden: cfgEstoque.hidden,
       order: 8
     });
+    var cfgMercado = _focoConfig('mercado');
     datasets.push({
       label: '🌐 Mercado 🔬',
       data: aux.mercado.map(function(v){ return Math.round(v); }),
-      borderColor: '#A78BFA', // 🆕 roxo
+      borderColor: '#A78BFA',
       backgroundColor: 'transparent',
-      borderWidth: 1.8,
+      borderWidth: cfgMercado.borderWidth,
       fill: false,
       tension: 0.4,
       pointRadius: 0,
       pointHoverRadius: 4,
-      hidden: !linhasAux,
+      hidden: cfgMercado.hidden,
       order: 6
     });
-    // 🆕 Marketplace — amarelo
+    var cfgMkt = _focoConfig('marketplace');
     datasets.push({
       label: '🛒 Marketplace 🔬',
       data: aux.marketplace.map(function(v){ return Math.round(v); }),
-      borderColor: '#FCD34D', // amarelo
+      borderColor: '#FCD34D',
       backgroundColor: 'transparent',
-      borderWidth: 1.8,
+      borderWidth: cfgMkt.borderWidth,
       fill: false,
       tension: 0.4,
       pointRadius: 0,
       pointHoverRadius: 4,
-      hidden: !linhasAux,
+      hidden: cfgMkt.hidden,
       order: 5
     });
 
@@ -19023,15 +19080,12 @@ function _raioxDesenharChart(dadosDiarios) {
         pointHoverRadius: 9,
         showLine: false,
         order: 0,
-        // Guarda alertas pra tooltip usar
         _alertasMap: alertasPorIdx
       });
-      // Guarda na window pra tooltip acessar
       window._raioxAlertasAtuais = alertasPorIdx;
     } else {
       window._raioxAlertasAtuais = {};
     }
-  }
 
   if(_raioxChartInstance) {
     try { _raioxChartInstance.destroy(); } catch(e){}
@@ -19311,19 +19365,9 @@ function raioxSetJanela(j) {
   _raioxDesenharChart();
 }
 
-/* Toggle linhas auxiliares */
-function raioxToggleLinhasAux() {
-  // Default = true (linhas visíveis), inverte
-  var atual = window._raioxLinhasAux === undefined ? true : !!window._raioxLinhasAux;
-  window._raioxLinhasAux = !atual;
-  // Atualiza botão
-  var btn = document.getElementById('raiox-toggle-aux');
-  if(btn) {
-    var ativo = window._raioxLinhasAux;
-    btn.style.background = ativo ? 'rgba(167,139,250,.15)' : 'var(--s2)';
-    btn.style.borderColor = ativo ? 'rgba(167,139,250,.50)' : 'var(--border)';
-    btn.style.color = ativo ? '#A78BFA' : 'var(--muted)';
-  }
+/* 🆕 Foco do gráfico — consolidado ou destaca categoria específica */
+function raioxSetFoco(foco) {
+  window._raioxFoco = foco; // 'consolidado' | 'marketplace' | 'mercado' | 'midia' | 'estoque'
   _raioxDesenharChart();
 }
 
