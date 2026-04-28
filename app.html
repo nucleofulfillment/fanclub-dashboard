@@ -322,6 +322,8 @@ body::before {
   .g3-charts { grid-template-columns: 1fr !important; }
   /* ops-grid vertical no mobile */
   #ops-grid { grid-template-columns: 1fr !important; }
+  /* 🚀 Raio X: split termômetro + diagnósticos vira 1 coluna */
+  .raiox-split-grid { grid-template-columns: 1fr !important; }
   /* Grid de comparação Marcas+Produtos: vira 1 coluna em mobile */
   .resumo-comparacao-grid {
     grid-template-columns: 1fr !important;
@@ -3357,7 +3359,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX3';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX4';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -18381,52 +18383,79 @@ function raioxRender() {
       '</div>';
   }
 
-  // 🌡️ TERMÔMETRO PRINCIPAL
+  // 📊 GRÁFICO HERO (topo, full-width — mesma estrutura do dashboard principal)
   html +=
-    '<div style="background:linear-gradient(135deg,'+term.cor+'12,'+term.cor+'04);border:1px solid '+term.cor+'40;border-radius:16px;padding:24px;margin-bottom:18px">'+
-      '<div style="display:grid;grid-template-columns:1fr 2fr;gap:24px;align-items:center" class="raiox-termo-grid">'+
-        // Lado esquerdo: gauge + score
-        '<div style="text-align:center">'+
-          '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Termômetro do Negócio</div>'+
-          _raioxRenderGauge(term)+
-          '<div style="font-family:var(--fhead);font-size:16px;font-weight:700;color:'+term.cor+';margin-top:12px">'+term.icone+' '+term.label+'</div>'+
-        '</div>'+
-        // Lado direito: fatores
+    '<div class="slabel" style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">vendas · últimos 30 dias</div>'+
+    '<div class="card fu" style="margin-bottom:14px">'+
+      '<div class="ch">'+
         '<div>'+
-          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Fatores na pontuação</div>'+
-          (term.fatores.length > 0
-            ? term.fatores.map(function(f){
-              var cor = f.peso > 0 ? '#F43F5E' : '#10B981';
-              return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--s3);font-family:var(--fmono);font-size:11px">'+
-                '<span style="color:var(--text)">'+escapeHtml(f.descr)+'</span>'+
-                (f.peso > 0
-                  ? '<span style="color:'+cor+';font-weight:600">−'+Math.round(f.peso)+'</span>'
-                  : '<span style="color:'+cor+';font-weight:600">✓</span>')+
-              '</div>';
-            }).join('')
-            : '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted2);padding:8px 0">Operação saudável · sem alertas relevantes.</div>'
-          ) +
+          '<div class="ct" style="font-size:17px">Evolução de Vendas</div>'+
+          '<div class="cs">GMV diário · consolidado e por canal</div>'+
         '</div>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button onclick="window._raioxModoChart=\'consolidado\';_raioxDesenharChart()" id="raiox-btn-consol" '+
+            'style="padding:5px 12px;background:var(--s2);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">Consolidado</button>'+
+          '<button onclick="window._raioxModoChart=\'canais\';_raioxDesenharChart()" id="raiox-btn-canais" '+
+            'style="padding:5px 12px;background:var(--s2);border:1px solid var(--border);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">Por canal</button>'+
+        '</div>'+
+      '</div>'+
+      '<div style="position:relative;height:300px;max-height:300px">'+
+        '<canvas id="raiox-chart"></canvas>'+
       '</div>'+
     '</div>';
 
-  // 📋 CARDS DE DIAGNÓSTICO (em grid)
-  html += '<div style="margin-bottom:18px">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-  html += '<div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text)">🔍 Diagnósticos</div>';
+  // SPLIT: TERMÔMETRO (esquerda) | CARDS DIAGNÓSTICO (direita)
+  html += '<div class="raiox-split-grid" style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px">';
+
+  // 🌡️ TERMÔMETRO (lado esquerdo)
+  html +=
+    '<div class="card fu">'+
+      '<div class="ch">'+
+        '<div>'+
+          '<div class="ct">Termômetro do Negócio</div>'+
+          '<div class="cs">Pontuação geral · 0-100</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="text-align:center;padding:10px 0 16px">'+
+        _raioxRenderGauge(term)+
+        '<div style="font-family:var(--fhead);font-size:15px;font-weight:700;color:'+term.cor+';margin-top:14px">'+term.icone+' '+term.label+'</div>'+
+      '</div>'+
+      // Fatores compactos
+      '<div style="border-top:1px solid var(--border);padding-top:12px">'+
+        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fatores</div>'+
+        (term.fatores.length > 0
+          ? term.fatores.map(function(f){
+            var corF = f.peso > 0 ? '#F43F5E' : '#10B981';
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-family:var(--fmono);font-size:10px">'+
+              '<span style="color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(f.descr)+'</span>'+
+              (f.peso > 0
+                ? '<span style="color:'+corF+';font-weight:700;flex-shrink:0;margin-left:6px">−'+Math.round(f.peso)+'</span>'
+                : '<span style="color:'+corF+';font-weight:700;flex-shrink:0;margin-left:6px">✓</span>')+
+            '</div>';
+          }).join('')
+          : '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:center;padding:8px 0">Operação saudável</div>'
+        ) +
+      '</div>'+
+    '</div>';
+
+  // 📋 CARDS DE DIAGNÓSTICO (lado direito)
   var realCount = diags.filter(function(d){return !d.simulado && !d.placeholder;}).length;
   var simCount = diags.filter(function(d){return d.simulado;}).length;
-  html += '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted)">'+realCount+' real(is) · '+simCount+' simulado(s)</div>';
-  html += '</div>';
 
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">';
-  diags.forEach(function(d){
-    html += _raioxRenderCardDiag(d);
-  });
-  html += '</div></div>';
+  html +=
+    '<div class="card fu">'+
+      '<div class="ch">'+
+        '<div>'+
+          '<div class="ct">Diagnósticos</div>'+
+          '<div class="cs">'+realCount+' real(is) · '+simCount+' simulado(s) · click pra expandir</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:8px">'+
+        diags.map(function(d, idx){ return _raioxRenderCardDiag(d, idx); }).join('')+
+      '</div>'+
+    '</div>';
 
-  // 📊 GRÁFICO DE VENDAS 30 DIAS
-  html += _raioxRenderGrafico(analise.vendas.dadosDiarios);
+  html += '</div>'; // fim split
 
   c.innerHTML = html;
 
@@ -18434,79 +18463,96 @@ function raioxRender() {
   setTimeout(function(){ _raioxDesenharChart(analise.vendas.dadosDiarios); }, 50);
 }
 
-/* SVG Gauge do termômetro */
+/* SVG Gauge do termômetro — versão menor pra split */
 function _raioxRenderGauge(term) {
-  var size = 160;
-  var stroke = 14;
+  var size = 140;
+  var stroke = 12;
   var radius = (size - stroke) / 2;
   var circ = 2 * Math.PI * radius;
   var pct = term.score / 100;
   var dashOffset = circ * (1 - pct);
 
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="display:block;margin:0 auto">'+
-    // Fundo
     '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="var(--s3)" stroke-width="'+stroke+'"/>'+
-    // Progresso
     '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="'+term.cor+'" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" style="transition:stroke-dashoffset .8s ease"/>'+
-    // Texto central
-    '<text x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="42" font-weight="700" fill="'+term.cor+'">'+term.score+'</text>'+
-    '<text x="50%" y="50%" text-anchor="middle" dy="22" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--muted)">/ 100</text>'+
+    '<text x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="38" font-weight="700" fill="'+term.cor+'">'+term.score+'</text>'+
+    '<text x="50%" y="50%" text-anchor="middle" dy="20" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--muted)">/ 100</text>'+
   '</svg>';
 }
 
-/* Card de diagnóstico individual */
-function _raioxRenderCardDiag(d) {
+/* Card de diagnóstico compacto + accordion expansível */
+function _raioxRenderCardDiag(d, idx) {
   var COR_SEV = {
-    'critico':  { borda: '#F43F5E', bg: 'rgba(244,63,94,.06)',  txt: '#F87171', icone: '🔴' },
-    'alerta':   { borda: '#FB923C', bg: 'rgba(251,146,60,.06)', txt: '#FB923C', icone: '🟠' },
-    'atencao':  { borda: '#FCD34D', bg: 'rgba(252,211,77,.06)', txt: '#FCD34D', icone: '🟡' },
-    'positivo': { borda: '#10B981', bg: 'rgba(16,185,129,.06)', txt: '#10B981', icone: '🟢' },
-    'info':     { borda: '#60A5FA', bg: 'rgba(96,165,250,.06)', txt: '#60A5FA', icone: '🔵' }
+    'critico':  { borda: '#F43F5E', bg: 'rgba(244,63,94,.06)',  txt: '#F87171', icone: '🔴', label: 'CRÍTICO' },
+    'alerta':   { borda: '#FB923C', bg: 'rgba(251,146,60,.06)', txt: '#FB923C', icone: '🟠', label: 'ALERTA' },
+    'atencao':  { borda: '#FCD34D', bg: 'rgba(252,211,77,.06)', txt: '#FCD34D', icone: '🟡', label: 'ATENÇÃO' },
+    'positivo': { borda: '#10B981', bg: 'rgba(16,185,129,.06)', txt: '#10B981', icone: '🟢', label: 'POSITIVO' },
+    'info':     { borda: '#60A5FA', bg: 'rgba(96,165,250,.06)', txt: '#60A5FA', icone: '🔵', label: 'INFO' }
   };
   var c = COR_SEV[d.severidade] || COR_SEV['info'];
+  var cardId = 'raiox-card-' + (idx || 0);
 
   var tagSimulado = d.simulado
-    ? '<span style="background:rgba(252,211,77,.15);color:#FCD34D;padding:2px 7px;border-radius:8px;font-family:var(--fmono);font-size:9px;font-weight:600;margin-left:6px;letter-spacing:.3px" title="Dados simulados — serão reais ao integrar a fonte">🔬 Simulado</span>'
+    ? '<span style="background:rgba(252,211,77,.15);color:#FCD34D;padding:1px 6px;border-radius:6px;font-family:var(--fmono);font-size:8px;font-weight:600;margin-left:6px;letter-spacing:.3px" title="Dados simulados — serão reais ao integrar a fonte">🔬 SIMULADO</span>'
     : '';
   var tagPlaceholder = d.placeholder
-    ? '<span style="background:rgba(96,165,250,.15);color:#60A5FA;padding:2px 7px;border-radius:8px;font-family:var(--fmono);font-size:9px;font-weight:600;margin-left:6px">⏳ Aguardando dados</span>'
+    ? '<span style="background:rgba(96,165,250,.15);color:#60A5FA;padding:1px 6px;border-radius:6px;font-family:var(--fmono);font-size:8px;font-weight:600;margin-left:6px">⏳ AGUARDANDO</span>'
     : '';
 
   var acao = d.acao
-    ? '<button onclick="'+d.acao.onclick+'" type="button" style="background:transparent;border:1px solid '+c.borda+'40;color:'+c.txt+';padding:5px 10px;border-radius:6px;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;margin-top:8px">'+d.acao.label+' →</button>'
+    ? '<button onclick="event.stopPropagation();'+d.acao.onclick+'" type="button" style="background:transparent;border:1px solid '+c.borda+'60;color:'+c.txt+';padding:5px 10px;border-radius:6px;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;margin-top:8px">'+d.acao.label+' →</button>'
     : '';
 
-  return '<div style="background:'+c.bg+';border:1px solid '+c.borda+'30;border-left:3px solid '+c.borda+';border-radius:10px;padding:14px;opacity:'+(d.placeholder?0.7:1)+'">'+
-    '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px">'+
-      '<div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:'+c.txt+';display:flex;align-items:center;flex-wrap:wrap">'+
-        c.icone+' '+escapeHtml(d.titulo)+
+  // Header sucinto: ícone + label severidade + título compacto + confiança + chevron
+  var temDetalhe = !!(d.detalhe || d.acao);
+  var headerOnClick = temDetalhe ? 'onclick="raioxToggleCard(\''+cardId+'\')"' : '';
+  var cursor = temDetalhe ? 'cursor:pointer;' : '';
+  var chevron = temDetalhe
+    ? '<span id="'+cardId+'-chev" style="font-family:var(--fmono);font-size:11px;color:'+c.txt+';opacity:.6;transition:transform .2s">▼</span>'
+    : '';
+
+  return '<div class="raiox-diag-card" '+headerOnClick+' style="background:'+c.bg+';border:1px solid '+c.borda+'30;border-left:3px solid '+c.borda+';border-radius:10px;padding:10px 12px;'+cursor+'transition:all .2s;opacity:'+(d.placeholder?0.7:1)+'" '+
+    (temDetalhe ? 'onmouseover="this.style.background=\''+c.borda+'15\'" onmouseout="this.style.background=\''+c.bg+'\'"' : '') +
+    '>'+
+      // Header (sempre visível)
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+        '<span style="font-size:14px;flex-shrink:0">'+c.icone+'</span>'+
+        '<span style="font-family:var(--fmono);font-size:9px;font-weight:700;color:'+c.txt+';letter-spacing:.5px;flex-shrink:0">'+c.label+'</span>'+
+        '<span style="font-family:var(--fhead);font-size:12px;font-weight:600;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(d.titulo)+'</span>'+
         tagSimulado + tagPlaceholder +
+        '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted2);background:var(--s2);padding:2px 6px;border-radius:5px;flex-shrink:0">'+d.confianca+'%</span>'+
+        chevron +
       '</div>'+
-      '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted2);background:var(--s2);padding:2px 7px;border-radius:6px;flex-shrink:0">'+d.confianca+'%</span>'+
-    '</div>'+
-    '<div style="font-family:var(--fmono);font-size:11px;color:var(--text);line-height:1.5;margin-bottom:5px">'+escapeHtml(d.desc)+'</div>'+
-    '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">'+escapeHtml(d.detalhe)+'</div>'+
-    acao +
-  '</div>';
+      // Detalhe (oculto, expande no click)
+      (temDetalhe
+        ? '<div id="'+cardId+'-body" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid '+c.borda+'25">'+
+            (d.desc ? '<div style="font-family:var(--fmono);font-size:11px;color:var(--text);line-height:1.5;margin-bottom:6px">'+escapeHtml(d.desc)+'</div>' : '')+
+            (d.detalhe ? '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);line-height:1.5">'+escapeHtml(d.detalhe)+'</div>' : '')+
+            acao+
+          '</div>'
+        : ''
+      )+
+    '</div>';
 }
 
-/* Container do gráfico */
+/* Toggle de expansão do card */
+function raioxToggleCard(cardId) {
+  var body = document.getElementById(cardId + '-body');
+  var chev = document.getElementById(cardId + '-chev');
+  if(!body) return;
+  if(body.style.display === 'none' || !body.style.display) {
+    body.style.display = 'block';
+    if(chev) chev.style.transform = 'rotate(180deg)';
+  } else {
+    body.style.display = 'none';
+    if(chev) chev.style.transform = 'rotate(0deg)';
+  }
+}
+
+/* Container do gráfico — não usado mais (gráfico foi pro topo direto no raioxRender) */
 function _raioxRenderGrafico(dadosDiarios) {
-  return '<div style="background:var(--s2);border:1px solid var(--border2);border-radius:12px;padding:16px">'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">'+
-      '<div>'+
-        '<div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text)">📊 Vendas · últimos 30 dias</div>'+
-        '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">GMV diário · consolidado e por canal</div>'+
-      '</div>'+
-      '<div style="display:flex;gap:6px">'+
-        '<button onclick="window._raioxModoChart=\'consolidado\';_raioxDesenharChart()" id="raiox-btn-consol" style="padding:5px 12px;background:var(--s1);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">Consolidado</button>'+
-        '<button onclick="window._raioxModoChart=\'canais\';_raioxDesenharChart()" id="raiox-btn-canais" style="padding:5px 12px;background:var(--s1);border:1px solid var(--border2);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">Por canal</button>'+
-      '</div>'+
-    '</div>'+
-    '<div style="position:relative;height:280px">'+
-      '<canvas id="raiox-chart"></canvas>'+
-    '</div>'+
-  '</div>';
+  // Mantido pra compatibilidade, mas raioxRender já renderiza inline agora
+  return '';
 }
 
 /* Desenha o chart usando Chart.js (já carregado no head) */
