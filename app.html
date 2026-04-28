@@ -3258,7 +3258,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.0712';
+var VELTRO_BUILD_VERSION = '2026.04.28.0750';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -14428,6 +14428,28 @@ function veltroSaveLinks(id, links) {
    - Se vier ID na URL, auto-cadastra (se não existir) e entra direto
    - Se não vier, segue fluxo normal (sessão salva ou tela de login) */
 function veltroInit() {
+  // 🆕 PRIMEIRO: tenta processar convite no hash da URL (#k=...)
+  // Se houver, mostra tela de "Crie sua senha" e para aqui — usuário continua o fluxo
+  try {
+    var convite = _veltroLerConvite();
+    if(convite) {
+      console.log('[Veltro] 📧 Convite detectado no hash:', convite.id);
+      // Verifica se empresa já existe localmente COM senha — se sim, ignora convite e segue normal
+      var usuarios = veltroGetUsuarios();
+      var existente = usuarios.find(function(u){ return u.id === convite.id; });
+      if(existente && existente.senhaHash) {
+        console.log('[Veltro] Empresa já cadastrada localmente — ignorando convite, indo pro login normal');
+        _veltroLimparHash();
+        // Continua fluxo normal
+      } else {
+        veltroMostrarTelaCriarSenha(convite);
+        return;
+      }
+    }
+  } catch(e) {
+    console.warn('[Veltro] Erro ao processar convite:', e);
+  }
+
   // 🆕 Detectar empresa via URL — aceita 2 formatos:
   //   1. /laluna           → URL bonita (produção, www.veltroos.com.br)
   //   2. ?empresa=laluna   → query string (GitHub Pages, links antigos, fallback do 404.html)
@@ -14509,6 +14531,181 @@ function veltroInit() {
 
 /* 🆕 Auto-cadastra empresa vinda da URL e entra direto.
    Se já existe localmente, só entra. Se não existe, cadastra primeiro. */
+/* 🆕 Tenta ler convite no hash da URL (#k=Base64).
+   Retorna { id, nome, ts } se válido, ou null. */
+function _veltroLerConvite() {
+  try {
+    var hash = window.location.hash || '';
+    if(!hash || hash.indexOf('#k=') !== 0) return null;
+    var b64 = hash.substring(3); // remove "#k="
+    // Reverte Base64-URL-safe
+    b64 = b64.replace(/-/g,'+').replace(/_/g,'/');
+    while(b64.length % 4) b64 += '=';
+    var json = decodeURIComponent(escape(atob(b64)));
+    var payload = JSON.parse(json);
+    if(!payload || !payload.id || typeof payload.id !== 'string') return null;
+    if(payload.id.length < 2 || payload.id.length > 50) return null;
+    if(!/^[a-z0-9_-]+$/i.test(payload.id)) return null;
+    return payload;
+  } catch(e) {
+    console.warn('[Veltro] Convite no hash inválido:', e);
+    return null;
+  }
+}
+
+/* 🆕 Limpa o hash da URL após processar convite (deixa URL bonita). */
+function _veltroLimparHash() {
+  try {
+    if(window.history && window.history.replaceState) {
+      var url = window.location.pathname + window.location.search;
+      window.history.replaceState(null, '', url);
+    } else {
+      window.location.hash = '';
+    }
+  } catch(e){}
+}
+
+/* 🆕 Tela "Crie sua senha" após convite — auto-cadastra empresa e
+   pede pro cliente criar senha pessoal pra acessar. */
+function veltroMostrarTelaCriarSenha(payload) {
+  // Esconde outras telas
+  try { document.getElementById('veltro-login').style.display = 'none'; } catch(e) {}
+  try { document.getElementById('veltro-onboarding').style.display = 'none'; } catch(e) {}
+  try { document.getElementById('veltro-senha-cliente').style.display = 'none'; } catch(e) {}
+  try { document.getElementById('veltro-acesso-bloqueado').style.display = 'none'; } catch(e) {}
+  var app = document.querySelector('.app-wrapper') || document.querySelector('.sidebar');
+  if(app) app.style.visibility = 'hidden';
+
+  // Cria/atualiza overlay
+  var overlay = document.getElementById('veltro-criar-senha-convite');
+  if(!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'veltro-criar-senha-convite';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0A0C10;display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--fhead),sans-serif';
+    document.body.appendChild(overlay);
+  }
+
+  overlay.innerHTML =
+    '<div style="max-width:460px;width:100%">'+
+      '<div style="text-align:center;margin-bottom:24px">'+
+        '<svg width="52" height="52" viewBox="0 0 28 28" style="margin-bottom:12px">'+
+          '<circle cx="14" cy="14" r="13" fill="none" stroke="#6EE7B7" stroke-width="1.5"/>'+
+          '<path d="M7 14 L12 9 L17 14 L12 19Z" fill="#6EE7B7" opacity=".9"/>'+
+          '<path d="M13 14 L18 9 L23 14 L18 19Z" fill="#6EE7B7" opacity=".5"/>'+
+        '</svg>'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:32px;font-weight:700;letter-spacing:-1px;color:#fff">Veltro<span style="color:#6EE7B7;margin-left:4px">OS</span></div>'+
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:#6b7280;margin-top:4px">Sistema operacional do e-commerce</div>'+
+      '</div>'+
+      '<div style="background:#15171a;border:1px solid #2a2d33;border-radius:14px;padding:28px">'+
+        '<div style="text-align:center;margin-bottom:20px">'+
+          '<div style="font-size:42px;margin-bottom:10px">🎉</div>'+
+          '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:600;color:#fff;margin-bottom:6px">Bem-vindo, '+escapeHtml(payload.nome || payload.id)+'!</div>'+
+          '<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:#9ca3af;line-height:1.6">Você recebeu um convite de acesso ao Veltro OS.<br>Crie uma senha para proteger este dispositivo.</div>'+
+        '</div>'+
+        '<div style="margin-bottom:14px">'+
+          '<label style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#9ca3af;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Crie sua senha</label>'+
+          '<input id="convite-senha-input" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" '+
+            'style="width:100%;background:#0A0C10;border:1px solid #2a2d33;border-radius:8px;padding:10px 12px;font-family:\'JetBrains Mono\',monospace;font-size:13px;color:#fff;outline:none;box-sizing:border-box">'+
+        '</div>'+
+        '<div style="margin-bottom:14px">'+
+          '<label style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#9ca3af;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Confirme a senha</label>'+
+          '<input id="convite-senha-confirma" type="password" placeholder="Digite novamente" autocomplete="new-password" '+
+            'onkeypress="if(event.key===\'Enter\') veltroProcessarSenhaConvite()" '+
+            'style="width:100%;background:#0A0C10;border:1px solid #2a2d33;border-radius:8px;padding:10px 12px;font-family:\'JetBrains Mono\',monospace;font-size:13px;color:#fff;outline:none;box-sizing:border-box">'+
+        '</div>'+
+        '<div id="convite-erro" style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#F87171;min-height:16px;margin-bottom:8px;text-align:center"></div>'+
+        '<button onclick="veltroProcessarSenhaConvite()" '+
+          'style="width:100%;padding:11px;background:#6EE7B7;border:none;border-radius:10px;color:#0A0C10;font-family:\'Syne\',sans-serif;font-size:13px;font-weight:700;cursor:pointer">'+
+          'Criar senha e entrar →'+
+        '</button>'+
+        '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #2a2d33;font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#6b7280;line-height:1.5;text-align:center">'+
+          '🛡️ Esta senha fica guardada apenas neste navegador.<br>Você precisará dela ao acessar novamente.'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+
+  // Salva payload pra usar no submit
+  window._veltroConvitePending = payload;
+  overlay.style.display = 'flex';
+
+  // Foco no primeiro campo
+  setTimeout(function(){
+    try { document.getElementById('convite-senha-input').focus(); } catch(e){}
+  }, 100);
+}
+
+/* 🆕 Processa o submit da tela "Crie sua senha" após convite */
+async function veltroProcessarSenhaConvite() {
+  var payload = window._veltroConvitePending;
+  if(!payload) {
+    location.reload();
+    return;
+  }
+
+  var senha = (document.getElementById('convite-senha-input')||{}).value || '';
+  var confirma = (document.getElementById('convite-senha-confirma')||{}).value || '';
+  var erroEl = document.getElementById('convite-erro');
+  if(erroEl) erroEl.textContent = '';
+
+  if(senha.length < 6) {
+    if(erroEl) erroEl.textContent = '❌ Senha deve ter pelo menos 6 caracteres';
+    return;
+  }
+  if(senha !== confirma) {
+    if(erroEl) erroEl.textContent = '❌ As senhas não conferem';
+    return;
+  }
+
+  // Hash da senha
+  var senhaHash;
+  try {
+    senhaHash = await _veltroHashSenha(senha);
+  } catch(e) {
+    if(erroEl) erroEl.textContent = '❌ Erro ao processar senha: ' + e.message;
+    return;
+  }
+
+  // Cadastra empresa local SE não existir, ou só atualiza senha SE existir sem senha
+  var usuarios = veltroGetUsuarios();
+  var existente = usuarios.find(function(u){ return u.id === payload.id; });
+  if(existente) {
+    existente.senhaHash = senhaHash;
+    existente.temSenha = true;
+    if(payload.nome && !existente.nome) existente.nome = payload.nome;
+  } else {
+    usuarios.push({
+      id: payload.id,
+      nome: payload.nome || payload.id,
+      criadoEm: new Date().toLocaleDateString('pt-BR'),
+      senhaHash: senhaHash,
+      temSenha: true,
+      autoCadastrado: true,
+      ultimoAcesso: new Date().toISOString()
+    });
+  }
+  veltroSaveUsuarios(usuarios);
+
+  // Cria sessão de senha (skip do login na próxima vez nesse navegador, só por 30d)
+  try {
+    localStorage.setItem(VELTRO_SENHA_SESSAO_PREFIX + payload.id, JSON.stringify({timestamp: Date.now()}));
+  } catch(e){}
+
+  // Define empresa atual
+  localStorage.setItem(VELTRO_SESSAO_KEY, payload.id);
+
+  // Limpa estado e entra
+  window._veltroConvitePending = null;
+  _veltroLimparHash();
+
+  var overlay = document.getElementById('veltro-criar-senha-convite');
+  if(overlay) overlay.style.display = 'none';
+
+  console.log('[Veltro] ✅ Convite processado, empresa "'+payload.id+'" cadastrada localmente');
+
+  // Reload pra carregar tudo limpo
+  location.reload();
+}
+
 function veltroAutoCadastrarELogar(empresaId) {
   var usuarios = veltroGetUsuarios();
   var empresa = usuarios.find(function(u){ return u.id === empresaId; });
@@ -15394,16 +15591,37 @@ async function veltroCadastrarEmpresa() {
 function _veltroMontarLinkCliente(empresaId) {
   var loc = window.location;
   var host = loc.hostname || '';
+
+  // 🆕 Monta payload de convite com ID + nome + timestamp
+  // Vai no #k=Base64(...) do link — convite pra cliente cadastrar empresa
+  var hashConvite = '';
+  try {
+    var usuarios = veltroGetUsuarios();
+    var emp = usuarios.find(function(u){ return u.id === empresaId; });
+    var payload = {
+      id: empresaId,
+      nome: emp && emp.nome ? emp.nome : empresaId,
+      ts: Date.now()
+    };
+    var json = JSON.stringify(payload);
+    // Base64-URL-safe
+    var b64 = btoa(unescape(encodeURIComponent(json)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    hashConvite = '#k=' + b64;
+  } catch(e) {
+    console.warn('[Veltro] Erro ao montar hash do link:', e);
+  }
+
   // Domínio próprio (produção) — usa URL bonita
   if(/(^|\.)veltroos\.com\.br$/i.test(host)) {
     return loc.protocol + '//' + host +
            (loc.port ? ':' + loc.port : '') +
-           '/' + encodeURIComponent(empresaId);
+           '/' + encodeURIComponent(empresaId) + hashConvite;
   }
   // Outros ambientes (GitHub Pages, localhost, etc) — usa query string
   var url = loc.origin + loc.pathname;
   url = url.split('?')[0].split('#')[0];
-  return url + '?empresa=' + encodeURIComponent(empresaId);
+  return url + '?empresa=' + encodeURIComponent(empresaId) + hashConvite;
 }
 
 /* 🆕 Mostra modal/banner com o link gerado pra copiar fácil. */
