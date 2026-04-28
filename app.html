@@ -3359,7 +3359,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX7';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX8';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -17952,10 +17952,10 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
 
   // Parâmetros por cenário (afeta intensidade das linhas auxiliares)
   var params = {
-    'critico': { midiaTrend: -0.45, estoqueTrend: -0.55, mercadoTrend: -0.20 },
-    'saudavel': { midiaTrend: 0.30, estoqueTrend: 0.10, mercadoTrend: 0.25 },
-    'misto':   { midiaTrend: -0.30, estoqueTrend: -0.15, mercadoTrend: 0.18 },
-    'real':    { midiaTrend: -0.20, estoqueTrend: 0.05, mercadoTrend: 0.10 }
+    'critico':  { midiaTrend: -0.45, estoqueTrend: -0.55, mercadoTrend: -0.20, marketplaceTrend: -0.40 },
+    'saudavel': { midiaTrend:  0.30, estoqueTrend:  0.10, mercadoTrend:  0.25, marketplaceTrend:  0.35 },
+    'misto':    { midiaTrend: -0.30, estoqueTrend: -0.15, mercadoTrend:  0.18, marketplaceTrend: -0.10 },
+    'real':     { midiaTrend: -0.20, estoqueTrend:  0.05, mercadoTrend:  0.10, marketplaceTrend:  0.15 }
   };
   var p = params[cenario] || params['misto'];
 
@@ -17990,7 +17990,17 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
     return Math.max(0, base + trend + ruido);
   });
 
-  return { midia: midia, estoque: estoque, mercado: mercado };
+  // 🆕 Linha "Marketplace" — comportamento dos canais marketplace agregados
+  var marketplace = valores.map(function(v, i){
+    var indice = i / Math.max(1, keys.length - 1);
+    var base = media * 0.78;
+    var trend = base * p.marketplaceTrend * indice;
+    var seed = (i * 29 + 5) % 100 / 100;
+    var ruido = base * 0.07 * (seed * 2 - 1);
+    return Math.max(0, base + trend + ruido);
+  });
+
+  return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace };
 }
 
 /* Detecta pontos de alerta (outliers) na linha de vendas */
@@ -18558,9 +18568,9 @@ function raioxRender() {
             '<button onclick="window._raioxModoChart=\'canais\';_raioxDesenharChart()" id="raiox-btn-canais" '+
               'style="padding:5px 12px;background:var(--s2);border:1px solid var(--border);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer">Por canal</button>'+
           '</div>'+
-          // Toggle linhas auxiliares
-          '<button onclick="raioxToggleLinhasAux()" id="raiox-toggle-aux" type="button" title="Mostrar/ocultar linhas auxiliares (Mídia, Estoque, Mercado)" '+
-            'style="padding:5px 10px;background:var(--s2);border:1px solid var(--border);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">📈 Linhas Aux</button>'+
+          // Toggle linhas auxiliares — DEFAULT ATIVO
+          '<button onclick="raioxToggleLinhasAux()" id="raiox-toggle-aux" type="button" title="Mostrar/ocultar linhas auxiliares (Marketplace, Mídia, Estoque, Mercado)" '+
+            'style="padding:5px 10px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.50);color:#A78BFA;border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">📈 Linhas Aux</button>'+
         '</div>'+
       '</div>'+
       '<div style="position:relative;height:320px;max-height:320px">'+
@@ -18642,10 +18652,23 @@ function _raioxRenderGauge(term) {
   var circ = 2 * Math.PI * radius;
   var pct = term.score / 100;
   var dashOffset = circ * (1 - pct);
+  // ID único pro gradient (evita conflito se renderizar múltiplas vezes)
+  var gradId = 'raiox-gauge-grad-' + Math.floor(Math.random()*1e6);
 
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="display:block;margin:0 auto">'+
+    // 🆕 Gradient roxo → laranja → verde
+    '<defs>'+
+      '<linearGradient id="'+gradId+'" x1="0%" y1="100%" x2="100%" y2="0%">'+
+        '<stop offset="0%"   stop-color="#A78BFA"/>'+   // roxo
+        '<stop offset="50%"  stop-color="#FB923C"/>'+   // laranja
+        '<stop offset="100%" stop-color="#6EE7B7"/>'+   // verde identidade
+      '</linearGradient>'+
+    '</defs>'+
+    // Trilho de fundo (cinza)
     '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="var(--s3)" stroke-width="'+stroke+'"/>'+
-    '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="'+term.cor+'" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" style="transition:stroke-dashoffset .8s ease"/>'+
+    // Progresso com gradient
+    '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="url(#'+gradId+')" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" style="transition:stroke-dashoffset .8s ease"/>'+
+    // Texto central — usa cor do termômetro pra refletir estado atual
     '<text x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="38" font-weight="700" fill="'+term.cor+'">'+term.score+'</text>'+
     '<text x="50%" y="50%" text-anchor="middle" dy="20" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--muted)">/ 100</text>'+
   '</svg>';
@@ -18788,10 +18811,10 @@ function _raioxDesenharChart(dadosDiarios) {
   // ─── Datasets ───
   var datasets = [];
   var cenario = raioxGetModoDemo();
-  // 🆕 Linhas auxiliares ativas? Por padrão DESLIGADAS (gráfico limpo igual dashboard).
-  // Cliente ativa pelo botão se quiser drilldown visual.
+  // 🆕 Linhas auxiliares VISÍVEIS por padrão (todas as 5 linhas no gráfico).
+  // Cliente pode ocultar pelo botão "Linhas Aux" se quiser visão limpa.
   var linhasAux = window._raioxLinhasAux === undefined
-    ? false
+    ? true
     : !!window._raioxLinhasAux;
 
   if(modo === 'canais') {
@@ -18885,14 +18908,14 @@ function _raioxDesenharChart(dadosDiarios) {
       order: 5
     });
 
-    // Linhas auxiliares — sempre computadas (pra tooltip), mas ocultas se linhasAux=false
-    // 🆕 NOVAS CORES com mais saturação (vermelho/azul/cinza)
+    // Linhas auxiliares — sempre computadas (pra tooltip), todas visíveis por default
+    // 🎨 Paleta nova: laranja (Mídia) / rosa (Estoque) / roxo (Mercado) / amarelo (Marketplace)
     var aux = raioxGerarLinhasAuxiliares(dadosDiarios, cenario);
 
     datasets.push({
       label: '📢 Mídia 🔬',
       data: aux.midia.map(function(v){ return Math.round(v); }),
-      borderColor: '#F87171', // 🆕 vermelho saturado
+      borderColor: '#FB923C', // 🆕 laranja
       backgroundColor: 'transparent',
       borderWidth: 1.8,
       fill: false,
@@ -18905,7 +18928,7 @@ function _raioxDesenharChart(dadosDiarios) {
     datasets.push({
       label: '📦 Estoque 🔬',
       data: aux.estoque.map(function(v){ return Math.round(v); }),
-      borderColor: '#9CA3AF', // 🆕 cinza claro
+      borderColor: '#EC4899', // 🆕 rosa/pink
       backgroundColor: 'transparent',
       borderWidth: 1.8,
       fill: false,
@@ -18918,7 +18941,7 @@ function _raioxDesenharChart(dadosDiarios) {
     datasets.push({
       label: '🌐 Mercado 🔬',
       data: aux.mercado.map(function(v){ return Math.round(v); }),
-      borderColor: '#60A5FA', // 🆕 azul saturado
+      borderColor: '#A78BFA', // 🆕 roxo
       backgroundColor: 'transparent',
       borderWidth: 1.8,
       fill: false,
@@ -18927,6 +18950,20 @@ function _raioxDesenharChart(dadosDiarios) {
       pointHoverRadius: 4,
       hidden: !linhasAux,
       order: 6
+    });
+    // 🆕 Marketplace — amarelo
+    datasets.push({
+      label: '🛒 Marketplace 🔬',
+      data: aux.marketplace.map(function(v){ return Math.round(v); }),
+      borderColor: '#FCD34D', // amarelo
+      backgroundColor: 'transparent',
+      borderWidth: 1.8,
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      hidden: !linhasAux,
+      order: 5
     });
 
     // ─── PONTOS DE ALERTA (em cima da linha principal) ───
@@ -19038,6 +19075,7 @@ function _raioxDesenharChart(dadosDiarios) {
             var midiaV = _getValor('Mídia');
             var estoqueV = _getValor('Estoque');
             var mercadoV = _getValor('Mercado');
+            var marketplaceV = _getValor('Marketplace');
 
             // Calcula variação % vs baseline
             function _pct(v, base) {
@@ -19075,10 +19113,10 @@ function _raioxDesenharChart(dadosDiarios) {
                   bullet+
                   '<span style="color:'+(isPrincipal ? corNome : 'var(--muted)')+';font-family:\'JetBrains Mono\',monospace;font-size:'+sizeNome+';font-weight:'+pesoNome+';letter-spacing:.3px">'+nome+'</span>'+
                 '</div>'+
-                // Linha de valor + pílula (mesma linha mas separados visualmente)
+                // Linha de valor + pílula (uniformizado pra todas as linhas, inclusive Vendas)
                 '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-left:16px">'+
                   '<span style="color:'+(isPrincipal ? corNome : 'var(--text)')+';font-weight:'+pesoNome+';font-family:\'Syne\',sans-serif;font-size:'+sizeValor+';font-variant-numeric:tabular-nums">'+_fmt(valor)+'</span>'+
-                  (pct !== null && !isPrincipal ? _pilula(pct) : '')+
+                  (pct !== null ? _pilula(pct) : '')+
                 '</div>'+
               '</div>';
             }
@@ -19109,17 +19147,18 @@ function _raioxDesenharChart(dadosDiarios) {
                 '<span>'+labelData+'</span>'+
                 pilulaPrincipal+
               '</div>'+
-              // Linha principal: Vendas (verde, com pílula no header acima)
+              // Linha principal: Vendas (verde, com pílula uniformizada)
               _linha('📊', 'Vendas', vendasV, baselineV, true, '#6EE7B7')+
               // Baseline (sem pílula, só referência)
               _linha('⚖', 'Equilíbrio', baselineV, null, false, '#9CA3AF')+
               // Outras métricas (sempre mostra mesmo se linhas off) — cores combinam com gráfico
-              (midiaV !== null || estoqueV !== null || mercadoV !== null
+              (midiaV !== null || estoqueV !== null || mercadoV !== null || marketplaceV !== null
                 ? '<div style="margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06)">'+
                     '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas</div>'+
-                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, baselineV, false, '#F87171') : '')+
-                    (estoqueV !== null ? _linha('📦', 'Estoque 🔬', estoqueV, baselineV, false, '#9CA3AF') : '')+
-                    (mercadoV !== null ? _linha('🌐', 'Mercado 🔬', mercadoV, baselineV, false, '#60A5FA') : '')+
+                    (marketplaceV !== null ? _linha('🛒', 'Marketplace 🔬', marketplaceV, baselineV, false, '#FCD34D') : '')+
+                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, baselineV, false, '#FB923C') : '')+
+                    (estoqueV !== null ? _linha('📦', 'Estoque 🔬', estoqueV, baselineV, false, '#EC4899') : '')+
+                    (mercadoV !== null ? _linha('🌐', 'Mercado 🔬', mercadoV, baselineV, false, '#A78BFA') : '')+
                   '</div>'
                 : ''
               )+
