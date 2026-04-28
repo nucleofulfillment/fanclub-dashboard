@@ -10748,9 +10748,24 @@ function projDetalheExpandido(it) {
       '</div>'+
     '</div>';
 
+  // 🆕 Botão Criar Ordem (no final do detail)
+  // Salva o item no map global pra recuperar dentro da função do botão
+  if(!window._projItemsMap) window._projItemsMap = {};
+  window._projItemsMap[it.skuPai] = it;
+
+  var btnCriarOrdem =
+    '<div style="padding:14px 18px 4px 18px;display:flex;justify-content:flex-end">'+
+      '<button onclick="veltroOrdemAbrir(\''+it.skuPai.replace(/'/g, "\\'")+'\')" type="button" '+
+        'style="background:var(--accent);border:none;border-radius:8px;color:#0A0C10;padding:9px 16px;'+
+        'font-family:\'Syne\',sans-serif;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">'+
+        '📦 Criar Ordem de Compra'+
+      '</button>'+
+    '</div>';
+
   return '<div class="proj-detail">'+
     tabelaVariacoes +
     cards +
+    btnCriarOrdem +
   '</div>';
 }
 
@@ -16164,6 +16179,312 @@ function veltroForncSalvar() {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   📦 ORDENS DE COMPRA — CRUD por empresa (localStorage)
+   Chave: veltro_ordens_<empresaId>
+   Estrutura: [{ id, numero, skuPai, nome, variacoes, fornecedor, qtdTotal,
+                 custoUnit, total, formaPagamento, leadTime, entregaPrevista,
+                 observacoes, status, criadoEm }]
+   Numeração: contador global em veltro_ordem_seq (sequencial sem reset)
+   ═══════════════════════════════════════════════════════════ */
+
+var VELTRO_ORDENS_KEY = 'veltro_ordens_';
+var VELTRO_ORDEM_SEQ_KEY = 'veltro_ordem_seq';
+
+function veltroOrdensGetAll(empresaId) {
+  if(!empresaId) return [];
+  try {
+    var raw = localStorage.getItem(VELTRO_ORDENS_KEY + empresaId);
+    if(!raw) return [];
+    var arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch(e) {
+    console.warn('[Ordens] Erro ler localStorage:', e);
+    return [];
+  }
+}
+
+function veltroOrdensSaveAll(empresaId, lista) {
+  if(!empresaId) return false;
+  try {
+    localStorage.setItem(VELTRO_ORDENS_KEY + empresaId, JSON.stringify(lista || []));
+    return true;
+  } catch(e) {
+    console.error('[Ordens] Erro ao salvar:', e);
+    return false;
+  }
+}
+
+function veltroOrdemProximoNumero() {
+  var atual = parseInt(localStorage.getItem(VELTRO_ORDEM_SEQ_KEY) || '0', 10);
+  var proximo = atual + 1;
+  return 'ORD-' + String(proximo).padStart(4, '0');
+}
+
+function veltroOrdemIncrementarSeq() {
+  var atual = parseInt(localStorage.getItem(VELTRO_ORDEM_SEQ_KEY) || '0', 10);
+  localStorage.setItem(VELTRO_ORDEM_SEQ_KEY, String(atual + 1));
+}
+
+/* Resolve a empresa atual (mesmo padrão usado pelos fornecedores) */
+function veltroOrdemGetEmpresaIdAtual() {
+  // Estratégia 1: sessão ativa
+  try {
+    var raw = localStorage.getItem(VELTRO_SESSAO_KEY);
+    if(raw) {
+      var s = JSON.parse(raw);
+      if(s && s.empresaId) return s.empresaId;
+    }
+  } catch(e){}
+  // Estratégia 2: variável global
+  try { if(typeof window._veltroEmpresaAtual !== 'undefined') return window._veltroEmpresaAtual; } catch(e){}
+  return null;
+}
+
+/* Abre modal pra criar ordem a partir de um SKU pai */
+function veltroOrdemAbrir(skuPai) {
+  var it = window._projItemsMap && window._projItemsMap[skuPai];
+  if(!it) {
+    alert('Erro: dados do produto não encontrados. Recarregue a Projeção.');
+    return;
+  }
+
+  var empId = veltroOrdemGetEmpresaIdAtual();
+  if(!empId) {
+    alert('Erro: empresa não identificada. Faça login novamente.');
+    return;
+  }
+
+  // Guarda contexto pra usar no salvar
+  window._veltroOrdemContexto = { skuPai: skuPai, empresaId: empId, item: it };
+
+  // Preenche dados do produto
+  document.getElementById('ordem-produto-nome').textContent = it.nome || skuPai;
+  document.getElementById('ordem-produto-sku').textContent = skuPai + ' · ' + (it.variacoes||[]).length + ' variações';
+  document.getElementById('ordem-numero-preview').textContent = veltroOrdemProximoNumero();
+
+  // Custo
+  var fR2 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  document.getElementById('ordem-custo-display').innerHTML = (it.custoUnit > 0)
+    ? fR2(it.custoUnit)
+    : '<span style="color:var(--muted2);font-size:11px">não cadastrado</span>';
+
+  // Lista de variações com qtd editável
+  var listaEl = document.getElementById('ordem-variacoes-lista');
+  var variacoes = it.variacoes || [];
+  if(variacoes.length === 0) {
+    listaEl.innerHTML = '<div style="padding:10px;color:var(--muted2);text-align:center;font-family:var(--fmono);font-size:10px">Sem variações detalhadas</div>';
+  } else {
+    listaEl.innerHTML = variacoes.map(function(v, idx){
+      var pedirSugerido = Math.max(0, v.pedir || 0);
+      return '<div style="display:grid;grid-template-columns:1fr 80px 80px 80px;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--s3);font-family:var(--fmono);font-size:10px">'+
+        '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:var(--accent)">'+escapeHtml(v.sku)+'</span></div>'+
+        '<div style="text-align:right;color:var(--muted)" title="Estoque atual">est: '+(v.estoque||0)+'</div>'+
+        '<div style="text-align:right;color:var(--muted)" title="Quantidade sugerida">sug: '+pedirSugerido+'</div>'+
+        '<input type="number" min="0" value="'+pedirSugerido+'" data-sku="'+escapeHtml(v.sku)+'" data-idx="'+idx+'" '+
+          'oninput="veltroOrdemAtualizarTotal()" '+
+          'style="width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:5px;padding:4px 6px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;text-align:right">'+
+      '</div>';
+    }).join('');
+    // Header
+    listaEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 80px 80px 80px;gap:8px;padding:4px 8px;border-bottom:1px solid var(--s3);font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.3px">'+
+      '<div>SKU</div><div style="text-align:right">Estoque</div><div style="text-align:right">Sugestão</div><div style="text-align:right">Pedir</div>'+
+    '</div>' + listaEl.innerHTML;
+  }
+
+  // Popula select de fornecedores
+  var selFornc = document.getElementById('ordem-fornecedor');
+  var fornecedores = veltroForncGetAll(empId);
+  selFornc.innerHTML = '<option value="">— Selecione um fornecedor —</option>' +
+    fornecedores.map(function(f){
+      return '<option value="'+f.id+'">'+escapeHtml(f.nome)+'</option>';
+    }).join('');
+  if(fornecedores.length === 0) {
+    selFornc.innerHTML = '<option value="">⚠️ Nenhum fornecedor cadastrado — cadastre primeiro no Admin</option>';
+  }
+
+  document.getElementById('ordem-fornecedor-info').textContent = '';
+  document.getElementById('ordem-pagamento').value = 'a-vista';
+  document.getElementById('ordem-lead-time').value = '25';
+  document.getElementById('ordem-observacoes').value = '';
+  document.getElementById('ordem-erro').textContent = '';
+
+  veltroOrdemAtualizarTotal();
+  veltroOrdemAtualizarPrevisao();
+
+  // Abre modal
+  var modal = document.getElementById('veltro-ordem-modal');
+  if(modal) modal.style.display = 'flex';
+}
+
+function veltroOrdemFechar() {
+  var modal = document.getElementById('veltro-ordem-modal');
+  if(modal) modal.style.display = 'none';
+  window._veltroOrdemContexto = null;
+}
+
+/* Quando muda fornecedor: pré-popula forma de pagamento e lead time */
+function veltroOrdemAtualizarFornecedor() {
+  var empId = veltroOrdemGetEmpresaIdAtual();
+  var sel = document.getElementById('ordem-fornecedor');
+  var infoEl = document.getElementById('ordem-fornecedor-info');
+  if(!sel.value) {
+    if(infoEl) infoEl.textContent = '';
+    return;
+  }
+
+  var fornecedores = veltroForncGetAll(empId);
+  var f = fornecedores.find(function(x){ return x.id === sel.value; });
+  if(!f) return;
+
+  // Pré-popula
+  document.getElementById('ordem-pagamento').value = (f.formaPagamento === 'personalizado') ? '30' : f.formaPagamento;
+  document.getElementById('ordem-lead-time').value = f.leadTime || 25;
+
+  // Info
+  if(infoEl) {
+    var pag = _forncFormatPagamento(f);
+    var contato = f.contato ? ' · 📞 ' + escapeHtml(f.contato) : '';
+    infoEl.innerHTML = '📅 '+f.leadTime+'d · 💳 '+escapeHtml(pag)+contato;
+  }
+
+  veltroOrdemAtualizarPrevisao();
+}
+
+/* Recalcula total quando muda quantidade */
+function veltroOrdemAtualizarTotal() {
+  var ctx = window._veltroOrdemContexto;
+  if(!ctx) return;
+  var inputs = document.querySelectorAll('#ordem-variacoes-lista input[type="number"]');
+  var totalQtd = 0;
+  inputs.forEach(function(inp){ totalQtd += parseInt(inp.value || '0', 10); });
+
+  var custoUnit = (ctx.item && ctx.item.custoUnit) || 0;
+  var totalRS = totalQtd * custoUnit;
+
+  document.getElementById('ordem-total-qtd').textContent = 'Total: ' + totalQtd.toLocaleString('pt-BR') + ' un.';
+  document.getElementById('ordem-total-display').textContent = 'R$ ' + totalRS.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+/* Recalcula data de entrega prevista (data atual + lead time) */
+function veltroOrdemAtualizarPrevisao() {
+  var lead = parseInt(document.getElementById('ordem-lead-time').value || '25', 10);
+  var d = new Date();
+  d.setDate(d.getDate() + lead);
+  var dia = String(d.getDate()).padStart(2,'0');
+  var mes = String(d.getMonth()+1).padStart(2,'0');
+  var ano = d.getFullYear();
+  document.getElementById('ordem-entrega-prevista').textContent = dia+'/'+mes+'/'+ano;
+}
+
+/* Salva a ordem */
+function veltroOrdemSalvar() {
+  var ctx = window._veltroOrdemContexto;
+  var erroEl = document.getElementById('ordem-erro');
+  if(erroEl) erroEl.textContent = '';
+
+  if(!ctx || !ctx.empresaId || !ctx.item) {
+    if(erroEl) erroEl.textContent = 'Contexto perdido. Feche e abra de novo.';
+    return;
+  }
+
+  var fornecedorId = document.getElementById('ordem-fornecedor').value;
+  if(!fornecedorId) {
+    if(erroEl) erroEl.textContent = 'Selecione um fornecedor';
+    return;
+  }
+
+  var fornecedores = veltroForncGetAll(ctx.empresaId);
+  var fornecedor = fornecedores.find(function(x){ return x.id === fornecedorId; });
+  if(!fornecedor) {
+    if(erroEl) erroEl.textContent = 'Fornecedor inválido';
+    return;
+  }
+
+  // Coleta quantidades por variação
+  var inputs = document.querySelectorAll('#ordem-variacoes-lista input[type="number"]');
+  var variacoesOrdem = [];
+  var totalQtd = 0;
+  inputs.forEach(function(inp){
+    var qtd = parseInt(inp.value || '0', 10);
+    if(qtd > 0) {
+      variacoesOrdem.push({ sku: inp.getAttribute('data-sku'), qtd: qtd });
+      totalQtd += qtd;
+    }
+  });
+
+  if(totalQtd === 0) {
+    if(erroEl) erroEl.textContent = 'Quantidade total deve ser maior que zero';
+    return;
+  }
+
+  var formaPagamento = document.getElementById('ordem-pagamento').value;
+  var leadTime = parseInt(document.getElementById('ordem-lead-time').value || '25', 10);
+  var observacoes = (document.getElementById('ordem-observacoes').value || '').trim();
+  var custoUnit = ctx.item.custoUnit || 0;
+  var totalRS = totalQtd * custoUnit;
+
+  // Calcula data prevista
+  var dEntrega = new Date();
+  dEntrega.setDate(dEntrega.getDate() + leadTime);
+
+  // Gera número e cria ordem
+  var numero = veltroOrdemProximoNumero();
+
+  var ordem = {
+    id: 'ord_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    numero: numero,
+    skuPai: ctx.skuPai,
+    nome: ctx.item.nome || ctx.skuPai,
+    variacoes: variacoesOrdem,
+    fornecedorId: fornecedor.id,
+    fornecedorNome: fornecedor.nome,
+    fornecedorContato: fornecedor.contato || '',
+    qtdTotal: totalQtd,
+    custoUnit: custoUnit,
+    total: totalRS,
+    formaPagamento: formaPagamento,
+    leadTime: leadTime,
+    entregaPrevista: dEntrega.toISOString(),
+    observacoes: observacoes,
+    status: 'em-producao',
+    criadoEm: Date.now(),
+    // Snapshot do estoque NA criação (pra auto-detect de "entregue" depois)
+    estoqueInicialPorSku: (function(){
+      var snap = {};
+      (ctx.item.variacoes||[]).forEach(function(v){ snap[v.sku] = v.estoque || 0; });
+      return snap;
+    })()
+  };
+
+  // Salva
+  var lista = veltroOrdensGetAll(ctx.empresaId);
+  lista.push(ordem);
+  if(!veltroOrdensSaveAll(ctx.empresaId, lista)) {
+    if(erroEl) erroEl.textContent = 'Erro ao salvar. Tente novamente.';
+    return;
+  }
+  veltroOrdemIncrementarSeq();
+
+  console.log('[Ordens] ✅ Ordem criada:', numero, '·', totalQtd, 'un. ·', 'R$', totalRS.toLocaleString('pt-BR'));
+
+  // Feedback visual
+  var btn = document.getElementById('ordem-btn-salvar');
+  if(btn) {
+    btn.textContent = '✅ Ordem ' + numero + ' criada!';
+    btn.style.background = 'var(--green, #10B981)';
+  }
+
+  // Fecha modal após 1.5s
+  setTimeout(function(){
+    veltroOrdemFechar();
+    if(btn) {
+      btn.textContent = '📦 Criar Ordem';
+      btn.style.background = 'var(--accent)';
+    }
+  }, 1500);
+}
+
 function veltroFecharEditarEmpresa() {
   try {
     var modal = document.getElementById('veltro-edit-empresa-modal');
@@ -16565,6 +16886,113 @@ window.addEventListener('load', function() {
      Permite editar: nome, senha, canais ativos, link da loja própria.
      ID não é editável (chave primária com várias dependências).
 ═══════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════
+     📦 MODAL: Criar Ordem de Compra
+     ═══════════════════════════════════════════════════════════ -->
+<div id="veltro-ordem-modal" style="display:none;position:fixed;inset:0;z-index:100000;
+     background:rgba(0,0,0,.85);backdrop-filter:blur(8px);align-items:center;justify-content:center">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;
+              padding:24px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;margin:20px">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700">📦 Nova Ordem de Compra</div>
+        <div id="ordem-numero-preview" style="font-family:var(--fmono);font-size:10px;color:var(--accent);margin-top:2px">ORD-XXXX</div>
+      </div>
+      <button onclick="veltroOrdemFechar()" type="button"
+        style="background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--muted);padding:5px 10px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+
+    <!-- Produto -->
+    <div style="background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:14px">
+      <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Produto</div>
+      <div id="ordem-produto-nome" style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px">—</div>
+      <div id="ordem-produto-sku" style="font-family:var(--fmono);font-size:11px;color:var(--accent)">—</div>
+    </div>
+
+    <!-- Fornecedor -->
+    <div style="margin-bottom:14px">
+      <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">🏭 Fornecedor *</label>
+      <select id="ordem-fornecedor" onchange="veltroOrdemAtualizarFornecedor()"
+        style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;font-family:var(--fmono);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+        <option value="">— Selecione um fornecedor —</option>
+      </select>
+      <div id="ordem-fornecedor-info" style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px;line-height:1.5;min-height:14px"></div>
+    </div>
+
+    <!-- Variações com qtd editável -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">📋 Variações e Quantidades</label>
+        <span id="ordem-total-qtd" style="font-family:var(--fmono);font-size:10px;color:var(--accent);font-weight:600">Total: 0 un.</span>
+      </div>
+      <div id="ordem-variacoes-lista" style="background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px;max-height:240px;overflow-y:auto">
+        <!-- preenchido dinamicamente -->
+      </div>
+    </div>
+
+    <!-- Custo + Total -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:10px">
+        <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Custo unitário</div>
+        <div id="ordem-custo-display" style="font-family:var(--fmono);font-size:14px;color:var(--text);margin-top:3px">—</div>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--accent);border-radius:8px;padding:10px">
+        <div style="font-family:var(--fmono);font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">Total da ordem</div>
+        <div id="ordem-total-display" style="font-family:var(--fmono);font-size:14px;color:var(--accent);font-weight:600;margin-top:3px">R$ 0,00</div>
+      </div>
+    </div>
+
+    <!-- Forma de pagamento (puxa do fornecedor mas pode override) -->
+    <div style="margin-bottom:14px">
+      <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">💳 Forma de Pagamento</label>
+      <select id="ordem-pagamento"
+        style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;font-family:var(--fmono);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+        <option value="a-vista">À vista (na entrega)</option>
+        <option value="30">30 dias após entrega</option>
+        <option value="60">60 dias após entrega</option>
+        <option value="90">90 dias após entrega</option>
+        <option value="30-60">30/60 dias</option>
+        <option value="30-60-90">30/60/90 dias</option>
+        <option value="50-50">50% adiantamento + 50% entrega</option>
+      </select>
+      <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:4px">Pré-selecionado conforme fornecedor. Você pode alterar se essa ordem específica tiver condição diferente.</div>
+    </div>
+
+    <!-- Lead time + Data prevista -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div>
+        <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">📅 Lead time (dias)</label>
+        <input id="ordem-lead-time" type="number" min="1" max="365" value="25" onchange="veltroOrdemAtualizarPrevisao()"
+          style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;font-family:var(--fmono);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">📦 Entrega prevista</label>
+        <div id="ordem-entrega-prevista" style="background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;font-family:var(--fmono);font-size:12px;color:var(--text)">—</div>
+      </div>
+    </div>
+
+    <!-- Observações -->
+    <div style="margin-bottom:14px">
+      <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">📝 Observações (opcional)</label>
+      <textarea id="ordem-observacoes" rows="2" placeholder="Notas pra esta ordem específica"
+        style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;font-family:var(--fmono);font-size:11px;color:var(--text);outline:none;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+
+    <!-- Erro -->
+    <div id="ordem-erro" style="font-family:var(--fmono);font-size:11px;color:var(--red);min-height:16px;margin-bottom:8px;text-align:center"></div>
+
+    <!-- Ações -->
+    <div style="display:flex;gap:8px">
+      <button onclick="veltroOrdemFechar()" type="button"
+        style="flex:1;padding:11px;background:transparent;border:1px solid var(--border2);border-radius:10px;color:var(--muted);font-family:var(--fmono);font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="veltroOrdemSalvar()" id="ordem-btn-salvar" type="button"
+        style="flex:2;padding:12px;background:var(--accent);border:none;border-radius:10px;color:#0A0C10;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">📦 Criar Ordem</button>
+    </div>
+  </div>
+</div>
+
 <div id="veltro-edit-empresa-modal" style="display:none;position:fixed;inset:0;z-index:100000;
      background:rgba(0,0,0,.85);backdrop-filter:blur(8px);align-items:center;justify-content:center">
   <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;
