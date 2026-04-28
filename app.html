@@ -6340,51 +6340,42 @@ async function _tentarCSV(urlBase) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   🆕 Detecta abas REAIS extraindo do HTML da planilha (não bruteforce)
-   Funciona sem publicação na web — só precisa de link compartilhado.
-   Retorna lista de {nome, gid} pra carregamento por gid (não por nome).
+   🆕 Detecta abas REAIS via parsing do HTML (sem precisar publicação na web)
+   Estratégia confiável usando class CSS específica do Google Sheets:
+     <div class="docs-sheet-tab-caption">Nome da aba</div>
    ═══════════════════════════════════════════════════════════ */
 async function _detectarAbasViaHTML(sheetId) {
-  // Tenta a versão "/edit" do Google Sheets — retorna HTML com info das abas
-  // mesmo sem estar publicado, desde que seja link compartilhado
-  var urls = [
-    'https://docs.google.com/spreadsheets/d/' + sheetId + '/edit',
-    'https://docs.google.com/spreadsheets/d/' + sheetId + '/htmlview'
-  ];
-
-  for(var i = 0; i < urls.length; i++) {
-    try {
-      var res = await fetch(urls[i]);
-      if(!res.ok) continue;
-      var html = await res.text();
-
-      // Estratégia 1: padrão "sheetId":NUMERO,"title":"NOME"
-      var pattern1 = /"sheetId":(\d+),"title":"([^"]+)"/g;
-      var abas = [];
-      var match;
-      while((match = pattern1.exec(html)) !== null) {
-        abas.push({ gid: match[1], nome: match[2] });
-      }
-      if(abas.length > 0) {
-        console.log('[Pedidos] ✅ Detectou abas via HTML edit (' + abas.length + ' abas)');
-        return abas;
-      }
-
-      // Estratégia 2: padrão alternativo "items":[...]
-      var pattern2 = /\{"id":"(\d+)","title":"([^"]+)"/g;
-      while((match = pattern2.exec(html)) !== null) {
-        abas.push({ gid: match[1], nome: match[2] });
-      }
-      if(abas.length > 0) {
-        console.log('[Pedidos] ✅ Detectou abas via HTML alternativo (' + abas.length + ' abas)');
-        return abas;
-      }
-    } catch(e) {
-      console.warn('[Pedidos] Erro ao fetch HTML:', e.message);
+  try {
+    var res = await fetch('https://docs.google.com/spreadsheets/d/' + sheetId + '/edit');
+    if(!res.ok) {
+      console.warn('[Pedidos] HTML edit retornou status', res.status);
+      return null;
     }
-  }
+    var html = await res.text();
 
-  return null;
+    // Padrão confiável: <div class="docs-sheet-tab-caption">NOME</div>
+    var pattern = /class="docs-sheet-tab-caption">([^<]+)<\/div>/g;
+    var nomes = [];
+    var m;
+    while((m = pattern.exec(html)) !== null) {
+      var nome = m[1].trim();
+      // Decodifica entidades HTML básicas
+      nome = nome.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+      if(nome && nomes.indexOf(nome) === -1) nomes.push(nome);
+    }
+
+    if(nomes.length > 0) {
+      console.log('[Pedidos] ✅ Detectou '+nomes.length+' abas via HTML:', nomes);
+      // Retorna apenas nomes (gid será descoberto via fingerprint depois)
+      return nomes.map(function(n){ return { nome: n, gid: null }; });
+    }
+
+    console.warn('[Pedidos] HTML carregou mas não achou padrão de abas');
+    return null;
+  } catch(e) {
+    console.warn('[Pedidos] Erro ao fetch HTML edit:', e.message);
+    return null;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -6491,29 +6482,62 @@ async function loadGSMultiAba(url) {
   // URL base (sem &sheet= e sem &gid=)
   var urlBase = url.split('&sheet=')[0].split('&gid=')[0];
 
-  // 🆕 Carrega cada aba POR GID (não por nome) — à prova do bug do Google
+  // 🆕 Carrega cada aba POR NOME, mas VALIDA com fingerprint
+  // Se Google retornar a mesma planilha pra abas diferentes (bug conhecido),
+  // detectamos pela assinatura única e descartamos as duplicadas.
   var promessas = abasMensais.map(function(aba){
-    var urlAba = urlBase + '&gid=' + encodeURIComponent(aba.gid) + '&nocache=' + Date.now();
+    var urlAba = urlBase + '&sheet=' + encodeURIComponent(aba.nome) + '&nocache=' + Date.now();
     return loadGS(urlAba)
-      .then(function(rows){ return { aba: aba.nome, gid: aba.gid, rows: rows, ok: true }; })
+      .then(function(rows){ return { aba: aba.nome, rows: rows, ok: true }; })
       .catch(function(e){
-        console.warn('[Pedidos] ❌ Falha ao carregar "'+aba.nome+'" (gid='+aba.gid+'):', e.message || e);
-        return { aba: aba.nome, gid: aba.gid, rows: [], ok: false, erro: e };
+        console.warn('[Pedidos] ❌ Falha ao carregar "'+aba.nome+'":', e.message || e);
+        return { aba: aba.nome, rows: [], ok: false, erro: e };
       });
   });
 
   var resultados = await Promise.all(promessas);
 
+  // 🆕 FINGERPRINT: cria assinatura única de cada resultado pra detectar duplicatas
+  // Pega 5 linhas amostrais (espalhadas) e concatena alguns campos
+  function _fingerprint(rows) {
+    if(!rows || rows.length < 2) return null;
+    var amostras = [];
+    var indices = [
+      Math.floor(rows.length * 0.1),
+      Math.floor(rows.length * 0.3),
+      Math.floor(rows.length * 0.5),
+      Math.floor(rows.length * 0.7),
+      Math.floor(rows.length * 0.9)
+    ];
+    indices.forEach(function(i){
+      var r = rows[i] || [];
+      // Concatena código (col1), data (col6), nome cliente (col11), valor (col30)
+      amostras.push((r[1]||'') + '|' + (r[6]||'') + '|' + (r[11]||'') + '|' + (r[30]||''));
+    });
+    return rows.length + ':' + amostras.join('||');
+  }
+
   // Une todas as linhas (mantém o cabeçalho da PRIMEIRA aba que carregou com sucesso)
+  // E descarta abas com fingerprint duplicado (= Google fez fallback errado)
   var todasLinhas = [];
   var headerJaAdicionado = false;
-  var totalSucesso = 0, totalFalha = 0;
+  var totalSucesso = 0, totalFalha = 0, totalDuplicado = 0;
+  var fingerprintsVistos = {};
 
   resultados.forEach(function(r){
     if(!r.ok || !r.rows || r.rows.length === 0) {
       totalFalha++;
       return;
     }
+
+    var fp = _fingerprint(r.rows);
+    if(fp && fingerprintsVistos[fp]) {
+      console.warn('[Pedidos] ⚠️ "'+r.aba+'" retornou conteúdo IDÊNTICO a "'+fingerprintsVistos[fp]+'" → DESCARTADO (Google fallback bug)');
+      totalDuplicado++;
+      return;
+    }
+    if(fp) fingerprintsVistos[fp] = r.aba;
+
     totalSucesso++;
     var rows = r.rows;
     // Detecta se primeira linha é cabeçalho (mesma heurística do loadGS)
@@ -6536,17 +6560,18 @@ async function loadGSMultiAba(url) {
     }
   });
 
-  console.log('[Pedidos] 📊 Total unificado: '+totalSucesso+'/'+abasMensais.length+' abas, '+todasLinhas.length+' linhas');
+  console.log('[Pedidos] 📊 Total: '+totalSucesso+' aba(s) carregadas, '+totalDuplicado+' duplicada(s) descartada(s), '+totalFalha+' falha(s) — '+todasLinhas.length+' linhas finais');
 
-  if(totalFalha > 0) {
-    console.warn('[Pedidos] ⚠️ '+totalFalha+' aba(s) falharam ao carregar');
+  if(totalDuplicado > 0) {
+    console.warn('[Pedidos] ⚠️ '+totalDuplicado+' aba(s) retornaram conteúdo duplicado — Google Sheets bug conhecido. Verifique se TODOS os nomes mensais existem como abas reais.');
   }
 
   // Guarda diagnóstico
   window._veltroUltimoCarregamento = {
     fonte: 'multi-aba',
-    abas: abasMensais.map(function(a){ return a.nome+' (gid='+a.gid+')'; }),
+    abas: abasMensais.map(function(a){ return a.nome; }),
     abasOk: totalSucesso,
+    abasDuplicadas: totalDuplicado,
     abasFalha: totalFalha,
     linhas: todasLinhas.length,
     timestamp: new Date().toISOString()
