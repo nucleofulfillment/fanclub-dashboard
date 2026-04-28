@@ -1266,11 +1266,14 @@ body.light body::before { opacity: 0; }
       <span>Financeiro & Vendas</span>
       <span class="sync-dot" title="Alimenta o menu Resumos"></span>
     </div>
-    <div class="nav-item" onclick="showPage('pedidos',this)" data-page="pedidos" data-label="Pedidos">
+    <!-- 🚧 OCULTOS (28/04/2026): menus Pedidos e Estoque foram desativados visualmente.
+         Motivo: Saúde do Estoque + Projeção + Dashboard cobrem o uso real com mais inteligência.
+         Pra reativar: remover o style="display:none" dos 2 itens abaixo. -->
+    <div class="nav-item" onclick="showPage('pedidos',this)" data-page="pedidos" data-label="Pedidos" style="display:none">
       <span class="nav-icon">📋</span>
       <span>Pedidos</span>
     </div>
-    <div class="nav-item" onclick="showPage('estoque',this)" data-page="estoque" data-label="Estoque">
+    <div class="nav-item" onclick="showPage('estoque',this)" data-page="estoque" data-label="Estoque" style="display:none">
       <span class="nav-icon">📦</span>
       <span>Estoque</span>
     </div>
@@ -3359,7 +3362,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX9';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX10';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -17795,7 +17798,19 @@ function raioxGerarDadosDemo(cenario) {
     'misto': {
       gmvBase: 9200,
       varGeral: 0.30,          // dispara janela 7d com bom delta
-      ruido: 0.10,
+      ruido: 0.18,             // 🆕 ruído maior pra mais variação visual
+      // 🆕 Eventos comerciais: dias específicos com picos/quedas pra demonstrar dinâmica
+      // indiceDia: 0=29 dias atrás, 29=hoje. Multiplica o gmvDia.
+      eventos: {
+        3:  1.45,  // pico (dia 3 — campanha)
+        7:  0.55,  // queda forte (dia 7 — falha de estoque?)
+        12: 1.65,  // mega pico (dia 12 — black friday simulada)
+        13: 1.35,  // pico residual
+        18: 0.62,  // queda (dia 18 — perda de tracking ADS?)
+        22: 1.55,  // pico (dia 22 — promoção marketplace)
+        25: 0.70,  // queda (dia 25)
+        28: 1.40   // pico recente (ontem)
+      },
       canais: {
         'Shopee':         { peso: 0.45, varRecente: -0.55 },  // queda forte
         'Mercado Livre':  { peso: 0.28, varRecente: 0.65 },   // alta forte
@@ -17834,6 +17849,11 @@ function raioxGerarDadosDemo(cenario) {
     var ruido = 1 + (seed * 2 - 1) * p.ruido;
 
     var gmvDia = p.gmvBase * boost * fatorPeriodo * ruido;
+
+    // 🆕 Aplicar eventos comerciais (picos/quedas em dias específicos)
+    if(p.eventos && p.eventos[indiceDia] !== undefined) {
+      gmvDia *= p.eventos[indiceDia];
+    }
 
     dadosDiarios[data] = { gmv: 0, pedidos: 0, canais: {} };
 
@@ -18549,11 +18569,11 @@ function raioxRender() {
       '<div class="ch">'+
         '<div>'+
           '<div class="ct" style="font-size:17px">Evolução de Vendas</div>'+
-          '<div class="cs">Histórico 30 dias · destaque na janela atual</div>'+
+          '<div class="cs">Janela em foco · destaque no momento atual</div>'+
         '</div>'+
         '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">'+
           // Janelas temporais — DEFAULT 24h ativo
-          '<div style="display:flex;gap:4px;background:var(--s2);padding:2px;border-radius:7px;border:1px solid var(--border)" title="Define qual janela do tempo recente fica em destaque no gráfico">'+
+          '<div style="display:flex;gap:4px;background:var(--s2);padding:2px;border-radius:7px;border:1px solid var(--border)" title="Janela de tempo exibida">'+
             '<button onclick="raioxSetJanela(\'24h\')" id="raiox-jan-24h" type="button" '+
               'style="padding:4px 10px;background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">24h</button>'+
             '<button onclick="raioxSetJanela(\'10d\')" id="raiox-jan-10d" type="button" '+
@@ -18578,10 +18598,10 @@ function raioxRender() {
       '</div>'+
       // Disclaimer compacto
       '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:10px;line-height:1.6;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
-        '<span>🎯 <strong style="color:var(--accent)">Destaque</strong>: janela em foco</span> · '+
+        '<span>🎯 <strong style="color:var(--accent)">Tempo atual</strong>: último dia em destaque</span> · '+
         '<span>⚖ <strong style="color:#9CA3AF">Equilíbrio</strong>: média móvel 7d</span> · '+
         '<span>💡 <strong style="color:var(--accent)">Hover</strong> em qualquer ponto pra ver detalhes</span> · '+
-        '<span>📈 <strong style="color:#A78BFA">Linhas Aux</strong>: Mídia/Estoque/Mercado (🔬 simulado)</span>'+
+        '<span>📈 <strong style="color:#A78BFA">Linhas Aux</strong>: Marketplace/Mídia/Estoque/Mercado (🔬 simulado)</span>'+
       '</div>'+
     '</div>';
 
@@ -18762,19 +18782,24 @@ function _raioxDesenharChart(dadosDiarios) {
     dadosDiarios = raioxVendasPorDia(30);
   }
 
-  // 🪟 Janela de DESTAQUE (não filtra dados, só destaca)
-  // Default: '24h' (highlight nas últimas 24 horas)
+  // 🪟 Janela = ZOOM real (slice das keys) + destaque sempre no momento atual
+  // Default: '24h' (zoom em 3 dias, destaque só no último)
   var janela = window._raioxJanela || '24h'; // '24h' | '10d' | '30d'
   var keys30 = Object.keys(dadosDiarios).sort();
 
-  // Quantos pontos do final ficam no DESTAQUE
-  var nDestaque;
-  if(janela === '24h') nDestaque = 3;        // 🆕 Últimos 3 dias (foco em "tempo atual" mas com largura visível)
-  else if(janela === '10d') nDestaque = 10;  // Últimos 10 dias
-  else nDestaque = keys30.length;             // Tudo (sem distinção fade)
+  // 🆕 Quantos dias EXIBIR (zoom)
+  var nExibir;
+  if(janela === '24h') nExibir = 3;
+  else if(janela === '10d') nExibir = 10;
+  else nExibir = keys30.length; // 30d
 
-  var keys = keys30;
-  var idxInicioDestaque = Math.max(0, keys.length - nDestaque);
+  // Slice: pega só os últimos N dias da janela
+  var keys = keys30.slice(-nExibir);
+
+  // 🆕 Destaque = sempre o ÚLTIMO dia (momento atual)
+  // 24h: destaque no índice 2 (3º dia, dias 0 e 1 ficam em fade)
+  // 10d e 30d: destaque no último dia (índice nExibir-1)
+  var idxInicioDestaque = keys.length - 1;
 
   // Labels (sempre formato dd/mm)
   var labels = keys.map(function(k){
@@ -19010,39 +19035,52 @@ function _raioxDesenharChart(dadosDiarios) {
 
   if(_raioxChartInstance) {
     try { _raioxChartInstance.destroy(); } catch(e){}
+    _raioxChartInstance = null;
   }
+  // 🆕 Limpar canvas pra garantir que nada antigo permanece
+  try {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  } catch(e){}
 
-  // 🎨 Plugin custom: desenha faixa de destaque atrás do gráfico
+  // 🎨 Plugin custom: desenha faixa de destaque (último dia / momento atual)
   var bgDestaquePlugin = {
     id: 'raiox-bg-destaque',
     beforeDatasetsDraw: function(chart) {
-      // Só desenha se janela for diferente de '30d' (que não tem fade)
-      if(janela === '30d') return;
-      var idx = idxInicioDestaque;
       var totalPontos = keys.length;
-      if(idx >= totalPontos - 1) return;
+      if(totalPontos < 2) return;
 
       var xScale = chart.scales.x;
       var yScale = chart.scales.y;
       if(!xScale || !yScale) return;
 
-      var xStart = xScale.getPixelForValue(idx);
-      var xEnd   = xScale.getPixelForValue(totalPontos - 1) + 12; // overflow leve
+      // Sempre destaca o ÚLTIMO ponto (momento atual)
+      // Largura da faixa varia conforme janela:
+      //   24h (3 dias) → faixa cobre o último dia
+      //   10d         → faixa cobre os últimos 2 dias
+      //   30d         → faixa cobre os últimos 3 dias
+      var diasFaixa;
+      if(janela === '24h') diasFaixa = 1;
+      else if(janela === '10d') diasFaixa = 2;
+      else diasFaixa = 3;
+      var idxStart = Math.max(0, totalPontos - 1 - diasFaixa);
+
+      var xStart = xScale.getPixelForValue(idxStart);
+      var xEnd   = xScale.getPixelForValue(totalPontos - 1) + 16; // overflow leve no final
       var yTop   = yScale.top;
       var yBottom = yScale.bottom;
 
       var ctx2 = chart.ctx;
       ctx2.save();
-      // Gradient sutil verde da identidade
-      var grad = ctx2.createLinearGradient(0, yTop, 0, yBottom);
-      grad.addColorStop(0,    'rgba(110,231,183,.06)');
-      grad.addColorStop(0.5,  'rgba(110,231,183,.04)');
-      grad.addColorStop(1,    'rgba(110,231,183,.00)');
+      // Gradient sutil verde da identidade (fade da esquerda pra direita)
+      var grad = ctx2.createLinearGradient(xStart, 0, xEnd, 0);
+      grad.addColorStop(0,    'rgba(110,231,183,.00)');
+      grad.addColorStop(0.4,  'rgba(110,231,183,.05)');
+      grad.addColorStop(1,    'rgba(110,231,183,.10)');
       ctx2.fillStyle = grad;
       ctx2.fillRect(xStart, yTop, xEnd - xStart, yBottom - yTop);
 
       // Borda esquerda sutil pra demarcar onde começa
-      ctx2.strokeStyle = 'rgba(110,231,183,.15)';
+      ctx2.strokeStyle = 'rgba(110,231,183,.18)';
       ctx2.lineWidth = 1;
       ctx2.setLineDash([2, 4]);
       ctx2.beginPath();
@@ -19051,13 +19089,12 @@ function _raioxDesenharChart(dadosDiarios) {
       ctx2.stroke();
       ctx2.setLineDash([]);
 
-      // Label "AGORA" no canto superior direito da faixa
-      ctx2.fillStyle = 'rgba(110,231,183,.55)';
-      ctx2.font = '600 9px "JetBrains Mono", monospace';
+      // Label "TEMPO ATUAL" no canto superior direito da faixa
+      ctx2.fillStyle = 'rgba(110,231,183,.65)';
+      ctx2.font = '700 9px "JetBrains Mono", monospace';
       ctx2.textAlign = 'right';
       ctx2.textBaseline = 'top';
-      var label = janela === '24h' ? '⚡ TEMPO ATUAL' : '⚡ EM FOCO';
-      ctx2.fillText(label, xEnd - 14, yTop + 6);
+      ctx2.fillText('⚡ TEMPO ATUAL', xEnd - 16, yTop + 6);
 
       ctx2.restore();
     }
