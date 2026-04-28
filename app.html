@@ -3359,7 +3359,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX6';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX7';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -18534,20 +18534,20 @@ function raioxRender() {
 
   // 📊 GRÁFICO HERO (topo, full-width — mesma estrutura do dashboard principal)
   html +=
-    '<div class="slabel" style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">vendas · prioriza tempo atual</div>'+
+    '<div class="slabel" style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">vendas · destaque no tempo atual</div>'+
     '<div class="card fu" style="margin-bottom:14px">'+
       '<div class="ch">'+
         '<div>'+
           '<div class="ct" style="font-size:17px">Evolução de Vendas</div>'+
-          '<div class="cs">Tempo atual · vendas reais vs equilíbrio</div>'+
+          '<div class="cs">Histórico 30 dias · destaque na janela atual</div>'+
         '</div>'+
         '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">'+
-          // Janelas temporais
-          '<div style="display:flex;gap:4px;background:var(--s2);padding:2px;border-radius:7px;border:1px solid var(--border)">'+
+          // Janelas temporais — DEFAULT 24h ativo
+          '<div style="display:flex;gap:4px;background:var(--s2);padding:2px;border-radius:7px;border:1px solid var(--border)" title="Define qual janela do tempo recente fica em destaque no gráfico">'+
             '<button onclick="raioxSetJanela(\'24h\')" id="raiox-jan-24h" type="button" '+
-              'style="padding:4px 10px;background:transparent;border:1px solid transparent;color:var(--muted);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer">24h</button>'+
+              'style="padding:4px 10px;background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">24h</button>'+
             '<button onclick="raioxSetJanela(\'10d\')" id="raiox-jan-10d" type="button" '+
-              'style="padding:4px 10px;background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">10 dias</button>'+
+              'style="padding:4px 10px;background:transparent;border:1px solid transparent;color:var(--muted);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer">10 dias</button>'+
             '<button onclick="raioxSetJanela(\'30d\')" id="raiox-jan-30d" type="button" '+
               'style="padding:4px 10px;background:transparent;border:1px solid transparent;color:var(--muted);border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer">30 dias</button>'+
           '</div>'+
@@ -18560,7 +18560,7 @@ function raioxRender() {
           '</div>'+
           // Toggle linhas auxiliares
           '<button onclick="raioxToggleLinhasAux()" id="raiox-toggle-aux" type="button" title="Mostrar/ocultar linhas auxiliares (Mídia, Estoque, Mercado)" '+
-            'style="padding:5px 10px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.50);color:#A78BFA;border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">📈 Linhas Aux</button>'+
+            'style="padding:5px 10px;background:var(--s2);border:1px solid var(--border);color:var(--muted);border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:600">📈 Linhas Aux</button>'+
         '</div>'+
       '</div>'+
       '<div style="position:relative;height:320px;max-height:320px">'+
@@ -18568,9 +18568,10 @@ function raioxRender() {
       '</div>'+
       // Disclaimer compacto
       '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:10px;line-height:1.6;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+        '<span>🎯 <strong style="color:var(--accent)">Destaque</strong>: janela em foco</span> · '+
         '<span>⚖ <strong style="color:#9CA3AF">Equilíbrio</strong>: média móvel 7d</span> · '+
         '<span>💡 <strong style="color:var(--accent)">Hover</strong> em qualquer ponto pra ver detalhes</span> · '+
-        '<span>📈 <strong style="color:#A78BFA">Linhas Aux</strong>: ative pra ver Mídia/Estoque/Mercado (🔬 simulado)</span>'+
+        '<span>📈 <strong style="color:#A78BFA">Linhas Aux</strong>: Mídia/Estoque/Mercado (🔬 simulado)</span>'+
       '</div>'+
     '</div>';
 
@@ -18733,63 +18734,30 @@ function _raioxDesenharChart(dadosDiarios) {
   if(!canvas) return;
   var ctx = canvas.getContext('2d');
 
-  // Dados em cache se não passou
+  // Dados sempre completos (30 dias)
   if(!dadosDiarios) {
     dadosDiarios = raioxVendasPorDia(30);
   }
 
-  // 🪟 Aplicar janela temporal selecionada
-  var janela = window._raioxJanela || '10d'; // '24h' | '10d' | '30d'
+  // 🪟 Janela de DESTAQUE (não filtra dados, só destaca)
+  // Default: '24h' (highlight nas últimas 24 horas)
+  var janela = window._raioxJanela || '24h'; // '24h' | '10d' | '30d'
   var keys30 = Object.keys(dadosDiarios).sort();
-  var keys;
-  if(janela === '24h') {
-    keys = keys30.slice(-2); // ontem + hoje (granularidade dia)
-  } else if(janela === '10d') {
-    keys = keys30.slice(-10);
-  } else {
-    keys = keys30;
-  }
-  // Para 24h, vamos simular granularidade horária (24 pontos)
-  // Pega o GMV do último dia e divide em curva horária
-  if(janela === '24h') {
-    var hoje = keys30[keys30.length - 1];
-    var gmvHoje = dadosDiarios[hoje] ? dadosDiarios[hoje].gmv : 0;
-    // Distribuição horária típica de e-commerce (picos 11h, 14h, 20h-22h)
-    var distHoraria = [
-      0.005, 0.003, 0.002, 0.002, 0.003, 0.005, 0.010, 0.020, // 0-7h
-      0.035, 0.055, 0.070, 0.082, 0.075, 0.080, 0.085, 0.075, // 8-15h
-      0.060, 0.055, 0.050, 0.060, 0.075, 0.080, 0.060, 0.030  // 16-23h
-    ];
-    var dadosHorarios = {};
-    var keysHorarias = [];
-    for(var h = 0; h < 24; h++) {
-      var k = 'h' + h;
-      keysHorarias.push(k);
-      var seed = (h * 17 + 11) % 100 / 100;
-      var ruido = 1 + (seed * 2 - 1) * 0.15;
-      dadosHorarios[k] = {
-        gmv: gmvHoje * distHoraria[h] * ruido,
-        pedidos: Math.round(gmvHoje * distHoraria[h] / 165),
-        canais: {}
-      };
-    }
-    keys = keysHorarias;
-    dadosDiarios = dadosHorarios;
-  }
 
-  // Labels
-  var labels;
-  if(janela === '24h') {
-    labels = keys.map(function(k){
-      var h = parseInt(k.replace('h',''), 10);
-      return String(h).padStart(2,'0') + ':00';
-    });
-  } else {
-    labels = keys.map(function(k){
-      var d = new Date(k+'T00:00:00');
-      return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
-    });
-  }
+  // Quantos pontos do final ficam no DESTAQUE
+  var nDestaque;
+  if(janela === '24h') nDestaque = 1;       // Último dia (hoje)
+  else if(janela === '10d') nDestaque = 10; // Últimos 10 dias
+  else nDestaque = keys30.length;            // Tudo (sem distinção fade)
+
+  var keys = keys30;
+  var idxInicioDestaque = Math.max(0, keys.length - nDestaque);
+
+  // Labels (sempre formato dd/mm)
+  var labels = keys.map(function(k){
+    var d = new Date(k+'T00:00:00');
+    return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+  });
 
   var modo = window._raioxModoChart || 'consolidado';
 
@@ -18850,20 +18818,58 @@ function _raioxDesenharChart(dadosDiarios) {
     var dadosVendas = keys.map(function(k){ return Math.round(dadosDiarios[k].gmv || 0); });
 
     // Linha principal: vendas reais
+    // ─── Linha principal de Vendas em DOIS datasets:
+    //   1) Histórico (29 dias anteriores) — verde fade transparente
+    //   2) Destaque (últimas 24h/10d) — verde sólido + fill em degradê
+    // ──────────────────────────────────────────────────
+
+    // Cria array com null nas posições "fora da janela" pra cada dataset
+    function _splitData(arr, idxInicio) {
+      var historico = arr.map(function(v, i){ return i <= idxInicio ? v : null; });
+      var destaque  = arr.map(function(v, i){ return i >= idxInicio ? v : null; });
+      return { historico: historico, destaque: destaque };
+    }
+    var splitVendas = _splitData(dadosVendas, idxInicioDestaque);
+
+    // Gradient pra preenchimento do destaque (verde fade-out top→bottom)
+    var canvasH = canvas.height || 320;
+    var gradPrincipal = ctx.createLinearGradient(0, 0, 0, canvasH);
+    gradPrincipal.addColorStop(0,    'rgba(110,231,183,.45)');
+    gradPrincipal.addColorStop(0.45, 'rgba(110,231,183,.18)');
+    gradPrincipal.addColorStop(1,    'rgba(110,231,183,.00)');
+
+    // Histórico (linha fina, verde semi-transparente, sem fill)
+    datasets.push({
+      label: '📊 Vendas (histórico)',
+      data: splitVendas.historico,
+      borderColor: 'rgba(110,231,183,.30)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      fill: false,
+      tension: 0.35,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      spanGaps: false,
+      order: 2,
+      _hideLegend: true
+    });
+
+    // Destaque (linha grossa sólida, fill em degradê)
     datasets.push({
       label: '📊 Vendas',
-      data: dadosVendas,
+      data: splitVendas.destaque,
       borderColor: '#6EE7B7',
-      backgroundColor: 'rgba(110,231,183,.10)',
-      borderWidth: 2.5,
+      backgroundColor: gradPrincipal,
+      borderWidth: 3,
       fill: true,
       tension: 0.35,
       pointRadius: 0,
       pointHoverRadius: 6,
+      spanGaps: false,
       order: 1
     });
 
-    // Linha de equilíbrio (baseline) — média móvel
+    // Linha de equilíbrio (baseline) — média móvel, atravessa tudo
     var baseline = raioxCalcularBaseline(dadosDiarios);
     datasets.push({
       label: '⚖ Equilíbrio (baseline)',
@@ -18880,27 +18886,15 @@ function _raioxDesenharChart(dadosDiarios) {
     });
 
     // Linhas auxiliares — sempre computadas (pra tooltip), mas ocultas se linhasAux=false
+    // 🆕 NOVAS CORES com mais saturação (vermelho/azul/cinza)
     var aux = raioxGerarLinhasAuxiliares(dadosDiarios, cenario);
 
     datasets.push({
       label: '📢 Mídia 🔬',
       data: aux.midia.map(function(v){ return Math.round(v); }),
-      borderColor: 'rgba(167,139,250,.55)',
+      borderColor: '#F87171', // 🆕 vermelho saturado
       backgroundColor: 'transparent',
-      borderWidth: 1.5,
-      fill: false,
-      tension: 0.4,
-      pointRadius: 0,
-      pointHoverRadius: 4,
-      hidden: !linhasAux,
-      order: 6
-    });
-    datasets.push({
-      label: '📦 Estoque 🔬',
-      data: aux.estoque.map(function(v){ return Math.round(v); }),
-      borderColor: 'rgba(251,146,60,.55)',
-      backgroundColor: 'transparent',
-      borderWidth: 1.5,
+      borderWidth: 1.8,
       fill: false,
       tension: 0.4,
       pointRadius: 0,
@@ -18909,17 +18903,30 @@ function _raioxDesenharChart(dadosDiarios) {
       order: 7
     });
     datasets.push({
-      label: '🌐 Mercado 🔬',
-      data: aux.mercado.map(function(v){ return Math.round(v); }),
-      borderColor: 'rgba(96,165,250,.55)',
+      label: '📦 Estoque 🔬',
+      data: aux.estoque.map(function(v){ return Math.round(v); }),
+      borderColor: '#9CA3AF', // 🆕 cinza claro
       backgroundColor: 'transparent',
-      borderWidth: 1.5,
+      borderWidth: 1.8,
       fill: false,
       tension: 0.4,
       pointRadius: 0,
       pointHoverRadius: 4,
       hidden: !linhasAux,
       order: 8
+    });
+    datasets.push({
+      label: '🌐 Mercado 🔬',
+      data: aux.mercado.map(function(v){ return Math.round(v); }),
+      borderColor: '#60A5FA', // 🆕 azul saturado
+      backgroundColor: 'transparent',
+      borderWidth: 1.8,
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      hidden: !linhasAux,
+      order: 6
     });
 
     // ─── PONTOS DE ALERTA (em cima da linha principal) ───
@@ -18984,6 +18991,8 @@ function _raioxDesenharChart(dadosDiarios) {
             filter: function(item, chartData){
               // Esconde dataset de Alertas (visual só via pontos)
               if(item.text === '⚠ Alertas') return false;
+              // Esconde dataset 'Vendas (histórico)' — é só visual
+              if(item.text === '📊 Vendas (histórico)') return false;
               // Esconde datasets ocultos (Mídia/Estoque/Mercado quando linhasAux=false)
               var ds = chartData.datasets[item.datasetIndex];
               if(ds && ds.hidden) return false;
@@ -19015,8 +19024,13 @@ function _raioxDesenharChart(dadosDiarios) {
             // Pega valores dos datasets nessa posição
             var allDatasets = context.chart.data.datasets;
             function _getValor(label) {
-              var ds = allDatasets.find(function(d){ return (d.label||'').indexOf(label) !== -1; });
-              return ds && ds.data[idx] !== undefined ? ds.data[idx] : null;
+              // Pode ter mais de um dataset com 'Vendas' (destaque + histórico) — pega o que tiver valor
+              var dss = allDatasets.filter(function(d){ return (d.label||'').indexOf(label) !== -1; });
+              for(var i = 0; i < dss.length; i++) {
+                var v = dss[i].data[idx];
+                if(v !== undefined && v !== null) return v;
+              }
+              return null;
             }
 
             var vendasV = _getValor('Vendas');
@@ -19044,19 +19058,27 @@ function _raioxDesenharChart(dadosDiarios) {
               if(v === null || v === undefined) return '—';
               return 'R$ ' + Math.round(v).toLocaleString('pt-BR');
             }
-            function _linha(emoji, nome, valor, base, isPrincipal) {
+            function _linha(emoji, nome, valor, base, isPrincipal, corLinha) {
               var pct = base !== null ? _pct(valor, base) : null;
               var corNome = isPrincipal ? '#6EE7B7' : 'var(--text)';
-              var pesoNome = isPrincipal ? '700' : '500';
-              var size = isPrincipal ? '12px' : '11px';
-              return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:'+size+'">'+
-                '<div style="display:flex;align-items:center;gap:7px;flex:1;min-width:0">'+
-                  '<span style="font-size:11px;flex-shrink:0">'+emoji+'</span>'+
-                  '<span style="color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:500">'+nome+'</span>'+
+              var pesoNome = isPrincipal ? '700' : '600';
+              var sizeNome = isPrincipal ? '11px' : '10px';
+              var sizeValor = isPrincipal ? '15px' : '13px';
+              // Bullet com cor da linha do gráfico
+              var bullet = corLinha
+                ? '<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+corLinha+';flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,.04)"></span>'
+                : '<span style="font-size:11px;flex-shrink:0">'+emoji+'</span>';
+
+              return '<div style="padding:7px 0;'+(isPrincipal ? 'border-bottom:1px solid rgba(110,231,183,.10);margin-bottom:4px;padding-bottom:9px;' : '')+'">'+
+                // Cabeçalho do indicador (bullet + nome)
+                '<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">'+
+                  bullet+
+                  '<span style="color:'+(isPrincipal ? corNome : 'var(--muted)')+';font-family:\'JetBrains Mono\',monospace;font-size:'+sizeNome+';font-weight:'+pesoNome+';letter-spacing:.3px">'+nome+'</span>'+
                 '</div>'+
-                '<div style="display:flex;align-items:center;gap:6px">'+
-                  '<span style="color:'+corNome+';font-weight:'+pesoNome+';font-family:\'Syne\',sans-serif;font-size:'+size+'">'+_fmt(valor)+'</span>'+
-                  (isPrincipal ? '' : (pct !== null ? _pilula(pct) : ''))+
+                // Linha de valor + pílula (mesma linha mas separados visualmente)
+                '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-left:16px">'+
+                  '<span style="color:'+(isPrincipal ? corNome : 'var(--text)')+';font-weight:'+pesoNome+';font-family:\'Syne\',sans-serif;font-size:'+sizeValor+';font-variant-numeric:tabular-nums">'+_fmt(valor)+'</span>'+
+                  (pct !== null && !isPrincipal ? _pilula(pct) : '')+
                 '</div>'+
               '</div>';
             }
@@ -19083,21 +19105,21 @@ function _raioxDesenharChart(dadosDiarios) {
 
             // ─── HTML completo da tooltip ───
             var html =
-              '<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(110,231,183,.15);display:flex;align-items:center;justify-content:space-between;gap:10px">'+
+              '<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(110,231,183,.20);display:flex;align-items:center;justify-content:space-between;gap:10px">'+
                 '<span>'+labelData+'</span>'+
                 pilulaPrincipal+
               '</div>'+
-              // Linha principal: Vendas
-              _linha('📊', 'Vendas', vendasV, baselineV, true)+
+              // Linha principal: Vendas (verde, com pílula no header acima)
+              _linha('📊', 'Vendas', vendasV, baselineV, true, '#6EE7B7')+
               // Baseline (sem pílula, só referência)
-              _linha('⚖', 'Equilíbrio', baselineV, null, false)+
-              // Outras métricas (sempre mostra mesmo se linhas off)
+              _linha('⚖', 'Equilíbrio', baselineV, null, false, '#9CA3AF')+
+              // Outras métricas (sempre mostra mesmo se linhas off) — cores combinam com gráfico
               (midiaV !== null || estoqueV !== null || mercadoV !== null
-                ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05)">'+
+                ? '<div style="margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06)">'+
                     '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas</div>'+
-                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, baselineV, false) : '')+
-                    (estoqueV !== null ? _linha('📦', 'Estoque 🔬', estoqueV, baselineV, false) : '')+
-                    (mercadoV !== null ? _linha('🌐', 'Mercado 🔬', mercadoV, baselineV, false) : '')+
+                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, baselineV, false, '#F87171') : '')+
+                    (estoqueV !== null ? _linha('📦', 'Estoque 🔬', estoqueV, baselineV, false, '#9CA3AF') : '')+
+                    (mercadoV !== null ? _linha('🌐', 'Mercado 🔬', mercadoV, baselineV, false, '#60A5FA') : '')+
                   '</div>'
                 : ''
               )+
