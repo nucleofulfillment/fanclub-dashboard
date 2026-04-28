@@ -3463,7 +3463,7 @@ function detectCols(rawRows) {
   }
 
   _colIdx = {canal:canalIdx, status:statusIdx, data:dataIdx, valor:valorIdx, frete:freteIdx, pedido:pedidoIdx, cliente:clienteIdx, pag:pagIdx};
-  console.log('[FanClub] Colunas detectadas:', JSON.stringify(_colIdx));
+  console.log('[Sistema] Colunas detectadas:', JSON.stringify(_colIdx));
   return _colIdx;
 }
 
@@ -3964,7 +3964,7 @@ function loadFromLS(key) {
     var obj = JSON.parse(raw);
     if (obj.key !== key) return null;
     if (Date.now() - obj.ts > CACHE_TTL) return null;
-    console.log('[FanClub] Cache localStorage válido, pulando re-processamento');
+    console.log('[Sistema] Cache localStorage válido, pulando re-processamento');
     return obj.pedidos;
   } catch(e) { return null; }
 }
@@ -6194,7 +6194,7 @@ async function loadProdutos() {
     if(colQtd  < 0) colQtd  = 5;
     if(colGmv  < 0) colGmv  = 6;
 
-    console.log('[FanClub Produtos] Colunas detectadas: cod='+colCod+' nome='+colNome+' qtd='+colQtd+' gmv='+colGmv);
+    console.log('[Produtos] Colunas detectadas: cod='+colCod+' nome='+colNome+' qtd='+colQtd+' gmv='+colGmv);
 
     const data = rows.slice(startRow);
     const map = {};
@@ -6251,17 +6251,17 @@ async function loadProdutos() {
 
     // Fallback: aba vazia → usar allRows
     if(Object.keys(map).length === 0 && allRows.length > 0) {
-      console.log('[FanClub] Aba Produtos vazia — usando allRows');
+      console.log('[Sistema] Aba Produtos vazia — usando allRows');
       _buildProdutosFromAllRows(map);
     }
 
     produtosMap = map;
-    console.log('[FanClub] Produtos:', Object.keys(map).length, 'SKUs | linhas:', totalCarregados);
+    console.log('[Sistema] Produtos:', Object.keys(map).length, 'SKUs | linhas:', totalCarregados);
 
     var estoquePage = document.getElementById('page-estoque');
     if(estoquePage && estoquePage.classList.contains('active')) renderEstoque();
   } catch(e) {
-    console.error('[FanClub] loadProdutos erro:', e.message);
+    console.error('[Sistema] loadProdutos erro:', e.message);
     const map = {};
     _buildProdutosFromAllRows(map);
     produtosMap = map;
@@ -10006,13 +10006,17 @@ function projCalcularDados() {
     var totalEstoque = estoquePorPai[skuPai] || 0;
     var detEst = estoqueDetalheVariacao[skuPai] || [];
 
+    // 🆕 Defesa: estoque negativo (raro, mas acontece em planilhas com erro)
+    // tratamos como 0 nos cálculos pra não causar cobertura negativa
+    var estoqueParaCalculo = Math.max(0, totalEstoque);
+
     // Calcula previsibilidade e qtd a pedir
     var taxaVendaDiaria = v.totalVendido / cfg.periodoVenda;
     var totalPrev = Math.round(taxaVendaDiaria * cfg.periodoProj);
-    var totalPedir = Math.max(0, totalPrev - totalEstoque);
+    var totalPedir = Math.max(0, totalPrev - estoqueParaCalculo);
 
-    // Dias de cobertura
-    var diasCobertura = (taxaVendaDiaria > 0) ? (totalEstoque / taxaVendaDiaria) : Infinity;
+    // Dias de cobertura (usa estoque tratado)
+    var diasCobertura = (taxaVendaDiaria > 0) ? (estoqueParaCalculo / taxaVendaDiaria) : Infinity;
 
     // Custo do produto pelo getCustoReal
     var custoInfo = (typeof getCustoReal === 'function') ? getCustoReal(skuPai) : null;
@@ -11307,7 +11311,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   // Se não há filtro de data (carregamento completo), resetar abas conhecidas
   if(!from && !to) {
     window._prodAbasEncontradas = [];
-    console.log('[FanClub Produtos] Carregamento completo — resetando abas conhecidas');
+    console.log('[Produtos] Carregamento completo — resetando abas conhecidas');
   }
 
   // Tentar descobrir abas automaticamente
@@ -11334,7 +11338,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
       });
       if(abasParaCarregar.length === 0) abasParaCarregar = abasDisponiveis;
     }
-    console.log('[FanClub Produtos] Abas selecionadas:', abasParaCarregar);
+    console.log('[Produtos] Abas selecionadas:', abasParaCarregar);
   } else {
     // Feed falhou — tentar todas as variações de nome para cada mês do período
     periodoInfo.forEach(function(mesInfo) {
@@ -11368,7 +11372,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
     var mesKey = abaNorm.replace(/\d+/,'').substring(0,3) + (abaNorm.match(/\d+/)||[''])[0].slice(-2);
     
     if(mesesJaCarregados.has(mesKey)) {
-      console.log('[FanClub Produtos] ⏭️ Pulando "'+aba+'" — mês já carregado ('+mesKey+')');
+      console.log('[Produtos] ⏭️ Pulando "'+aba+'" — mês já carregado ('+mesKey+')');
       continue;
     }
 
@@ -11405,9 +11409,9 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           var primeiroCampoTexto = isNaN(parseFloat(String(header[0]||'').replace(/[R$,. ]/g,'')));
           if(primeiroCampoTexto && header.length >= 2) {
             startRow = 1;
-            console.log('[FanClub Produtos] Cabeçalho detectado:', header.slice(0,5).join(' | '));
+            console.log('[Produtos] Cabeçalho detectado:', header.slice(0,5).join(' | '));
           } else {
-            console.log('[FanClub Produtos] Sem cabeçalho — primeira linha já é dado');
+            console.log('[Produtos] Sem cabeçalho — primeira linha já é dado');
           }
         }
         // Posições fixas (padrão da planilha "Produtos Vendidos")
@@ -11416,7 +11420,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         colQtd = 2;
         var colGmv = 3;          // Vlr Total Vendido
         var colPrecoMedio = 4;   // Valor Médio/Un
-        console.log('[FanClub Produtos] Colunas (POSIÇÃO FIXA): sku=0 · nome=1 · qtd=2 · gmv=3 · precoMedio=4');
+        console.log('[Produtos] Colunas (POSIÇÃO FIXA): sku=0 · nome=1 · qtd=2 · gmv=3 · precoMedio=4');
 
         var dataRows = rows.slice(startRow);
         var linhasValidas = 0;
@@ -11468,11 +11472,11 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
 
           // SANITY CHECKS — proteger contra valores absurdos vindos da planilha
           if(precoMedioPlanilha > 100000) {
-            console.warn('[FanClub Produtos] ⚠ Preço calculado absurdo descartado: SKU='+sku+' valor='+precoMedioPlanilha+' (gmv='+gmvProduto+' qtd='+qtd+')');
+            console.warn('[Produtos] ⚠ Preço calculado absurdo descartado: SKU='+sku+' valor='+precoMedioPlanilha+' (gmv='+gmvProduto+' qtd='+qtd+')');
             precoMedioPlanilha = 0;
           }
           if(gmvProduto > 10000000) {
-            console.warn('[FanClub Produtos] ⚠ GMV absurdo descartado: SKU='+sku+' valor='+gmvProduto+' (raw: '+r[colGmv]+')');
+            console.warn('[Produtos] ⚠ GMV absurdo descartado: SKU='+sku+' valor='+gmvProduto+' (raw: '+r[colGmv]+')');
             gmvProduto = 0;
             precoMedioPlanilha = 0;
           }
@@ -11544,10 +11548,10 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
         if(linhasValidas > 0) {
           abasEncontradas.push(aba);
           abasOk++;
-          console.log('[FanClub Produtos] ✅ "'+aba+'": '+linhasValidas+' itens (cols sku=0 nome=1 qtd=2 gmv=3 precoMedio=4)');
+          console.log('[Produtos] ✅ "'+aba+'": '+linhasValidas+' itens (cols sku=0 nome=1 qtd=2 gmv=3 precoMedio=4)');
           // Diagnóstico: mostrar primeiras linhas raw vs parseadas
           if(amostraLog.length > 0) {
-            console.log('[FanClub Produtos]    Amostra das 3 primeiras linhas:');
+            console.log('[Produtos]    Amostra das 3 primeiras linhas:');
             amostraLog.forEach(function(a, i){
               console.log('       linha['+i+'] RAW:', a.raw, '→ PARSED:', a.parsed);
             });
@@ -11556,7 +11560,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
           mesesJaCarregados.add(mesKey);
           // Top 3 para verificar dados
           var _top3 = Object.entries(novoMap).sort(function(a,b){return b[1].qtd-a[1].qtd;}).slice(0,3);
-          console.log('[FanClub Produtos] Top 3:', _top3.map(function(p){return p[1].nome+'('+p[1].qtd+')'}).join(', '));
+          console.log('[Produtos] Top 3:', _top3.map(function(p){return p[1].nome+'('+p[1].qtd+')'}).join(', '));
           break;
         }
       } catch(e) { /* tenta próxima variação */ }
@@ -11611,17 +11615,17 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
             });
             abasEncontradas.push('GID:'+gidMatch[1]);
             abasOk++;
-            console.log('[FanClub Produtos] Carregado pelo GID:', Object.keys(novoMap).length, 'SKUs');
+            console.log('[Produtos] Carregado pelo GID:', Object.keys(novoMap).length, 'SKUs');
           }
         }
-      } catch(e2) { console.warn('[FanClub Produtos] GID fallback falhou:', e2.message); }
+      } catch(e2) { console.warn('[Produtos] GID fallback falhou:', e2.message); }
     }
 
     if(Object.keys(novoMap).length === 0) {
       var msg = '❌ Sem dados — verifique:\n1. Planilha publicada na web (Arquivo → Publicar na web)\n2. Nomes das abas tentados no console (F12)';
       if(statusEl) { statusEl.textContent = '❌ Sem dados — verifique publicação e console'; statusEl.style.color = 'var(--red)'; }
       if(urlEl) urlEl.style.borderColor = 'var(--red)';
-      console.error('[FanClub Produtos] FALHA TOTAL. Verifique:');
+      console.error('[Produtos] FALHA TOTAL. Verifique:');
       console.error('  1. A planilha está publicada? (Arquivo → Publicar na web)');
       console.error('  2. Abas descobertas pelo feed:', abasDisponiveis);
       console.error('  3. Abas tentadas:', abasParaCarregar.slice(0,5));
@@ -11639,7 +11643,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   var abasUnidas = abasAntigas.slice();
   abasReais.forEach(function(a){ if(!abasUnidas.includes(a)) abasUnidas.push(a); });
   window._prodAbasEncontradas = abasUnidas;
-  console.log('[FanClub Produtos] Abas encontradas:', window._prodAbasEncontradas);
+  console.log('[Produtos] Abas encontradas:', window._prodAbasEncontradas);
 
   // Popular seletor de meses com as abas encontradas
   // (cada aba bem-sucedida foi registrada com o mesKey normalizado)
@@ -11651,7 +11655,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   // Adicionar também as abas reais encontradas (nome original da aba)
   abasReais.forEach(function(a){ mesesEncontrados.add(a); });
   window._prodMesesEncontrados = Array.from(mesesEncontrados);
-  console.log('[FanClub Produtos] Meses com dados:', window._prodMesesEncontrados);
+  console.log('[Produtos] Meses com dados:', window._prodMesesEncontrados);
   var total = Object.keys(novoMap).length;
   if(statusEl) { statusEl.textContent = '✅ ' + total + ' SKUs · ' + abasOk + ' aba(s)' + (abasFail > 0 ? ' · '+abasFail+' erro(s)':''); statusEl.style.color = 'var(--green)'; }
   if(urlEl) urlEl.style.borderColor = 'var(--green)';
@@ -11678,7 +11682,7 @@ async function _descobrirAbas(spreadsheetId) {
       var entries = json.feed && json.feed.entry;
       if(entries && entries.length) {
         var nomes = entries.map(function(e){ return e.title && e.title.$t ? e.title.$t : null; }).filter(Boolean);
-        console.log('[FanClub Produtos] Abas via feed:', nomes);
+        console.log('[Produtos] Abas via feed:', nomes);
         return nomes;
       }
     }
@@ -11699,13 +11703,13 @@ async function _descobrirAbas(spreadsheetId) {
         if(t && t[1]) nomes2.push(t[1]);
       });
       if(nomes2.length) {
-        console.log('[FanClub Produtos] Abas via HTML:', nomes2);
+        console.log('[Produtos] Abas via HTML:', nomes2);
         return nomes2;
       }
     }
   } catch(e2) {}
 
-  console.warn('[FanClub Produtos] Não conseguiu listar abas — usando tentativas de nome');
+  console.warn('[Produtos] Não conseguiu listar abas — usando tentativas de nome');
   return null;
 }
 function _variacoesMes(mes, yy) {
@@ -12984,12 +12988,12 @@ async function loadEstados() {
     if(typeof rows !== "undefined") _updateCidadesFromLoader(rows);
     if(statusEl) { statusEl.textContent = '✅ ' + estadosData.length + ' estados'; statusEl.style.color = 'var(--green)'; }
     renderEstados();
-    console.log('[FanClub Estados] Carregados:', estadosData.length, 'estados');
+    console.log('[Estados] Carregados:', estadosData.length, 'estados');
 
   } catch(e) {
     var msg = e.name === 'AbortError' ? 'Timeout' : (e.message||'Erro');
     if(statusEl) { statusEl.textContent = '❌ ' + msg; statusEl.style.color = 'var(--red)'; }
-    console.error('[FanClub Estados]', e);
+    console.error('[Estados]', e);
   }
 }
 
