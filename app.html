@@ -13859,6 +13859,20 @@ function veltroInit() {
     var usuarios = veltroGetUsuarios();
     var empresa = usuarios.find(function(u){ return u.id === sessao; });
     if(empresa) {
+      // 🆕 SEGURANÇA: mesmo com sessão salva, se empresa não tem senha → bloqueia
+      // Caso atípico: empresa cadastrada antes do sistema de senha existir
+      if(!empresa.senhaHash) {
+        console.log('[Veltro] ⚠️ Sessão salva de "'+sessao+'" mas empresa sem senha — exigindo configuração');
+        veltroMostrarTelaSemSenha(sessao, 'sem-senha');
+        return;
+      }
+      // 🆕 SEGURANÇA: verifica se a sessão de senha do cliente expirou (30 dias)
+      // Se expirou, força digitar senha novamente
+      if(!veltroSessaoSenhaValida(sessao)) {
+        console.log('[Veltro] Sessão de senha de "'+sessao+'" expirada — exigindo nova senha');
+        veltroMostrarTelaSenha(empresa);
+        return;
+      }
       // 🆕 BUG FIX: marca último acesso também quando entra via sessão salva
       // Antes, só marcava no auto-cadastro via URL ou no login com formulário
       veltroMarcarUltimoAcesso(sessao);
@@ -13876,32 +13890,95 @@ function veltroAutoCadastrarELogar(empresaId) {
   var usuarios = veltroGetUsuarios();
   var empresa = usuarios.find(function(u){ return u.id === empresaId; });
 
+  // 🆕 SEGURANÇA: empresa NÃO existe → mostra tela bloqueada
+  // (admin precisa cadastrar empresa + senha antes de liberar acesso)
   if(!empresa) {
-    // Auto-cadastro: cria entrada local com nome = ID (cliente pode editar depois)
-    var nomeAutomatico = empresaId.charAt(0).toUpperCase() + empresaId.slice(1);
-    empresa = {
-      id: empresaId,
-      nome: nomeAutomatico,
-      criadoEm: new Date().toLocaleDateString('pt-BR'),
-      autoCadastrado: true  // marca pra eventual revisão
-    };
-    usuarios.push(empresa);
-    veltroSaveUsuarios(usuarios);
-    console.log('[Veltro] ✅ Empresa "'+empresaId+'" auto-cadastrada via URL');
-  } else {
-    console.log('[Veltro] ✅ Empresa "'+empresaId+'" reconhecida');
+    console.log('[Veltro] ⚠️ Empresa "'+empresaId+'" não existe ainda — exibindo tela de acesso bloqueado');
+    veltroMostrarTelaSemSenha(empresaId, 'nao-cadastrada');
+    return;
   }
 
-  // 🆕 Se a empresa tem senha cadastrada, exigir senha (a menos que sessão válida)
-  if(empresa.senhaHash && !veltroSessaoSenhaValida(empresaId)) {
+  console.log('[Veltro] ✅ Empresa "'+empresaId+'" reconhecida');
+
+  // 🆕 SEGURANÇA: empresa existe mas NÃO tem senha cadastrada → bloqueia
+  // Acontece quando empresa foi cadastrada antes do sistema de senha existir,
+  // ou foi editada removendo a senha. Admin precisa definir.
+  if(!empresa.senhaHash) {
+    console.log('[Veltro] ⚠️ Empresa "'+empresaId+'" sem senha cadastrada — exigindo configuração');
+    veltroMostrarTelaSemSenha(empresaId, 'sem-senha');
+    return;
+  }
+
+  // Empresa tem senha — exigir validação (a menos que sessão ainda válida)
+  if(!veltroSessaoSenhaValida(empresaId)) {
     veltroMostrarTelaSenha(empresa);
     return;
   }
 
-  // Sem senha ou sessão válida: entra direto
+  // Sessão válida: entra direto
   veltroMarcarUltimoAcesso(empresaId);
   localStorage.setItem(VELTRO_SESSAO_KEY, empresa.id);
   veltroEntrarDashboard(empresa);
+}
+
+/* 🆕 Tela de acesso bloqueado (quando empresa não tem senha cadastrada).
+   Aparece quando:
+   - Empresa não existe ainda (URL inventada ou cliente novo sem cadastro)
+   - Empresa existe mas senhaHash está vazio (cadastro antigo sem senha)
+   Em ambos os casos: admin precisa configurar antes de liberar acesso. */
+function veltroMostrarTelaSemSenha(empresaId, motivo) {
+  // Esconde tudo
+  try { document.getElementById('veltro-login').style.display = 'none'; } catch(e) {}
+  try { document.getElementById('veltro-onboarding').style.display = 'none'; } catch(e) {}
+  try { document.getElementById('veltro-senha-cliente').style.display = 'none'; } catch(e) {}
+  var app = document.querySelector('.app-wrapper') || document.querySelector('.sidebar');
+  if(app) app.style.visibility = 'hidden';
+
+  // Cria/atualiza overlay
+  var overlay = document.getElementById('veltro-acesso-bloqueado');
+  if(!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'veltro-acesso-bloqueado';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0A0C10;display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--fhead),sans-serif';
+    document.body.appendChild(overlay);
+  }
+
+  var msgPrincipal, msgDetalhe;
+  if(motivo === 'nao-cadastrada') {
+    msgPrincipal = 'Empresa não cadastrada';
+    msgDetalhe = 'A empresa <strong style="color:#fff">"'+empresaId+'"</strong> não existe no sistema. Entre em contato com o administrador pra solicitar acesso.';
+  } else {
+    msgPrincipal = 'Acesso bloqueado';
+    msgDetalhe = 'A empresa <strong style="color:#fff">"'+empresaId+'"</strong> ainda não tem senha de acesso configurada. O administrador precisa definir uma senha antes de liberar o acesso.';
+  }
+
+  overlay.innerHTML =
+    '<div style="max-width:460px;width:100%">'+
+      '<div style="text-align:center;margin-bottom:24px">'+
+        '<svg width="52" height="52" viewBox="0 0 28 28" style="margin-bottom:12px">'+
+          '<circle cx="14" cy="14" r="13" fill="none" stroke="#6EE7B7" stroke-width="1.5"/>'+
+          '<path d="M7 14 L12 9 L17 14 L12 19Z" fill="#6EE7B7" opacity=".9"/>'+
+          '<path d="M13 14 L18 9 L23 14 L18 19Z" fill="#6EE7B7" opacity=".5"/>'+
+        '</svg>'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:32px;font-weight:700;letter-spacing:-1px;color:#fff">Veltro<span style="color:#6EE7B7;margin-left:4px">OS</span></div>'+
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:#6b7280;margin-top:4px">Sistema operacional do e-commerce</div>'+
+      '</div>'+
+      '<div style="background:#15171a;border:1px solid #2a2d33;border-radius:14px;padding:28px;text-align:center">'+
+        '<div style="font-size:42px;margin-bottom:14px">🔒</div>'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:600;color:#fff;margin-bottom:10px">'+msgPrincipal+'</div>'+
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:13px;color:#9ca3af;line-height:1.6;margin-bottom:20px">'+msgDetalhe+'</div>'+
+        '<div style="padding-top:20px;border-top:1px solid #2a2d33">'+
+          '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#6b7280;line-height:1.6">'+
+            '🛡️ Por segurança, todas as empresas precisam de senha configurada<br>antes de acessar o painel.'+
+          '</div>'+
+        '</div>'+
+        '<button onclick="window.location.href=\'/\'" style="margin-top:20px;padding:11px 28px;background:transparent;border:1px solid #2a2d33;border-radius:8px;color:#9ca3af;font-family:\'JetBrains Mono\',monospace;font-size:11px;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor=\'#6EE7B7\';this.style.color=\'#6EE7B7\'" onmouseout="this.style.borderColor=\'#2a2d33\';this.style.color=\'#9ca3af\'">'+
+          '← voltar pra home'+
+        '</button>'+
+      '</div>'+
+    '</div>';
+
+  overlay.style.display = 'flex';
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -14623,8 +14700,12 @@ async function veltroCadastrarEmpresa() {
     if(erroEl) erroEl.textContent = '❌ ID só pode ter letras minúsculas, números, hífen ou underscore';
     return;
   }
-  // 🆕 Validar senha se fornecida (mínimo 6 chars)
-  if(senha && senha.length < 6) {
+  // 🆕 SEGURANÇA: senha agora é OBRIGATÓRIA pra todas as empresas novas
+  if(!senha) {
+    if(erroEl) erroEl.textContent = '❌ Senha é obrigatória — clique em "🎲 Gerar senha forte" pra criar uma automaticamente';
+    return;
+  }
+  if(senha.length < 6) {
     if(erroEl) erroEl.textContent = '❌ Senha muito curta (mín. 6 caracteres)';
     return;
   }
@@ -14635,28 +14716,23 @@ async function veltroCadastrarEmpresa() {
     return;
   }
 
-  // 🆕 Se senha foi fornecida, calcular hash
+  // 🆕 Calcular hash da senha (agora sempre presente)
   var senhaHash = null;
-  var senhaPlain = null;
-  if(senha) {
-    try {
-      senhaHash = await _veltroHashSenha(senha);
-      senhaPlain = senha; // pra mostrar pro admin no banner (não salva!)
-    } catch(e) {
-      if(erroEl) erroEl.textContent = '❌ Erro ao processar senha: ' + e.message;
-      return;
-    }
+  var senhaPlain = senha; // pra mostrar pro admin no banner (não salva!)
+  try {
+    senhaHash = await _veltroHashSenha(senha);
+  } catch(e) {
+    if(erroEl) erroEl.textContent = '❌ Erro ao processar senha: ' + e.message;
+    return;
   }
 
   var novaEmpresa = {
     id: id,
     nome: nome,
-    criadoEm: new Date().toLocaleDateString('pt-BR')
+    criadoEm: new Date().toLocaleDateString('pt-BR'),
+    senhaHash: senhaHash,
+    temSenha: true
   };
-  if(senhaHash) {
-    novaEmpresa.senhaHash = senhaHash;
-    novaEmpresa.temSenha = true;
-  }
 
   usuarios.push(novaEmpresa);
   veltroSaveUsuarios(usuarios);
@@ -14864,12 +14940,16 @@ function veltroRenderListaEmpresas() {
       ? '<span style="font-size:9px;color:#A78BFA;background:rgba(167,139,250,.10);padding:1px 5px;border-radius:3px;margin-left:6px">via link</span>'
       : '';
 
-    // 🆕 Badge de senha
+    // 🆕 Badge de senha (com aviso visível quando sem senha)
     var badgeSenha = u.senhaHash
       ? '<span title="Protegida por senha" style="font-size:11px;margin-left:6px">🔐</span>'
-      : '<span title="Sem senha — qualquer um com o link entra" style="font-size:11px;margin-left:6px;opacity:.5">🔓</span>';
+      : '<span title="⚠️ SEM SENHA — acesso bloqueado pra clientes!" style="font-size:11px;margin-left:6px;color:#F59E0B;font-weight:bold">⚠️ sem senha</span>';
 
-    return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">'+
+    // 🆕 Cor de fundo destaca empresas sem senha (admin precisa configurar)
+    var bgCard = u.senhaHash ? 'var(--s2)' : 'rgba(245, 158, 11, .06)';
+    var borderCard = u.senhaHash ? 'var(--border)' : 'rgba(245, 158, 11, .35)';
+
+    return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:'+bgCard+';border-radius:8px;margin-bottom:6px;border:1px solid '+borderCard+'">'+
       '<div style="font-size:18px">'+status+'</div>'+
       '<div style="flex:1;min-width:0">'+
         '<div style="font-family:var(--fhead);font-size:13px;font-weight:600">'+u.nome+badgeSenha+badgeAuto+'</div>'+
