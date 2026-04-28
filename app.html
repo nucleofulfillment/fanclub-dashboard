@@ -230,6 +230,69 @@ body::before {
 .ftab:hover { border-color:var(--accent); color:var(--accent); background:rgba(110,231,183,.07); }
 .ftab.on { background:var(--s2); color:var(--text); border-color:var(--border2); box-shadow:0 1px 8px rgba(0,0,0,.4); }
 .fsep { width:1px; height:20px; background:var(--border2); flex-shrink:0; }
+
+/* ──────────── PROJEÇÃO ──────────── */
+.proj-fbtn {
+  padding:6px 12px; border:1px solid var(--s3); border-radius:6px;
+  background:transparent; font-family:var(--fhead); font-size:11px; font-weight:600;
+  color:var(--muted); cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.proj-fbtn:hover { border-color:var(--accent); color:var(--accent); background:rgba(110,231,183,.07); }
+.proj-fbtn.on { background:var(--s1); color:var(--text); border-color:var(--accent); }
+.proj-row {
+  display:grid; grid-template-columns:36px 1fr 80px 80px 80px 80px 110px 130px 36px;
+  gap:10px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--s3);
+  transition:background .15s; cursor:pointer;
+}
+.proj-row:hover { background:rgba(110,231,183,.04); }
+.proj-row.expanded { background:rgba(110,231,183,.06); }
+.proj-row.urgente { border-left:3px solid var(--red); }
+.proj-row.atencao { border-left:3px solid #F59E0B; }
+.proj-row.top-zerado { border-left:3px solid #FB923C; }
+.proj-row.normal { border-left:3px solid var(--green); }
+.proj-status-badge {
+  font-size:18px; text-align:center; line-height:1;
+}
+.proj-status-badge.pulse {
+  animation: proj-pulse 1.5s ease-in-out infinite;
+}
+@keyframes proj-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.7; }
+}
+.proj-detail {
+  background:var(--s1); border-bottom:1px solid var(--s3);
+  padding:16px 22px; padding-left:62px;
+}
+.proj-detail-table {
+  width:100%; border-collapse:collapse; font-family:var(--fmono); font-size:11px;
+}
+.proj-detail-table th {
+  text-align:left; padding:8px 10px; color:var(--muted); font-weight:500;
+  border-bottom:1px solid var(--s3); font-size:10px; text-transform:uppercase;
+}
+.proj-detail-table td { padding:6px 10px; color:var(--text); }
+.proj-detail-table tr:nth-child(even) td { background:rgba(255,255,255,.015); }
+.proj-detail-table tfoot td {
+  border-top:1px solid var(--s3); font-weight:600; padding-top:10px;
+}
+.proj-mini-card {
+  background:var(--s2); border:1px solid var(--s3); border-radius:8px;
+  padding:10px 12px; flex:1; min-width:140px;
+}
+.proj-mini-card-label {
+  font-family:var(--fmono); font-size:9px; color:var(--muted2);
+  text-transform:uppercase; letter-spacing:.5px;
+}
+.proj-mini-card-value {
+  font-family:var(--fhead); font-size:14px; font-weight:600; color:var(--text);
+  margin-top:3px;
+}
+.proj-icon-aviso {
+  display:inline-block; font-size:14px; margin-right:4px;
+  vertical-align:middle; line-height:1;
+}
+
 .fdates { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .fdate {
   padding:5px 10px; border:1px solid var(--border2); border-radius:6px;
@@ -1225,6 +1288,10 @@ body.light body::before { opacity: 0; }
     <div class="nav-item" onclick="showPage('precificacao',this)" data-page="precificacao" data-label="Precificação">
       <span class="nav-icon">🧮</span>
       <span>Precificação</span>
+    </div>
+    <div class="nav-item" onclick="showPage('projecao',this)" data-page="projecao" data-label="Projeção de Estoque">
+      <span class="nav-icon">🎯</span>
+      <span>Projeção</span>
     </div>
     <div class="nav-item" onclick="showPage('resumos',this)" data-page="resumos" data-label="Resumos" data-sync="resumos">
       <span class="nav-icon">📁</span>
@@ -2854,6 +2921,83 @@ body.light body::before { opacity: 0; }
           <div id="prec-preco-min" style="display:none"></div>
 
         </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- PAGE: PROJEÇÃO DE ESTOQUE -->
+  <div id="page-projecao" class="page">
+    <main class="main">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+        <div>
+          <h1 style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px">🎯 Projeção de Estoque</h1>
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted)">Lista priorizada de produtos que precisam de produção · Calculado por SKU pai</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="proj-toggle-config" onclick="projToggleConfig()" class="btn-ghost"
+            style="background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:8px 14px;border-radius:8px;font-family:var(--fmono);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            ⚙️ Configurações
+          </button>
+        </div>
+      </div>
+
+      <!-- Configurações (oculto por padrão) -->
+      <div id="proj-config-panel" style="display:none;background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:20px">
+        <div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px">⚙️ Configurações da Projeção</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">PERÍODO DE VENDA (dias)</label>
+            <input id="proj-cfg-periodo-venda" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">PROJETAR PARA (dias)</label>
+            <input id="proj-cfg-periodo-proj" type="number" min="1" max="365" value="60" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">URGENTE SE COBERTURA &lt; (dias)</label>
+            <input id="proj-cfg-urgente" type="number" min="1" max="365" value="7" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">ATENÇÃO SE COBERTURA &lt; (dias)</label>
+            <input id="proj-cfg-atencao" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">TOP X BESTSELLERS (exceção)</label>
+            <input id="proj-cfg-top-n" type="number" min="0" max="500" value="50" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+          <div>
+            <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">PERÍODO DO TOP (dias)</label>
+            <input id="proj-cfg-top-periodo" type="number" min="1" max="365" value="30" onchange="projSalvarConfig()" style="width:100%;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--fmono);font-size:12px">
+          </div>
+        </div>
+        <div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);margin-top:12px;line-height:1.6">
+          💡 <strong>Top X bestsellers</strong>: produtos com vendas zeradas no período mas que estão entre os mais vendidos podem entrar na lista mesmo assim. Configure como 0 pra desativar essa exceção.
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div id="proj-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px"></div>
+
+      <!-- Filtros -->
+      <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <div style="display:flex;gap:6px">
+          <button class="proj-fbtn proj-fstatus on" data-status="todos" onclick="projFiltroStatus(this,'todos')">Todos</button>
+          <button class="proj-fbtn proj-fstatus" data-status="urgente" onclick="projFiltroStatus(this,'urgente')">🚨 Urgente</button>
+          <button class="proj-fbtn proj-fstatus" data-status="atencao" onclick="projFiltroStatus(this,'atencao')">⚠️ Atenção</button>
+          <button class="proj-fbtn proj-fstatus" data-status="top-zerado" onclick="projFiltroStatus(this,'top-zerado')">🔥 Top zerado</button>
+        </div>
+        <div style="flex:1;min-width:200px;display:flex;gap:8px;align-items:center;justify-content:flex-end">
+          <input id="proj-busca" type="text" placeholder="🔍 Buscar SKU pai ou nome..." oninput="projAplicarFiltros()"
+            style="flex:1;max-width:300px;background:var(--s1);border:1px solid var(--s3);color:var(--text);padding:7px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px">
+        </div>
+      </div>
+
+      <!-- Lista priorizada -->
+      <div id="proj-lista-container" style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;overflow:hidden">
+        <div id="proj-lista" style="max-height:65vh;overflow-y:auto"></div>
       </div>
 
     </main>
@@ -6611,6 +6755,9 @@ function showPage(pageId, navEl) {
     try { if(typeof precAtualizarVisibilidadeBusca === 'function') precAtualizarVisibilidadeBusca(); } catch(e){}
   }
   if(pageId === 'fluxocaixa') renderFluxoCaixaPage();
+  if(pageId === 'projecao') {
+    try { projRender(); } catch(e){ console.error('[Projeção]', e); }
+  }
   // If financeiro page, sincroniza filtros locais e recalcula com filtro global atual
   if(pageId === 'financeiro') {
     try {
@@ -9255,6 +9402,605 @@ function renderFluxoCaixaPage() {
   if(saved) loadFluxoCaixa();
 }
 
+/* ═══════════════════════════════════════════════════════════
+   MÓDULO PROJEÇÃO DE ESTOQUE
+   - Lista priorizada de SKUs pai que precisam de produção
+   - Cálculos: cobertura, previsibilidade, qtd a pedir
+   - Exceção pra Top X bestsellers zerados
+   - Configurável por empresa (localStorage)
+   ═══════════════════════════════════════════════════════════ */
+
+var VELTRO_PROJ_CFG_KEY = 'veltro_proj_cfg_'; // + empresaId
+
+/* Estado em memória do filtro */
+var _projFiltroStatus = 'todos';
+var _projExpandidos = {};   // {skuPai: true} - controla quais linhas estão abertas
+
+/* Lê config persistida (com defaults) */
+function projGetConfig() {
+  var empId = (typeof veltroGetEmpresaAtual === 'function') ? veltroGetEmpresaAtual() : 'default';
+  var raw = '';
+  try { raw = localStorage.getItem(VELTRO_PROJ_CFG_KEY + (empId||'default')) || ''; } catch(e){}
+  var def = { periodoVenda:30, periodoProj:60, urgente:7, atencao:30, topN:50, topPeriodo:30 };
+  if(!raw) return def;
+  try {
+    var parsed = JSON.parse(raw);
+    return {
+      periodoVenda: parseInt(parsed.periodoVenda) || def.periodoVenda,
+      periodoProj:  parseInt(parsed.periodoProj)  || def.periodoProj,
+      urgente:      parseInt(parsed.urgente)      || def.urgente,
+      atencao:      parseInt(parsed.atencao)      || def.atencao,
+      topN:         parsed.topN === 0 || parsed.topN === '0' ? 0 : (parseInt(parsed.topN) || def.topN),
+      topPeriodo:   parseInt(parsed.topPeriodo)   || def.topPeriodo
+    };
+  } catch(e){ return def; }
+}
+
+function projSalvarConfig() {
+  var empId = (typeof veltroGetEmpresaAtual === 'function') ? veltroGetEmpresaAtual() : 'default';
+  var cfg = {
+    periodoVenda: parseInt((document.getElementById('proj-cfg-periodo-venda')||{}).value) || 30,
+    periodoProj:  parseInt((document.getElementById('proj-cfg-periodo-proj') ||{}).value) || 60,
+    urgente:      parseInt((document.getElementById('proj-cfg-urgente')      ||{}).value) || 7,
+    atencao:      parseInt((document.getElementById('proj-cfg-atencao')      ||{}).value) || 30,
+    topN:         parseInt((document.getElementById('proj-cfg-top-n')        ||{}).value),
+    topPeriodo:   parseInt((document.getElementById('proj-cfg-top-periodo')  ||{}).value) || 30
+  };
+  if(isNaN(cfg.topN)) cfg.topN = 50;
+  try { localStorage.setItem(VELTRO_PROJ_CFG_KEY + (empId||'default'), JSON.stringify(cfg)); } catch(e){}
+  // Re-renderiza pra refletir mudanças
+  try { projRender(); } catch(e){}
+}
+
+function projAplicarConfigNoFormulario() {
+  var c = projGetConfig();
+  var ids = {
+    'proj-cfg-periodo-venda': c.periodoVenda,
+    'proj-cfg-periodo-proj':  c.periodoProj,
+    'proj-cfg-urgente':       c.urgente,
+    'proj-cfg-atencao':       c.atencao,
+    'proj-cfg-top-n':         c.topN,
+    'proj-cfg-top-periodo':   c.topPeriodo
+  };
+  Object.keys(ids).forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = ids[id];
+  });
+}
+
+function projToggleConfig() {
+  var p = document.getElementById('proj-config-panel');
+  if(!p) return;
+  if(p.style.display === 'none' || !p.style.display) {
+    projAplicarConfigNoFormulario();
+    p.style.display = 'block';
+  } else {
+    p.style.display = 'none';
+  }
+}
+
+function projFiltroStatus(btnEl, status) {
+  document.querySelectorAll('.proj-fstatus').forEach(function(b){ b.classList.remove('on'); });
+  if(btnEl) btnEl.classList.add('on');
+  _projFiltroStatus = status;
+  projAplicarFiltros();
+}
+
+function projAplicarFiltros() {
+  // Re-renderiza a lista (mantém configurações já carregadas)
+  projRenderLista();
+}
+
+/* ─ Engine: agrega dados por SKU pai pra a tela ─
+   Retorna: { items: [...], topZeradoSet: Set, kpis: {...} }
+   Cada item: {
+     skuPai, nome, variacoes:[{sku, vendido, estoque, prevRev, pedir, custo, gmv}],
+     totalVendido, totalEstoque, totalPrev, totalPedir,
+     custoUnit, precoMedio, markup, margem,
+     investimento, receitaProj, lucroProj,
+     diasCobertura, status, isTopZerado
+   }
+*/
+function projCalcularDados() {
+  var cfg = projGetConfig();
+
+  // 1) Verifica fontes de dados
+  var temVendas  = typeof produtosVendidosMap === 'object' && produtosVendidosMap && Object.keys(produtosVendidosMap).length > 0;
+  var temEstoque = typeof estoqueData !== 'undefined' && Array.isArray(estoqueData) && estoqueData.length > 0;
+  if(!temVendas && !temEstoque) {
+    return { items:[], topZeradoSet:new Set(), kpis:null, erro:'sem-dados' };
+  }
+
+  // 2) Map estoque por pai (soma todas variações)
+  var estoquePorPai = {};
+  var estoqueDetalheVariacao = {}; // {pai: [{sku, qtd}]}
+  if(temEstoque) {
+    estoqueData.forEach(function(it){
+      if(!it || typeof it.estoque !== 'number') return;
+      var pai = (typeof _extrairSkuPai === 'function') ? (_extrairSkuPai(it.sku) || it.sku) : it.sku;
+      if(!pai) return;
+      estoquePorPai[pai] = (estoquePorPai[pai] || 0) + (it.estoque || 0);
+      if(!estoqueDetalheVariacao[pai]) estoqueDetalheVariacao[pai] = [];
+      estoqueDetalheVariacao[pai].push({ sku:it.sku, qtd:it.estoque||0, nome:it.nome||'' });
+    });
+  }
+
+  // 3) Map vendas por pai (agrega variações + soma qtd e gmv)
+  var vendasPorPai = {};
+  if(temVendas) {
+    Object.values(produtosVendidosMap).forEach(function(p){
+      if(!p) return;
+      var sku = p.sku || p.cod || '';
+      if(!sku) return;
+      var pai = (typeof _extrairSkuPai === 'function') ? (_extrairSkuPai(sku) || sku) : sku;
+      if(!vendasPorPai[pai]) {
+        vendasPorPai[pai] = {
+          skuPai: pai,
+          nome: p.nome || pai,
+          totalVendido: 0,
+          totalGmv: 0,
+          variacoes: [],
+          _topVarQtd: 0
+        };
+      }
+      var g = vendasPorPai[pai];
+      g.totalVendido += (p.qtd || 0);
+      g.totalGmv     += (p.gmv || 0);
+      g.variacoes.push({ sku:sku, vendido:(p.qtd||0), gmv:(p.gmv||0), nome:p.nome });
+      // Nome representativo: a variação mais vendida
+      if((p.qtd||0) > g._topVarQtd) {
+        g._topVarQtd = (p.qtd||0);
+        g.nome = p.nome || pai;
+      }
+    });
+  }
+
+  // 4) Calcular Top X bestsellers (pra marcar exceção)
+  // Top é baseado no totalVendido por pai
+  var topZeradoSet = new Set();
+  if(cfg.topN > 0) {
+    var ordenadoVendas = Object.values(vendasPorPai)
+      .filter(function(g){ return g.totalVendido > 0; })
+      .sort(function(a,b){ return b.totalVendido - a.totalVendido; })
+      .slice(0, cfg.topN);
+    ordenadoVendas.forEach(function(g){ topZeradoSet.add(g.skuPai); });
+  }
+
+  // 5) Construir lista final unificada
+  // Considera produtos que aparecem em vendas OU estoque
+  var todosPais = new Set();
+  Object.keys(vendasPorPai).forEach(function(k){ todosPais.add(k); });
+  Object.keys(estoquePorPai).forEach(function(k){ todosPais.add(k); });
+
+  var items = [];
+  todosPais.forEach(function(skuPai){
+    var v = vendasPorPai[skuPai] || { totalVendido:0, totalGmv:0, variacoes:[], nome:skuPai };
+    var totalEstoque = estoquePorPai[skuPai] || 0;
+    var detEst = estoqueDetalheVariacao[skuPai] || [];
+
+    // Calcula previsibilidade e qtd a pedir
+    var taxaVendaDiaria = v.totalVendido / cfg.periodoVenda;
+    var totalPrev = Math.round(taxaVendaDiaria * cfg.periodoProj);
+    var totalPedir = Math.max(0, totalPrev - totalEstoque);
+
+    // Dias de cobertura
+    var diasCobertura = (taxaVendaDiaria > 0) ? (totalEstoque / taxaVendaDiaria) : Infinity;
+
+    // Custo do produto pelo getCustoReal
+    var custoInfo = (typeof getCustoReal === 'function') ? getCustoReal(skuPai) : null;
+    var custoUnit = custoInfo ? (custoInfo.custo || 0) : 0;
+
+    // Preço médio: GMV total / qtd vendida
+    var precoMedio = v.totalVendido > 0 ? (v.totalGmv / v.totalVendido) : 0;
+
+    // Métricas financeiras
+    var markup       = (custoUnit > 0) ? ((precoMedio - custoUnit) / custoUnit) : 0;
+    var margem       = (precoMedio > 0) ? ((precoMedio - custoUnit) / precoMedio) : 0;
+    var investimento = totalPedir * custoUnit;
+    var receitaProj  = totalPedir * precoMedio;
+    var lucroProj    = receitaProj - investimento;
+
+    // Status
+    var isTopZerado = topZeradoSet.has(skuPai) && totalEstoque === 0;
+    var status;
+    if(v.totalVendido === 0 && !isTopZerado) {
+      status = 'sem-giro';
+    } else if(isTopZerado) {
+      status = 'top-zerado';
+    } else if(diasCobertura < cfg.urgente) {
+      status = 'urgente';
+    } else if(diasCobertura < cfg.atencao) {
+      status = 'atencao';
+    } else {
+      status = 'normal';
+    }
+
+    // Construir variações com cálculos individuais
+    // Mescla vendas (variações que venderam) + estoque (variações cadastradas)
+    var mapVariacoes = {};
+    v.variacoes.forEach(function(va){
+      mapVariacoes[va.sku] = { sku:va.sku, vendido:va.vendido, gmv:va.gmv, estoque:0, nome:va.nome };
+    });
+    detEst.forEach(function(de){
+      if(mapVariacoes[de.sku]) {
+        mapVariacoes[de.sku].estoque = de.qtd;
+      } else {
+        mapVariacoes[de.sku] = { sku:de.sku, vendido:0, gmv:0, estoque:de.qtd, nome:de.nome };
+      }
+    });
+    var variacoes = Object.values(mapVariacoes).map(function(va){
+      var vTaxa = va.vendido / cfg.periodoVenda;
+      var vPrev = Math.round(vTaxa * cfg.periodoProj);
+      var vPedir = Math.max(0, vPrev - va.estoque);
+      return {
+        sku: va.sku,
+        nome: va.nome,
+        vendido: va.vendido,
+        estoque: va.estoque,
+        previsibilidade: vPrev,
+        pedir: vPedir
+      };
+    }).sort(function(a,b){ return b.vendido - a.vendido; });
+
+    items.push({
+      skuPai: skuPai,
+      nome: v.nome,
+      totalVendido: v.totalVendido,
+      totalGmv: v.totalGmv,
+      totalEstoque: totalEstoque,
+      totalPrev: totalPrev,
+      totalPedir: totalPedir,
+      diasCobertura: diasCobertura,
+      custoUnit: custoUnit,
+      precoMedio: precoMedio,
+      markup: markup,
+      margem: margem,
+      investimento: investimento,
+      receitaProj: receitaProj,
+      lucroProj: lucroProj,
+      status: status,
+      isTopZerado: isTopZerado,
+      variacoes: variacoes,
+      nVariacoes: variacoes.length
+    });
+  });
+
+  // 6) Filtrar apenas itens que precisam de produção
+  // Critério: status urgente, atencao, top-zerado (NÃO normal NEM sem-giro)
+  var itemsPriorizados = items.filter(function(it){
+    return it.status === 'urgente' || it.status === 'atencao' || it.status === 'top-zerado';
+  });
+
+  // 7) Ordenar por urgência: urgente > top-zerado > atencao
+  // Dentro de cada grupo, ordenar por dias cobertura ASC (mais crítico primeiro)
+  var ordemStatus = { 'urgente':1, 'top-zerado':2, 'atencao':3 };
+  itemsPriorizados.sort(function(a,b){
+    var oA = ordemStatus[a.status] || 9;
+    var oB = ordemStatus[b.status] || 9;
+    if(oA !== oB) return oA - oB;
+    return a.diasCobertura - b.diasCobertura;
+  });
+
+  // 8) KPIs gerais
+  var kpis = {
+    urgenteN: itemsPriorizados.filter(function(i){return i.status==='urgente';}).length,
+    urgenteR: itemsPriorizados.filter(function(i){return i.status==='urgente';}).reduce(function(s,i){return s+i.investimento;},0),
+    atencaoN: itemsPriorizados.filter(function(i){return i.status==='atencao';}).length,
+    atencaoR: itemsPriorizados.filter(function(i){return i.status==='atencao';}).reduce(function(s,i){return s+i.investimento;},0),
+    topZeradoN: itemsPriorizados.filter(function(i){return i.status==='top-zerado';}).length,
+    topZeradoR: itemsPriorizados.filter(function(i){return i.status==='top-zerado';}).reduce(function(s,i){return s+i.investimento;},0),
+    totalN: itemsPriorizados.length,
+    totalR: itemsPriorizados.reduce(function(s,i){return s+i.investimento;},0),
+    totalRetorno: itemsPriorizados.reduce(function(s,i){return s+i.receitaProj;},0)
+  };
+
+  return { items: itemsPriorizados, topZeradoSet: topZeradoSet, kpis: kpis, cfg: cfg };
+}
+
+/* ─ Render principal: orquestrador ─ */
+function projRender() {
+  // Carrega config nos campos (caso painel esteja aberto)
+  projAplicarConfigNoFormulario();
+
+  var dados = projCalcularDados();
+
+  // KPIs
+  projRenderKPIs(dados);
+
+  // Lista priorizada
+  projRenderLista(dados);
+}
+
+/* ─ Render KPIs ─ */
+function projRenderKPIs(dados) {
+  var el = document.getElementById('proj-kpis');
+  if(!el) return;
+
+  if(!dados || dados.erro === 'sem-dados') {
+    el.innerHTML = '<div style="grid-column:1/-1;background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:40px;text-align:center">'+
+      '<div style="font-size:32px;margin-bottom:12px">📋</div>'+
+      '<div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">Aguardando dados</div>'+
+      '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);line-height:1.6">Configure planilhas de Estoque e Produtos Vendidos<br>na engrenagem ⚙️ pra começar a usar a Projeção</div>'+
+    '</div>';
+    return;
+  }
+
+  var k = dados.kpis;
+  var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+
+  el.innerHTML =
+    '<div style="background:var(--s2);border:1px solid var(--s3);border-left:3px solid var(--red);border-radius:12px;padding:14px 18px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">🚨 Urgente</div>'+
+      '<div style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--text);margin-top:4px">'+k.urgenteN+' SKUs</div>'+
+      '<div style="font-family:var(--fmono);font-size:11px;color:var(--red);margin-top:2px">'+fR(k.urgenteR)+'</div>'+
+    '</div>'+
+    '<div style="background:var(--s2);border:1px solid var(--s3);border-left:3px solid #F59E0B;border-radius:12px;padding:14px 18px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">⚠️ Atenção</div>'+
+      '<div style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--text);margin-top:4px">'+k.atencaoN+' SKUs</div>'+
+      '<div style="font-family:var(--fmono);font-size:11px;color:#F59E0B;margin-top:2px">'+fR(k.atencaoR)+'</div>'+
+    '</div>'+
+    '<div style="background:var(--s2);border:1px solid var(--s3);border-left:3px solid #FB923C;border-radius:12px;padding:14px 18px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">🔥 Top zerado</div>'+
+      '<div style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--text);margin-top:4px">'+k.topZeradoN+' SKUs</div>'+
+      '<div style="font-family:var(--fmono);font-size:11px;color:#FB923C;margin-top:2px">'+fR(k.topZeradoR)+'</div>'+
+    '</div>'+
+    '<div style="background:var(--s2);border:1px solid var(--accent);border-radius:12px;padding:14px 18px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">💰 Investimento total</div>'+
+      '<div style="font-family:var(--fhead);font-size:22px;font-weight:600;color:var(--accent);margin-top:4px">'+fR(k.totalR)+'</div>'+
+      '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:2px">'+k.totalN+' SKUs · retorno '+fR(k.totalRetorno)+'</div>'+
+    '</div>';
+}
+
+/* ─ Render lista priorizada ─ */
+function projRenderLista(dadosOpcional) {
+  var el = document.getElementById('proj-lista');
+  if(!el) return;
+
+  // Se não passou dados, calcula
+  var dados = dadosOpcional || projCalcularDados();
+
+  if(!dados || dados.erro === 'sem-dados') {
+    el.innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--muted);font-family:var(--fmono);font-size:12px">⏳ Aguardando dados de Estoque e Produtos Vendidos...</div>';
+    return;
+  }
+
+  // Aplica filtros
+  var itens = dados.items;
+  if(_projFiltroStatus !== 'todos') {
+    itens = itens.filter(function(it){ return it.status === _projFiltroStatus; });
+  }
+  var busca = ((document.getElementById('proj-busca')||{}).value || '').trim().toLowerCase();
+  if(busca) {
+    itens = itens.filter(function(it){
+      return (it.skuPai||'').toLowerCase().indexOf(busca) >= 0 ||
+             (it.nome||'').toLowerCase().indexOf(busca) >= 0;
+    });
+  }
+
+  if(itens.length === 0) {
+    el.innerHTML = '<div style="padding:50px 20px;text-align:center">'+
+      '<div style="font-size:48px;margin-bottom:12px">✅</div>'+
+      '<div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">Nenhum produto na lista</div>'+
+      '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted)">'+(busca||_projFiltroStatus!=='todos'?'Ajuste os filtros pra ver mais resultados':'Todos os produtos têm estoque saudável!')+'</div>'+
+    '</div>';
+    return;
+  }
+
+  // Header da tabela
+  var html =
+    '<div style="display:grid;grid-template-columns:36px 1fr 80px 80px 80px 80px 110px 130px 36px;gap:10px;padding:10px 18px;background:var(--s1);border-bottom:1px solid var(--s3);font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0;z-index:5">'+
+      '<div></div>'+
+      '<div>Produto</div>'+
+      '<div style="text-align:right">Vendido</div>'+
+      '<div style="text-align:right">Estoque</div>'+
+      '<div style="text-align:right">Prev.</div>'+
+      '<div style="text-align:right">Pedir</div>'+
+      '<div style="text-align:right">Custo un.</div>'+
+      '<div style="text-align:right">Investimento</div>'+
+      '<div></div>'+
+    '</div>';
+
+  // Linhas
+  html += itens.map(function(it){
+    return projLinhaSkuPai(it);
+  }).join('');
+
+  el.innerHTML = html;
+}
+
+/* ─ Render uma linha de SKU pai (com possível detalhe expandido) ─ */
+function projLinhaSkuPai(it) {
+  var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+  var fN = function(n){ return (n||0).toLocaleString('pt-BR'); };
+
+  var statusInfo = {
+    'urgente':    { icon:'🚨', label:'URGENTE',     pulse:true,  cor:'var(--red)' },
+    'top-zerado': { icon:'🔥', label:'TOP ZERADO',  pulse:true,  cor:'#FB923C' },
+    'atencao':    { icon:'⚠️', label:'ATENÇÃO',     pulse:false, cor:'#F59E0B' },
+    'normal':     { icon:'✓',  label:'OK',          pulse:false, cor:'var(--green)' }
+  }[it.status] || { icon:'•', label:'', pulse:false, cor:'var(--muted)' };
+
+  // Cobertura formatada
+  var coberturaTxt;
+  if(!isFinite(it.diasCobertura)) coberturaTxt = '∞';
+  else if(it.diasCobertura === 0)  coberturaTxt = '0d';
+  else                              coberturaTxt = Math.floor(it.diasCobertura) + 'd';
+
+  var isExpanded = !!_projExpandidos[it.skuPai];
+  var arrow = isExpanded ? '▼' : '▶';
+
+  // Linha principal
+  var linha =
+    '<div class="proj-row '+it.status+(isExpanded?' expanded':'')+'" onclick="projToggleDetalhe(\''+it.skuPai+'\')">'+
+      '<div class="proj-status-badge'+(statusInfo.pulse?' pulse':'')+'" title="'+statusInfo.label+'">'+statusInfo.icon+'</div>'+
+      '<div style="min-width:0">'+
+        '<div style="font-family:var(--fhead);font-size:13px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(it.nome||'').replace(/"/g,'&quot;')+'">'+(it.nome||it.skuPai)+'</div>'+
+        '<div style="font-family:var(--fmono);font-size:10px;margin-top:2px">'+
+          '<span style="color:var(--accent)">'+it.skuPai+'</span>'+
+          '<span style="color:var(--muted2);margin-left:8px">· cobertura '+coberturaTxt+'</span>'+
+          (it.nVariacoes>1 ? '<span style="color:var(--muted2);margin-left:8px">· '+it.nVariacoes+' tam.</span>' : '')+
+        '</div>'+
+      '</div>'+
+      '<div style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--text)">'+fN(it.totalVendido)+'</div>'+
+      '<div style="text-align:right;font-family:var(--fmono);font-size:12px;color:'+(it.totalEstoque<=0?'var(--red)':'var(--text)')+'">'+fN(it.totalEstoque)+'</div>'+
+      '<div style="text-align:right;font-family:var(--fmono);font-size:12px;color:var(--muted)">'+fN(it.totalPrev)+'</div>'+
+      '<div style="text-align:right;font-family:var(--fmono);font-size:13px;font-weight:600;color:'+statusInfo.cor+'">'+fN(it.totalPedir)+'</div>'+
+      '<div style="text-align:right;font-family:var(--fmono);font-size:11px;color:'+(it.custoUnit>0?'var(--text)':'var(--muted2)')+'">'+(it.custoUnit>0?fR(it.custoUnit):'—')+'</div>'+
+      '<div style="text-align:right;font-family:var(--fmono);font-size:12px;font-weight:600;color:'+(it.investimento>0?'var(--accent)':'var(--muted2)')+'">'+(it.investimento>0?fR(it.investimento):'—')+'</div>'+
+      '<div style="text-align:center;font-family:var(--fmono);font-size:10px;color:var(--muted)">'+arrow+'</div>'+
+    '</div>';
+
+  // Detalhe expandido
+  if(isExpanded) {
+    linha += projDetalheExpandido(it);
+  }
+
+  return linha;
+}
+
+/* ─ Toggle de expansão de uma linha ─ */
+function projToggleDetalhe(skuPai) {
+  if(_projExpandidos[skuPai]) {
+    delete _projExpandidos[skuPai];
+  } else {
+    _projExpandidos[skuPai] = true;
+  }
+  projRenderLista();
+}
+
+/* ─ Render do detalhe expandido (variações + financeiro) ─ */
+function projDetalheExpandido(it) {
+  var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+  var fR2 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var fN = function(n){ return (n||0).toLocaleString('pt-BR'); };
+  var fP = function(n){ return ((n||0)*100).toFixed(1).replace('.',',') + '%'; };
+
+  // Tabela de variações
+  var temVariacoes = it.variacoes && it.variacoes.length > 0;
+  var tabelaVariacoes = '';
+  if(temVariacoes) {
+    tabelaVariacoes =
+      '<table class="proj-detail-table">'+
+        '<thead>'+
+          '<tr>'+
+            '<th>SKU</th>'+
+            '<th style="text-align:right">Vendido</th>'+
+            '<th style="text-align:right">Estoque</th>'+
+            '<th style="text-align:right">Prev.</th>'+
+            '<th style="text-align:right">Pedir</th>'+
+          '</tr>'+
+        '</thead>'+
+        '<tbody>'+
+          it.variacoes.map(function(v){
+            return '<tr>'+
+              '<td><span style="color:var(--accent)">'+v.sku+'</span></td>'+
+              '<td style="text-align:right">'+fN(v.vendido)+'</td>'+
+              '<td style="text-align:right;color:'+(v.estoque<=0?'var(--red)':'var(--text)')+'">'+fN(v.estoque)+'</td>'+
+              '<td style="text-align:right;color:var(--muted)">'+fN(v.previsibilidade)+'</td>'+
+              '<td style="text-align:right;color:var(--accent);font-weight:600">'+fN(v.pedir)+'</td>'+
+            '</tr>';
+          }).join('')+
+        '</tbody>'+
+        '<tfoot>'+
+          '<tr>'+
+            '<td>TOTAL</td>'+
+            '<td style="text-align:right">'+fN(it.totalVendido)+'</td>'+
+            '<td style="text-align:right">'+fN(it.totalEstoque)+'</td>'+
+            '<td style="text-align:right">'+fN(it.totalPrev)+'</td>'+
+            '<td style="text-align:right;color:var(--accent)">'+fN(it.totalPedir)+'</td>'+
+          '</tr>'+
+        '</tfoot>'+
+      '</table>';
+  } else {
+    tabelaVariacoes = '<div style="padding:20px;text-align:center;color:var(--muted);font-family:var(--fmono);font-size:11px">Sem variações detalhadas</div>';
+  }
+
+  // Cards financeiros
+  var cards =
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">'+
+      '<div class="proj-mini-card">'+
+        '<div class="proj-mini-card-label">Custo unitário</div>'+
+        '<div class="proj-mini-card-value">'+(it.custoUnit>0?fR2(it.custoUnit):'<span style="color:var(--muted2);font-size:11px">não cadastrado</span>')+'</div>'+
+      '</div>'+
+      '<div class="proj-mini-card">'+
+        '<div class="proj-mini-card-label">Preço médio</div>'+
+        '<div class="proj-mini-card-value">'+(it.precoMedio>0?fR2(it.precoMedio):'—')+'</div>'+
+      '</div>'+
+      '<div class="proj-mini-card">'+
+        '<div class="proj-mini-card-label">Markup</div>'+
+        '<div class="proj-mini-card-value" style="color:'+(it.markup>0?'var(--accent)':'var(--muted2)')+'">'+(it.markup>0?fP(it.markup):'—')+'</div>'+
+      '</div>'+
+      '<div class="proj-mini-card">'+
+        '<div class="proj-mini-card-label">Margem líquida</div>'+
+        '<div class="proj-mini-card-value" style="color:'+(it.margem>0?'var(--accent)':'var(--muted2)')+'">'+(it.margem>0?fP(it.margem):'—')+'</div>'+
+      '</div>'+
+      '<div class="proj-mini-card" style="border-color:var(--accent)">'+
+        '<div class="proj-mini-card-label">Investimento</div>'+
+        '<div class="proj-mini-card-value" style="color:var(--accent)">'+(it.investimento>0?fR(it.investimento):'—')+'</div>'+
+      '</div>'+
+      '<div class="proj-mini-card">'+
+        '<div class="proj-mini-card-label">Receita projetada</div>'+
+        '<div class="proj-mini-card-value">'+(it.receitaProj>0?fR(it.receitaProj):'—')+'</div>'+
+      '</div>'+
+      '<div class="proj-mini-card">'+
+        '<div class="proj-mini-card-label">Lucro projetado</div>'+
+        '<div class="proj-mini-card-value" style="color:'+(it.lucroProj>0?'var(--accent)':'var(--muted2)')+'">'+(it.lucroProj>0?fR(it.lucroProj):'—')+'</div>'+
+      '</div>'+
+    '</div>';
+
+  return '<div class="proj-detail">'+
+    tabelaVariacoes +
+    cards +
+  '</div>';
+}
+
+/* ─ Helpers compartilhados pra ícones visuais em outros módulos ─
+   Calcula status de um SKU pai (sem todos os cálculos completos do projCalcularDados).
+   Cache global pra performance (limpa quando dados mudam). */
+var _projStatusCache = null;
+var _projStatusCacheTimestamp = 0;
+var _projStatusCacheTTL = 5000; // 5s — recalcula se passou disso
+
+function projInvalidarCache() {
+  _projStatusCache = null;
+  _projStatusCacheTimestamp = 0;
+}
+
+function _projGetStatusCache() {
+  var agora = Date.now();
+  if(_projStatusCache && (agora - _projStatusCacheTimestamp) < _projStatusCacheTTL) {
+    return _projStatusCache;
+  }
+  // Recalcula
+  try {
+    var dados = projCalcularDados();
+    if(dados && dados.items) {
+      var byPai = {};
+      dados.items.forEach(function(it){
+        byPai[it.skuPai] = { status: it.status, isTopZerado: it.isTopZerado, diasCobertura: it.diasCobertura };
+      });
+      _projStatusCache = byPai;
+      _projStatusCacheTimestamp = agora;
+      return byPai;
+    }
+  } catch(e){}
+  _projStatusCache = {};
+  _projStatusCacheTimestamp = agora;
+  return _projStatusCache;
+}
+
+/* Retorna ícone HTML pra exibir em listagens, ou string vazia se status normal/sem-giro */
+function projIconePorSkuPai(skuPai) {
+  if(!skuPai) return '';
+  var cache = _projGetStatusCache();
+  var info = cache[skuPai];
+  if(!info) return '';
+  if(info.status === 'urgente')    return '<span class="proj-icon-aviso" title="🚨 Urgente · necessita produção" style="color:var(--red)">🚨</span>';
+  if(info.status === 'top-zerado') return '<span class="proj-icon-aviso" title="🔥 Top zerado · bestseller sem estoque" style="color:#FB923C">🔥</span>';
+  if(info.status === 'atencao')    return '<span class="proj-icon-aviso" title="⚠️ Atenção · estoque baixo" style="color:#F59E0B">⚠️</span>';
+  return '';
+}
+
 /* ─ Grid de colunas GMV por canal ─ */
 function renderGMVCanalLista(canais) {
   var el = document.getElementById('gmv-canal-grid');
@@ -9803,6 +10549,7 @@ async function loadEstoque() {
       renderEstoqueKPIs();
       renderEstoqueTabela();
       renderEstoqueIndicadores();
+      try { if(typeof projInvalidarCache === 'function') projInvalidarCache(); } catch(e){}
       try{ document.getElementById('estoque-count').textContent = estoqueData.length.toLocaleString('pt-BR') + ' itens'; }catch(e){}
       if(statusEl){
         statusEl.textContent='✅ '+estoqueData.length.toLocaleString('pt-BR')+' SKUs · '+cntCust+' c/custo';
@@ -9867,6 +10614,7 @@ async function loadEstoque() {
     renderEstoqueKPIs();
     renderEstoqueTabela();
     renderEstoqueIndicadores();
+    try { if(typeof projInvalidarCache === 'function') projInvalidarCache(); } catch(e){}
     try{ document.getElementById('estoque-count').textContent = estoqueData.length.toLocaleString('pt-BR') + ' itens'; }catch(e){}
     if(statusEl){ statusEl.textContent='✅ '+estoqueData.length.toLocaleString('pt-BR')+' SKUs'; statusEl.style.color='var(--green)'; }
     if(urlEl) urlEl.style.borderColor = 'var(--green)';
@@ -9974,11 +10722,13 @@ function renderEstoqueTabela() {
     var skuCell = temLink
       ? '<a href="'+buscaUrl+'" target="_blank" rel="noopener" style="text-decoration:none"><span style="font-family:var(--fmono);font-size:11px;color:var(--accent);transition:opacity .15s" onmouseover="this.style.opacity=\'.7\'" onmouseout="this.style.opacity=\'1\'">'+item.sku+'</span></a>'
       : '<span style="font-family:var(--fmono);font-size:11px;color:var(--muted2)" title="Cadastre o link da loja própria no painel admin → Editar empresa">'+item.sku+'</span>';
+    // Ícone de necessidade de produção (calculado por SKU pai, mostra na linha de cada variação)
+    var iconeProd = (typeof projIconePorSkuPai === 'function') ? projIconePorSkuPai(skuPaiEstoque) : '';
     var nomeCell = temLink
       ? '<a href="'+buscaUrl+'" target="_blank" rel="noopener" style="text-decoration:none;color:inherit" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'inherit\'">'+item.nome+'</a>'
       : item.nome;
     return '<tr>'+
-      '<td>'+skuCell+'</td>'+
+      '<td>'+iconeProd+skuCell+'</td>'+
       '<td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+item.nome+'">'+nomeCell+'</td>'+
       '<td style="font-size:11px;color:var(--muted2)">'+(CAT_ICONS[item.cat]||'📦')+' '+item.cat+'</td>'+
       '<td style="text-align:center;font-family:var(--fmono);font-weight:700;color:'+stColor+'">'+item.estoque+'</td>'+
@@ -10386,6 +11136,7 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
   }
 
   produtosVendidosMap = novoMap;
+  try { if(typeof projInvalidarCache === 'function') projInvalidarCache(); } catch(e){}
   // Salvar abas encontradas globalmente para o seletor de meses
   var abasReais = abasEncontradas.filter(function(a){ return !a.startsWith('GID:'); });
   // Mesclar com abas já conhecidas (não sobrescrever abas de carregamentos anteriores)
@@ -11389,8 +12140,9 @@ function renderEstoqueIndicadores() {
         '</a>'
       : '<div class="t20name" title="'+p.nome+'" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">'+p.nome+'</div>';
 
-    // Linha do SKU: pai em verde + (se aplicável) badge "N tamanhos"
-    var skuDisplay = '<span style="color:var(--accent)">'+nomeSKU+'</span>';
+    // Linha do SKU: ícone de produção (se aplicável) + pai em verde + badge "N tamanhos"
+    var iconeProducao = (typeof projIconePorSkuPai === 'function') ? projIconePorSkuPai(nomeSKU) : '';
+    var skuDisplay = iconeProducao + '<span style="color:var(--accent)">'+nomeSKU+'</span>';
     if(nVar > 1) {
       skuDisplay += '<span title="'+nVar+' variações somadas no total" style="color:var(--muted2);margin-left:6px">· '+nVar+' tam.</span>';
     }
