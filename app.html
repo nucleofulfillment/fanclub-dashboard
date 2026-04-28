@@ -16267,11 +16267,16 @@ function veltroOrdemAbrir(skuPai) {
   document.getElementById('ordem-produto-sku').textContent = skuPai + ' · ' + (it.variacoes||[]).length + ' variações';
   document.getElementById('ordem-numero-preview').textContent = veltroOrdemProximoNumero();
 
-  // Custo
-  var fR2 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
-  document.getElementById('ordem-custo-display').innerHTML = (it.custoUnit > 0)
-    ? fR2(it.custoUnit)
-    : '<span style="color:var(--muted2);font-size:11px">não cadastrado</span>';
+  // Custo: preenche o input editável (ou deixa vazio se não tiver)
+  var inpCusto = document.getElementById('ordem-custo-input');
+  var hintCusto = document.getElementById('ordem-custo-hint');
+  if(it.custoUnit > 0) {
+    inpCusto.value = it.custoUnit.toFixed(2);
+    if(hintCusto) hintCusto.innerHTML = '<span style="color:var(--accent)">✓ cadastrado</span> · pode ajustar';
+  } else {
+    inpCusto.value = '';
+    if(hintCusto) hintCusto.innerHTML = '<span style="color:#F59E0B">⚠️ não cadastrado</span> · informe o custo dessa ordem';
+  }
 
   // Lista de variações com qtd editável
   var listaEl = document.getElementById('ordem-variacoes-lista');
@@ -16363,7 +16368,9 @@ function veltroOrdemAtualizarTotal() {
   var totalQtd = 0;
   inputs.forEach(function(inp){ totalQtd += parseInt(inp.value || '0', 10); });
 
-  var custoUnit = (ctx.item && ctx.item.custoUnit) || 0;
+  // 🆕 Custo agora vem do input (editável)
+  var inpCusto = document.getElementById('ordem-custo-input');
+  var custoUnit = parseFloat((inpCusto && inpCusto.value || '0').replace(',','.')) || 0;
   var totalRS = totalQtd * custoUnit;
 
   document.getElementById('ordem-total-qtd').textContent = 'Total: ' + totalQtd.toLocaleString('pt-BR') + ' un.';
@@ -16425,7 +16432,8 @@ function veltroOrdemSalvar() {
   var formaPagamento = document.getElementById('ordem-pagamento').value;
   var leadTime = parseInt(document.getElementById('ordem-lead-time').value || '25', 10);
   var observacoes = (document.getElementById('ordem-observacoes').value || '').trim();
-  var custoUnit = ctx.item.custoUnit || 0;
+  // 🆕 Custo agora vem do input (editável)
+  var custoUnit = parseFloat((document.getElementById('ordem-custo-input').value || '0').replace(',','.')) || 0;
   var totalRS = totalQtd * custoUnit;
 
   // Calcula data prevista
@@ -16939,8 +16947,10 @@ window.addEventListener('load', function() {
     <!-- Custo + Total -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div style="background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:10px">
-        <div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Custo unitário</div>
-        <div id="ordem-custo-display" style="font-family:var(--fmono);font-size:14px;color:var(--text);margin-top:3px">—</div>
+        <label style="font-family:var(--fmono);font-size:9px;color:var(--muted);display:block;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Custo unitário (R$)</label>
+        <input id="ordem-custo-input" type="number" step="0.01" min="0" placeholder="0,00" oninput="veltroOrdemAtualizarTotal()"
+          style="width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-family:var(--fmono);font-size:13px;color:var(--text);outline:none;box-sizing:border-box;text-align:right">
+        <div id="ordem-custo-hint" style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:3px;line-height:1.4">—</div>
       </div>
       <div style="background:var(--s2);border:1px solid var(--accent);border-radius:8px;padding:10px">
         <div style="font-family:var(--fmono);font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">Total da ordem</div>
