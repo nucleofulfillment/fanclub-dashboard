@@ -1276,6 +1276,10 @@ body.light body::before { opacity: 0; }
       <span class="nav-icon">🩺</span>
       <span>Saúde do Estoque</span>
     </div>
+    <div class="nav-item" onclick="showPage('projecao',this)" data-page="projecao" data-label="Projeção de Estoque">
+      <span class="nav-icon">🎯</span>
+      <span>Projeção de Estoque</span>
+    </div>
     <div class="nav-item" onclick="showPage('marketing',this)" data-page="marketing" data-label="Marketing" data-sync="resumos">
       <span class="nav-icon">📣</span>
       <span>Marketing</span>
@@ -1288,10 +1292,6 @@ body.light body::before { opacity: 0; }
     <div class="nav-item" onclick="showPage('precificacao',this)" data-page="precificacao" data-label="Precificação">
       <span class="nav-icon">🧮</span>
       <span>Precificação</span>
-    </div>
-    <div class="nav-item" onclick="showPage('projecao',this)" data-page="projecao" data-label="Projeção de Estoque">
-      <span class="nav-icon">🎯</span>
-      <span>Projeção</span>
     </div>
     <div class="nav-item" onclick="showPage('resumos',this)" data-page="resumos" data-label="Resumos" data-sync="resumos">
       <span class="nav-icon">📁</span>
@@ -3174,6 +3174,63 @@ body.light body::before { opacity: 0; }
             </tbody>
           </table>
         </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════
+           SUB-MÓDULO: CONCILIAÇÃO MARKETPLACES (preview com mocks)
+           Será conectado aos dados reais quando API Magazord chegar
+           ═══════════════════════════════════════════════════════ -->
+      <div style="margin-top:30px;padding-top:24px;border-top:2px dashed var(--s3)">
+
+        <!-- Header com badge "preview" -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+          <div>
+            <h2 style="font-family:var(--fhead);font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:10px">
+              💰 Conciliação Marketplaces
+              <span style="font-family:var(--fmono);font-size:9px;color:#FB923C;background:rgba(251,146,60,.15);padding:2px 8px;border-radius:4px;font-weight:500;letter-spacing:.5px">PREVIEW · DADOS FICTÍCIOS</span>
+            </h2>
+            <div style="font-family:var(--fmono);font-size:11px;color:var(--muted)">Vendido vs recebido por marketplace · Será ativado após integração com Magazord</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="conc-periodo-mock" onchange="conciliacaoRender()" style="background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:7px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px">
+              <option value="abril-26">Abril 2026</option>
+              <option value="marco-26">Março 2026</option>
+              <option value="fevereiro-26">Fevereiro 2026</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- KPIs gerais -->
+        <div id="conc-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px"></div>
+
+        <!-- Tabela por marketplace -->
+        <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:18px">
+          <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">📊 Detalhamento por marketplace</div>
+          <div style="overflow-x:auto">
+            <table id="conc-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:760px"></table>
+          </div>
+        </div>
+
+        <!-- Calendário de previsão + Pendências -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
+
+          <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px">
+            <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">📅 Previsão de recebimento (próximas 4 semanas)</div>
+            <div id="conc-calendario"></div>
+          </div>
+
+          <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px">
+            <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">⚠️ Diferenças e alertas</div>
+            <div id="conc-alertas"></div>
+          </div>
+
+        </div>
+
+        <!-- Aviso final -->
+        <div style="background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.25);border-radius:8px;padding:14px 18px;font-family:var(--fmono);font-size:11px;color:var(--muted);line-height:1.7">
+          💡 <strong style="color:var(--accent)">Próximos passos:</strong> a integração com a API da Magazord vai trazer dados reais de vendas, status (entregue) e datas precisas. A taxa e prazo de cada marketplace é configurável em <strong style="color:var(--text)">Admin → Editar empresa → Marketplaces</strong> (em breve). Até lá, esse painel mostra dados fictícios pra você visualizar como vai ficar.
+        </div>
+
       </div>
 
     </main>
@@ -9400,6 +9457,251 @@ function renderFluxoTabela() {
 function renderFluxoCaixaPage() {
   var saved = localStorage.getItem(FC_URL_KEY);
   if(saved) loadFluxoCaixa();
+  // Renderizar a sub-seção de Conciliação (com mocks por enquanto)
+  try { conciliacaoRender(); } catch(e) { console.error('[Conciliação]', e); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MÓDULO CONCILIAÇÃO MARKETPLACES (PREVIEW VISUAL)
+   - Versão atual usa dados FICTÍCIOS pra demonstrar o layout
+   - Dados reais virão da API Magazord (em desenvolvimento)
+   - Tudo que está aqui foi pensado pra reaproveitar quando API chegar
+   ═══════════════════════════════════════════════════════════ */
+
+/* Mocks: simula dados de 3 meses */
+var _CONC_MOCK = {
+  'abril-26': {
+    label: 'Abril 2026',
+    marketplaces: [
+      { id:'mercadolivre', nome:'Mercado Livre', vendido:45230, taxa:16, recebido:33500 },
+      { id:'shopee',       nome:'Shopee',        vendido:12100, taxa:18, recebido:11200 },
+      { id:'shein',        nome:'Shein',         vendido: 8500, taxa:15, recebido: 3200 },
+      { id:'tiktok',       nome:'TikTok Shop',   vendido: 1500, taxa:12, recebido:    0 },
+      { id:'posthaus',     nome:'Posthaus',      vendido: 4200, taxa:17, recebido: 2890 },
+      { id:'magalu',       nome:'Magalu',        vendido: 3100, taxa:16, recebido: 2580 },
+      { id:'amazon',       nome:'Amazon',        vendido: 2800, taxa:15, recebido: 2380 },
+      { id:'lojapropria',  nome:'Loja Própria',  vendido: 6500, taxa: 0, recebido: 6500 }
+    ],
+    previsoes: [
+      { semana:'28/04 - 04/05', valor: 5200 },
+      { semana:'05/05 - 11/05', valor:12400 },
+      { semana:'12/05 - 18/05', valor: 6700 },
+      { semana:'19/05 - 25/05', valor: 4100 }
+    ],
+    alertas: [
+      { tipo:'pendencia', texto:'Shein tem R$ 4.000 pendentes (vendas de 10-30/04, previsão até 24/05)' },
+      { tipo:'pendencia', texto:'TikTok tem R$ 1.260 pendentes (vendas recentes não confirmadas)' },
+      { tipo:'sobra',     texto:'Mercado Livre recebeu R$ 1.300 a mais que o esperado (pode ser de meses anteriores)' }
+    ]
+  },
+  'marco-26': {
+    label: 'Março 2026',
+    marketplaces: [
+      { id:'mercadolivre', nome:'Mercado Livre', vendido:38900, taxa:16, recebido:32600 },
+      { id:'shopee',       nome:'Shopee',        vendido: 9800, taxa:18, recebido: 8000 },
+      { id:'shein',        nome:'Shein',         vendido: 6200, taxa:15, recebido: 5100 },
+      { id:'tiktok',       nome:'TikTok Shop',   vendido:  900, taxa:12, recebido:  790 },
+      { id:'posthaus',     nome:'Posthaus',      vendido: 3400, taxa:17, recebido: 2800 },
+      { id:'magalu',       nome:'Magalu',        vendido: 2400, taxa:16, recebido: 2010 },
+      { id:'amazon',       nome:'Amazon',        vendido: 2100, taxa:15, recebido: 1780 },
+      { id:'lojapropria',  nome:'Loja Própria',  vendido: 5200, taxa: 0, recebido: 5200 }
+    ],
+    previsoes: [
+      { semana:'01/04 - 07/04', valor: 3200 },
+      { semana:'08/04 - 14/04', valor: 4800 },
+      { semana:'15/04 - 21/04', valor: 2400 },
+      { semana:'22/04 - 28/04', valor: 1100 }
+    ],
+    alertas: [
+      { tipo:'ok', texto:'Conciliação fechou em 95% — mês saudável' }
+    ]
+  },
+  'fevereiro-26': {
+    label: 'Fevereiro 2026',
+    marketplaces: [
+      { id:'mercadolivre', nome:'Mercado Livre', vendido:31200, taxa:16, recebido:26200 },
+      { id:'shopee',       nome:'Shopee',        vendido: 7400, taxa:18, recebido: 6050 },
+      { id:'shein',        nome:'Shein',         vendido: 4800, taxa:15, recebido: 4080 },
+      { id:'tiktok',       nome:'TikTok Shop',   vendido:  600, taxa:12, recebido:  528 },
+      { id:'posthaus',     nome:'Posthaus',      vendido: 2900, taxa:17, recebido: 2400 },
+      { id:'lojapropria',  nome:'Loja Própria',  vendido: 4100, taxa: 0, recebido: 4100 }
+    ],
+    previsoes: [
+      { semana:'01/03 - 07/03', valor: 2200 },
+      { semana:'08/03 - 14/03', valor: 1900 },
+      { semana:'15/03 - 21/03', valor:  900 },
+      { semana:'22/03 - 28/03', valor:  400 }
+    ],
+    alertas: [
+      { tipo:'ok', texto:'Conciliação fechou em 96% — mês saudável' }
+    ]
+  }
+};
+
+/* Render principal — orquestra KPIs, tabela, calendário e alertas */
+function conciliacaoRender() {
+  var sel = document.getElementById('conc-periodo-mock');
+  var periodo = sel ? sel.value : 'abril-26';
+  var dados = _CONC_MOCK[periodo];
+  if(!dados) return;
+
+  // Calcular totais
+  var totVend = 0, totEsp = 0, totRec = 0;
+  dados.marketplaces.forEach(function(m){
+    totVend += m.vendido;
+    totEsp  += m.vendido * (1 - m.taxa/100);
+    totRec  += m.recebido;
+  });
+  var totDif = totRec - totEsp;
+  var pctConc = totEsp > 0 ? (totRec / totEsp * 100) : 0;
+
+  conciliacaoRenderKPIs({ totVend, totEsp, totRec, totDif, pctConc });
+  conciliacaoRenderTabela(dados.marketplaces);
+  conciliacaoRenderCalendario(dados.previsoes);
+  conciliacaoRenderAlertas(dados.alertas);
+}
+
+/* Render KPIs */
+function conciliacaoRenderKPIs(t) {
+  var el = document.getElementById('conc-kpis');
+  if(!el) return;
+  var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+  var difCor = t.totDif >= -t.totEsp*0.05 ? 'var(--green)' : (t.totDif >= -t.totEsp*0.15 ? '#F59E0B' : 'var(--red)');
+  var difIcon = t.totDif >= -t.totEsp*0.05 ? '🟢' : (t.totDif >= -t.totEsp*0.15 ? '🟡' : '🔴');
+  el.innerHTML =
+    '<div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 18px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">📦 Vendido</div>'+
+      '<div style="font-family:var(--fhead);font-size:20px;font-weight:600;color:var(--text);margin-top:4px">'+fR(t.totVend)+'</div>'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">total bruto</div>'+
+    '</div>'+
+    '<div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 18px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">🎯 Esperado</div>'+
+      '<div style="font-family:var(--fhead);font-size:20px;font-weight:600;color:var(--accent);margin-top:4px">'+fR(t.totEsp)+'</div>'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">após taxas dos marketplaces</div>'+
+    '</div>'+
+    '<div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 18px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">💵 Recebido</div>'+
+      '<div style="font-family:var(--fhead);font-size:20px;font-weight:600;color:var(--text);margin-top:4px">'+fR(t.totRec)+'</div>'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">lançado no fluxo</div>'+
+    '</div>'+
+    '<div style="background:var(--s2);border:1px solid var(--s3);border-left:3px solid '+difCor+';border-radius:12px;padding:14px 18px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">'+difIcon+' Diferença</div>'+
+      '<div style="font-family:var(--fhead);font-size:20px;font-weight:600;color:'+difCor+';margin-top:4px">'+(t.totDif>=0?'+':'')+fR(t.totDif)+'</div>'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">'+pctFormatadoConc(t.pctConc)+' conciliado</div>'+
+    '</div>';
+}
+
+function pctFormatadoConc(p) {
+  return p.toFixed(0) + '%';
+}
+
+/* Render tabela por marketplace */
+function conciliacaoRenderTabela(marketplaces) {
+  var el = document.getElementById('conc-tabela');
+  if(!el) return;
+  var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+
+  var rows = marketplaces.map(function(m){
+    var esp = m.vendido * (1 - m.taxa/100);
+    var dif = m.recebido - esp;
+    var pct = esp > 0 ? (m.recebido / esp * 100) : 0;
+    var status, cor;
+    if(Math.abs(dif) <= esp * 0.05) {
+      status = '🟢 Conciliado'; cor = 'var(--green)';
+    } else if(dif > 0) {
+      status = '⚠️ Recebeu+'; cor = '#F59E0B';
+    } else if(Math.abs(dif) <= esp * 0.15) {
+      status = '🟡 Pendente'; cor = '#F59E0B';
+    } else {
+      status = '🔴 Falta muito'; cor = 'var(--red)';
+    }
+    return '<tr style="border-bottom:1px solid var(--s3)">'+
+      '<td style="padding:10px 8px;color:var(--text);font-weight:500">'+m.nome+'</td>'+
+      '<td style="padding:10px 8px;text-align:right">'+fR(m.vendido)+'</td>'+
+      '<td style="padding:10px 8px;text-align:right;color:var(--muted)">'+m.taxa+'%</td>'+
+      '<td style="padding:10px 8px;text-align:right;color:var(--accent);font-weight:600">'+fR(esp)+'</td>'+
+      '<td style="padding:10px 8px;text-align:right;color:var(--text)">'+fR(m.recebido)+'</td>'+
+      '<td style="padding:10px 8px;text-align:right;color:'+cor+';font-weight:600">'+(dif>=0?'+':'')+fR(dif)+'</td>'+
+      '<td style="padding:10px 8px;text-align:right"><span style="font-size:10px;padding:3px 8px;border-radius:4px;background:'+cor+'22;color:'+cor+';font-weight:600">'+status+'</span></td>'+
+    '</tr>';
+  }).join('');
+
+  // Totais
+  var totV = marketplaces.reduce(function(s,m){return s+m.vendido;},0);
+  var totE = marketplaces.reduce(function(s,m){return s+m.vendido*(1-m.taxa/100);},0);
+  var totR = marketplaces.reduce(function(s,m){return s+m.recebido;},0);
+  var totD = totR - totE;
+
+  el.innerHTML =
+    '<thead>'+
+      '<tr style="border-bottom:2px solid var(--s3)">'+
+        '<th style="text-align:left;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500;letter-spacing:.5px">Marketplace</th>'+
+        '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Vendido</th>'+
+        '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Taxa</th>'+
+        '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Esperado</th>'+
+        '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Recebido</th>'+
+        '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Diferença</th>'+
+        '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Status</th>'+
+      '</tr>'+
+    '</thead>'+
+    '<tbody>'+rows+'</tbody>'+
+    '<tfoot>'+
+      '<tr style="border-top:2px solid var(--s3)">'+
+        '<td style="padding:12px 8px;font-weight:700;color:var(--text)">TOTAL</td>'+
+        '<td style="padding:12px 8px;text-align:right;font-weight:700">'+fR(totV)+'</td>'+
+        '<td style="padding:12px 8px"></td>'+
+        '<td style="padding:12px 8px;text-align:right;font-weight:700;color:var(--accent)">'+fR(totE)+'</td>'+
+        '<td style="padding:12px 8px;text-align:right;font-weight:700">'+fR(totR)+'</td>'+
+        '<td style="padding:12px 8px;text-align:right;font-weight:700;color:'+(totD>=0?'var(--green)':'var(--red)')+'">'+(totD>=0?'+':'')+fR(totD)+'</td>'+
+        '<td></td>'+
+      '</tr>'+
+    '</tfoot>';
+}
+
+/* Render calendário de previsão */
+function conciliacaoRenderCalendario(previsoes) {
+  var el = document.getElementById('conc-calendario');
+  if(!el) return;
+  var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+
+  var maxValor = Math.max.apply(null, previsoes.map(function(p){return p.valor;})) || 1;
+  var totalPrev = previsoes.reduce(function(s,p){return s+p.valor;},0);
+
+  el.innerHTML =
+    previsoes.map(function(p){
+      var pct = (p.valor / maxValor * 100).toFixed(1);
+      return '<div style="margin-bottom:12px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+          '<span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">'+p.semana+'</span>'+
+          '<span style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text)">'+fR(p.valor)+'</span>'+
+        '</div>'+
+        '<div style="background:var(--s3);height:6px;border-radius:3px;overflow:hidden">'+
+          '<div style="width:'+pct+'%;height:100%;background:var(--accent);border-radius:3px"></div>'+
+        '</div>'+
+      '</div>';
+    }).join('') +
+    '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--s3);display:flex;justify-content:space-between;align-items:center">'+
+      '<span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">PREVISÃO TOTAL 4 SEMANAS</span>'+
+      '<span style="font-family:var(--fhead);font-size:16px;font-weight:600;color:var(--accent)">'+fR(totalPrev)+'</span>'+
+    '</div>';
+}
+
+/* Render alertas */
+function conciliacaoRenderAlertas(alertas) {
+  var el = document.getElementById('conc-alertas');
+  if(!el) return;
+  if(!alertas || alertas.length === 0) {
+    el.innerHTML = '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);padding:20px;text-align:center">Nenhum alerta no período</div>';
+    return;
+  }
+  var icones = { 'pendencia':'⏳', 'sobra':'⚠️', 'ok':'✓' };
+  var cores  = { 'pendencia':'#F59E0B', 'sobra':'#FB923C', 'ok':'var(--green)' };
+  el.innerHTML = alertas.map(function(a){
+    return '<div style="display:flex;gap:10px;padding:10px;background:'+cores[a.tipo]+'12;border:1px solid '+cores[a.tipo]+'33;border-radius:8px;margin-bottom:8px;align-items:flex-start">'+
+      '<div style="font-size:14px;line-height:1">'+(icones[a.tipo]||'•')+'</div>'+
+      '<div style="font-family:var(--fmono);font-size:11px;color:var(--text);line-height:1.5;flex:1">'+a.texto+'</div>'+
+    '</div>';
+  }).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════
