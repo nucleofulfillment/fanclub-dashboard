@@ -3362,7 +3362,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX12';
+var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX13';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -18546,6 +18546,67 @@ function raioxGerarDiagnosticos(analise) {
 
 /* ─── RENDER PRINCIPAL ──────────────────────────────────── */
 
+/* 🆕 Recalcula totalAnterior/totalRecente/varGmv com a janela escolhida.
+   Usa os dadosDiarios já gerados (não regenera). */
+function _raioxRecalcularJanela(dadosDiarios, diasJanela) {
+  var keys = Object.keys(dadosDiarios).sort();
+  if(keys.length < diasJanela * 2) {
+    // Não tem dados suficientes pra comparar — retorna estrutura vazia
+    return {
+      diasJanela: diasJanela,
+      totalAnterior: { gmv: 0, pedidos: 0, canais: {} },
+      totalRecente: { gmv: 0, pedidos: 0, canais: {} },
+      varGmv: 0, varPedidos: 0, canais: [], dadosDiarios: dadosDiarios
+    };
+  }
+  var anterior = keys.slice(-diasJanela * 2, -diasJanela);
+  var recente  = keys.slice(-diasJanela);
+
+  function somaJanela(janela) {
+    var total = { gmv: 0, pedidos: 0, canais: {} };
+    janela.forEach(function(k){
+      var d = dadosDiarios[k];
+      if(!d) return;
+      total.gmv += d.gmv || 0;
+      total.pedidos += d.pedidos || 0;
+      Object.keys(d.canais || {}).forEach(function(c){
+        if(!total.canais[c]) total.canais[c] = { gmv: 0, pedidos: 0 };
+        total.canais[c].gmv += d.canais[c].gmv || 0;
+        total.canais[c].pedidos += d.canais[c].pedidos || 0;
+      });
+    });
+    return total;
+  }
+  function pct(novo, antigo) {
+    if(antigo === 0) return novo > 0 ? 100 : 0;
+    return Math.round(((novo - antigo) / antigo) * 100);
+  }
+
+  var totA = somaJanela(anterior);
+  var totR = somaJanela(recente);
+  var canaisVariacao = [];
+  var todosCanais = {};
+  Object.keys(totA.canais).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(totR.canais).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(todosCanais).forEach(function(c){
+    var ga = (totA.canais[c]||{gmv:0}).gmv;
+    var gr = (totR.canais[c]||{gmv:0}).gmv;
+    if(ga + gr < 100) return;
+    canaisVariacao.push({ canal: c, gmvAnterior: ga, gmvRecente: gr, variacao: pct(gr, ga) });
+  });
+  canaisVariacao.sort(function(a,b){ return Math.abs(b.variacao) - Math.abs(a.variacao); });
+
+  return {
+    diasJanela: diasJanela,
+    totalAnterior: totA,
+    totalRecente: totR,
+    varGmv: pct(totR.gmv, totA.gmv),
+    varPedidos: pct(totR.pedidos, totA.pedidos),
+    canais: canaisVariacao,
+    dadosDiarios: dadosDiarios
+  };
+}
+
 function raioxRender() {
   if(!window._veltroAdminAutenticado) {
     var c = document.getElementById('raiox-conteudo');
@@ -18559,14 +18620,38 @@ function raioxRender() {
   raioxAplicarConfigForm();
   var cfg = raioxGetConfig();
 
+  // 🆕 Janela ativa do gráfico (afeta TODA a página)
+  // 24h literal seria 1d, mas pra termômetro/diagnóstico usamos mínimo 7d (estatístico)
+  var janelaAtual = window._raioxJanela || '24h';
+  var diasAnaliseInterpretacao; // pra termômetro/diagnóstico
+  var diasAnaliseLiteral;        // pra tooltip/resumo (literal)
+  if(janelaAtual === '24h') {
+    diasAnaliseLiteral = 1;
+    diasAnaliseInterpretacao = 7; // mínimo estatístico
+  } else if(janelaAtual === '10d') {
+    diasAnaliseLiteral = 10;
+    diasAnaliseInterpretacao = 10;
+  } else {
+    diasAnaliseLiteral = 30;
+    diasAnaliseInterpretacao = 30;
+  }
+  // Guarda na window pra outras funções consultarem
+  window._raioxDiasInterpretacao = diasAnaliseInterpretacao;
+  window._raioxDiasLiteral = diasAnaliseLiteral;
+
   // 🎬 Modo demo: gera dados fictícios se ativo
   var modoDemo = raioxGetModoDemo();
   var analise;
   if(modoDemo !== 'real') {
+    // Demo gera 30 dias completos sempre — depois recalcula compara com a janela escolhida
     analise = raioxGerarDadosDemo(modoDemo);
+    // Recalcula a comparação com a janela ativa pra refletir no termômetro/diagnóstico
+    if(analise.vendas && analise.vendas.dadosDiarios) {
+      analise.vendas = _raioxRecalcularJanela(analise.vendas.dadosDiarios, diasAnaliseInterpretacao);
+    }
   } else {
     analise = {
-      vendas: raioxComparaPeriodos(cfg.dias),
+      vendas: raioxComparaPeriodos(diasAnaliseInterpretacao),
       estoque: raioxAnaliseEstoque()
     };
   }
@@ -18640,22 +18725,27 @@ function raioxRender() {
   html += '<div class="raiox-split-grid" style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px">';
 
   // 🌡️ TERMÔMETRO (lado esquerdo)
-  // Pega indicadores dos auxiliares pra pílulas (compara último vs média 7d anterior)
+  // Resumo de indicadores — usa janela ativa (com mínimo 7d pra estatística)
   function _raioxResumoIndicadores() {
     try {
       var aux = raioxGerarLinhasAuxiliares(analise.vendas.dadosDiarios, modoDemo || 'real');
       var keysAux = Object.keys(analise.vendas.dadosDiarios).sort();
+      // Janela de comparação: dias da janela atual (mínimo 7)
+      var nDias = diasAnaliseInterpretacao;
       function _calcVar(arr) {
-        if(!arr || arr.length < 8) return null;
-        var ultimo = arr[arr.length - 1];
-        var medAnterior = 0, count = 0;
-        for(var i = arr.length - 8; i < arr.length - 1; i++) {
-          if(arr[i] !== undefined && arr[i] !== null) { medAnterior += arr[i]; count++; }
+        if(!arr || arr.length < nDias * 2) return null;
+        // Compara últimos nDias vs nDias anteriores (média)
+        var recente = arr.slice(-nDias);
+        var anterior = arr.slice(-nDias * 2, -nDias);
+        function _avg(a) {
+          var s = 0, c = 0;
+          a.forEach(function(v){ if(v !== undefined && v !== null){ s += v; c++; } });
+          return c === 0 ? 0 : s / c;
         }
-        if(count === 0) return null;
-        medAnterior /= count;
-        if(medAnterior === 0) return null;
-        return Math.round(((ultimo - medAnterior) / medAnterior) * 100);
+        var avgR = _avg(recente);
+        var avgA = _avg(anterior);
+        if(avgA === 0) return null;
+        return Math.round(((avgR - avgA) / avgA) * 100);
       }
       var vendasArr = keysAux.map(function(k){ return analise.vendas.dadosDiarios[k].gmv || 0; });
       return {
@@ -18687,22 +18777,29 @@ function raioxRender() {
     '</div>';
   }
 
+  // Helper: label legível da janela
+  var labelJanela = janelaAtual === '24h' ? '7 dias (mín)' : (janelaAtual === '10d' ? '10 dias' : '30 dias');
+  var avisoJanela24h = (janelaAtual === '24h')
+    ? '<div style="font-family:var(--fmono);font-size:9px;color:rgba(252,211,77,.85);background:rgba(252,211,77,.06);border-left:2px solid rgba(252,211,77,.50);padding:6px 8px;border-radius:4px;margin-bottom:10px;line-height:1.45">⚠️ Filtro 24h: termômetro e diagnósticos usam <strong>mínimo 7 dias</strong> pra ter validade estatística. Tooltip do gráfico mantém comparação 1d.</div>'
+    : '';
+
   html +=
     '<div class="card fu">'+
       '<div class="ch">'+
         '<div>'+
           '<div class="ct">Termômetro do Negócio</div>'+
-          '<div class="cs">Pontuação geral · 0-100</div>'+
+          '<div class="cs">Pontuação geral · janela <strong style="color:var(--accent)">'+labelJanela+'</strong></div>'+
         '</div>'+
       '</div>'+
+      avisoJanela24h+
       '<div style="text-align:center;padding:10px 0 16px">'+
         _raioxRenderGauge(term)+
         '<div style="font-family:var(--fhead);font-size:15px;font-weight:700;color:'+term.cor+';margin-top:14px">'+term.icone+' '+term.label+'</div>'+
       '</div>'+
-      // 🆕 BLOCO RESUMO de indicadores (último vs média 7d anterior)
+      // 🆕 BLOCO RESUMO — janela = mesma do termômetro
       (resumo
         ? '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Variação · último dia vs média 7d</div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Variação · janela <span style="color:var(--accent)">'+labelJanela+'</span> vs período anterior</div>'+
             _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resumo.vendas)+
             _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
             _raioxLinhaIndicador('🌐', 'Mercado',     '#A78BFA', resumo.mercado)+
@@ -18733,16 +18830,56 @@ function raioxRender() {
   var realCount = diags.filter(function(d){return !d.simulado && !d.placeholder;}).length;
   var simCount = diags.filter(function(d){return d.simulado;}).length;
 
+  // 🆕 Contagem por severidade (pra abas)
+  function _contar(sev) { return diags.filter(function(d){ return d.severidade === sev; }).length; }
+  var cTotal    = diags.length;
+  var cCritico  = _contar('critico');
+  var cAlerta   = _contar('alerta');
+  var cAtencao  = _contar('atencao');
+  var cPositivo = _contar('positivo');
+  var cInfo     = _contar('info');
+
+  // Filtro ativo (default = todos)
+  var filtroAtivo = window._raioxFiltroDiag || 'todos';
+
+  function _abaBtn(id, label, count, ativo, cor) {
+    var bg = ativo ? (cor || 'var(--accent)') + '22' : 'transparent';
+    var border = ativo ? (cor || 'var(--accent)') : 'var(--border)';
+    var txt = ativo ? (cor || 'var(--accent)') : 'var(--muted)';
+    return '<button onclick="raioxFiltrarDiag(\''+id+'\')" type="button" '+
+      'style="padding:5px 10px;background:'+bg+';border:1px solid '+border+';color:'+txt+';border-radius:6px;font-family:var(--fmono);font-size:10px;cursor:pointer;font-weight:'+(ativo?'700':'500')+';display:inline-flex;align-items:center;gap:5px;transition:all .2s">'+
+      '<span>'+label+'</span>'+
+      '<span style="background:'+(ativo?'rgba(0,0,0,.30)':'var(--s2)')+';padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700">'+count+'</span>'+
+    '</button>';
+  }
+
+  // Filtra os diagnósticos exibidos
+  var diagsExibir = filtroAtivo === 'todos'
+    ? diags
+    : diags.filter(function(d){ return d.severidade === filtroAtivo; });
+
   html +=
     '<div class="card fu">'+
       '<div class="ch">'+
         '<div>'+
           '<div class="ct">Diagnósticos</div>'+
-          '<div class="cs">'+realCount+' real(is) · '+simCount+' simulado(s) · click pra expandir</div>'+
+          '<div class="cs">'+realCount+' real(is) · '+simCount+' simulado(s) · janela <strong style="color:var(--accent)">'+labelJanela+'</strong></div>'+
         '</div>'+
       '</div>'+
+      // 🆕 Abas de filtro por categoria
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">'+
+        _abaBtn('todos',    '📋 Todos',   cTotal,    filtroAtivo === 'todos',    null)+
+        (cCritico  > 0 ? _abaBtn('critico',  '🔴 Crítico',  cCritico,  filtroAtivo === 'critico',  '#F43F5E') : '')+
+        (cAlerta   > 0 ? _abaBtn('alerta',   '🟠 Alerta',   cAlerta,   filtroAtivo === 'alerta',   '#FB923C') : '')+
+        (cAtencao  > 0 ? _abaBtn('atencao',  '🟡 Atenção',  cAtencao,  filtroAtivo === 'atencao',  '#FCD34D') : '')+
+        (cPositivo > 0 ? _abaBtn('positivo', '🟢 Positivo', cPositivo, filtroAtivo === 'positivo', '#10B981') : '')+
+        (cInfo     > 0 ? _abaBtn('info',     '🔵 Info',     cInfo,     filtroAtivo === 'info',     '#60A5FA') : '')+
+      '</div>'+
       '<div style="display:flex;flex-direction:column;gap:8px">'+
-        diags.map(function(d, idx){ return _raioxRenderCardDiag(d, idx); }).join('')+
+        (diagsExibir.length > 0
+          ? diagsExibir.map(function(d, idx){ return _raioxRenderCardDiag(d, idx); }).join('')
+          : '<div style="text-align:center;padding:24px;color:var(--muted);font-family:var(--fmono);font-size:11px">Nenhum diagnóstico nessa categoria.</div>'
+        )+
       '</div>'+
     '</div>';
 
@@ -19212,11 +19349,12 @@ function _raioxDesenharChart(dadosDiarios) {
 
             // Pega valores dos datasets nessa posição
             var allDatasets = context.chart.data.datasets;
-            function _getValor(label) {
-              // Pode ter mais de um dataset com 'Vendas' (destaque + histórico) — pega o que tiver valor
+            function _getValor(label, useIdx) {
+              var i = useIdx !== undefined ? useIdx : idx;
+              if(i < 0) return null;
               var dss = allDatasets.filter(function(d){ return (d.label||'').indexOf(label) !== -1; });
-              for(var i = 0; i < dss.length; i++) {
-                var v = dss[i].data[idx];
+              for(var j = 0; j < dss.length; j++) {
+                var v = dss[j].data[i];
                 if(v !== undefined && v !== null) return v;
               }
               return null;
@@ -19229,7 +19367,15 @@ function _raioxDesenharChart(dadosDiarios) {
             var mercadoV = _getValor('Mercado');
             var marketplaceV = _getValor('Marketplace');
 
-            // Calcula variação % vs baseline
+            // 🆕 Valores do DIA ANTERIOR (pra comparação 1d vs 1d na tooltip)
+            var idxAnterior = idx - 1;
+            var vendasAnt      = _getValor('Vendas',      idxAnterior);
+            var midiaAnt       = _getValor('Mídia',       idxAnterior);
+            var estoqueAnt     = _getValor('Estoque',     idxAnterior);
+            var mercadoAnt     = _getValor('Mercado',     idxAnterior);
+            var marketplaceAnt = _getValor('Marketplace', idxAnterior);
+
+            // Calcula variação %
             function _pct(v, base) {
               if(!v || !base || base === 0) return null;
               return Math.round(((v - base) / base) * 100);
@@ -19273,44 +19419,46 @@ function _raioxDesenharChart(dadosDiarios) {
               '</div>';
             }
 
-            // Pílula da linha principal (mostrada no header)
-            var pctVendas = _pct(vendasV, baselineV);
+            // 🆕 Pílula da linha principal: vs DIA ANTERIOR
+            var pctVendas = _pct(vendasV, vendasAnt);
             var pilulaPrincipal = pctVendas !== null ? _pilula(pctVendas) : '';
 
             // Mini-comentário inteligente
             var comentario = '';
             if(pctVendas !== null) {
               if(pctVendas >= 30) {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FCD34D;line-height:1.5">💡 Pico atípico — vendas '+Math.abs(pctVendas)+'% acima do esperado. Investigue causa.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FCD34D;line-height:1.5">💡 Pico atípico — vendas '+Math.abs(pctVendas)+'% acima do dia anterior. Investigue causa.</div>';
               } else if(pctVendas <= -25) {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#F87171;line-height:1.5">🚨 Queda relevante — vendas '+Math.abs(pctVendas)+'% abaixo do baseline.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#F87171;line-height:1.5">🚨 Queda relevante — vendas '+Math.abs(pctVendas)+'% abaixo do dia anterior.</div>';
               } else if(pctVendas >= 10) {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#10B981;line-height:1.5">✅ Performance acima do esperado.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#10B981;line-height:1.5">✅ Alta vs dia anterior.</div>';
               } else if(pctVendas <= -10) {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FB923C;line-height:1.5">⚠️ Atenção — performance abaixo do esperado.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FB923C;line-height:1.5">⚠️ Atenção — queda vs dia anterior.</div>';
               } else {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted);line-height:1.5">─ Performance dentro da margem normal.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted);line-height:1.5">─ Variação dentro da margem normal vs dia anterior.</div>';
               }
             }
 
             // ─── HTML completo da tooltip ───
             var html =
-              '<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(110,231,183,.20);display:flex;align-items:center;justify-content:space-between;gap:10px">'+
+              '<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;padding-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:10px">'+
                 '<span>'+labelData+'</span>'+
                 pilulaPrincipal+
               '</div>'+
-              // Linha principal: Vendas (verde, com pílula uniformizada)
-              _linha('📊', 'Vendas', vendasV, baselineV, true, '#6EE7B7')+
-              // Baseline (sem pílula, só referência)
+              // Sub-header: indica comparação
+              '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(110,231,183,.20)">Variação vs dia anterior</div>'+
+              // Linha principal: Vendas (compara com dia anterior)
+              _linha('📊', 'Vendas', vendasV, vendasAnt, true, '#6EE7B7')+
+              // Baseline (referência apenas, sem pílula)
               _linha('⚖', 'Equilíbrio', baselineV, null, false, '#9CA3AF')+
-              // Outras métricas (sempre mostra mesmo se linhas off) — cores combinam com gráfico
+              // Outras métricas (sempre mostra) — comparam com DIA ANTERIOR
               (midiaV !== null || estoqueV !== null || mercadoV !== null || marketplaceV !== null
                 ? '<div style="margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06)">'+
-                    '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas</div>'+
-                    (marketplaceV !== null ? _linha('🛒', 'Marketplace 🔬', marketplaceV, baselineV, false, '#FCD34D') : '')+
-                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, baselineV, false, '#FB923C') : '')+
-                    (estoqueV !== null ? _linha('📦', 'Estoque 🔬', estoqueV, baselineV, false, '#EC4899') : '')+
-                    (mercadoV !== null ? _linha('🌐', 'Mercado 🔬', mercadoV, baselineV, false, '#A78BFA') : '')+
+                    '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas · vs dia anterior</div>'+
+                    (marketplaceV !== null ? _linha('🛒', 'Marketplace 🔬', marketplaceV, marketplaceAnt, false, '#FCD34D') : '')+
+                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, midiaAnt, false, '#FB923C') : '')+
+                    (estoqueV !== null ? _linha('📦', 'Estoque 🔬', estoqueV, estoqueAnt, false, '#EC4899') : '')+
+                    (mercadoV !== null ? _linha('🌐', 'Mercado 🔬', mercadoV, mercadoAnt, false, '#A78BFA') : '')+
                   '</div>'
                 : ''
               )+
@@ -19362,16 +19510,22 @@ function _raioxDesenharChart(dadosDiarios) {
   });
 }
 
-/* Toggle janela temporal */
+/* Toggle janela temporal — agora afeta TODA a página (gráfico + termômetro + diagnóstico) */
 function raioxSetJanela(j) {
   window._raioxJanela = j;
-  _raioxDesenharChart();
+  raioxRender(); // re-render completo (não só chart)
 }
 
 /* 🆕 Foco do gráfico — consolidado ou destaca categoria específica */
 function raioxSetFoco(foco) {
   window._raioxFoco = foco; // 'consolidado' | 'marketplace' | 'mercado' | 'midia' | 'estoque'
   _raioxDesenharChart();
+}
+
+/* 🆕 Filtro de diagnóstico por categoria */
+function raioxFiltrarDiag(categoria) {
+  window._raioxFiltroDiag = categoria; // 'todos' | 'critico' | 'alerta' | 'atencao' | 'positivo' | 'info'
+  raioxRender();
 }
 
 function veltroFecharEditarEmpresa() {
