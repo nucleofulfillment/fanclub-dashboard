@@ -3426,7 +3426,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX6-CAIXA-INI';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX7-UNIFICADO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -16666,9 +16666,12 @@ function veltroAplicarLinks(id, links) {
     try{ document.getElementById('fc-url-input').value = links.fluxo; }catch(e){}
   }
 
-  // ⚡ Fluxo v2 — Mídia + Custos Fixos (alimenta Marketing automático e Raio X)
-  if(links.fluxoV2) {
-    localStorage.setItem('fc_fluxo_v2_url', links.fluxoV2);
+  // ⚡ Fluxo v2 — agora usa a MESMA URL do Fluxo de Caixa (campo unificado)
+  // Compatibilidade retro: se vier links.fluxoV2 (URL antiga separada), usa ela;
+  // senão usa links.fluxo. Detecção automática (HTML scraping) decide qual motor ativar.
+  var v2Url = links.fluxoV2 || links.fluxo || '';
+  if(v2Url) {
+    localStorage.setItem('fc_fluxo_v2_url', v2Url);
     // Carregar imediatamente em background
     if(typeof loadFluxoV2 === 'function') {
       setTimeout(function(){
@@ -16676,7 +16679,6 @@ function veltroAplicarLinks(id, links) {
       }, 600);
     }
   } else {
-    // Se removeu URL, limpar cache também
     localStorage.removeItem('fc_fluxo_v2_url');
   }
 
@@ -16716,7 +16718,6 @@ function veltroAbrirConfig() {
   try{ document.getElementById('cfg-url-estados').value   = links.estados||'';   }catch(e){}
   try{ document.getElementById('cfg-url-produtos').value  = links.produtos||'';  }catch(e){}
   try{ document.getElementById('cfg-url-fluxo').value    = links.fluxo||'';    }catch(e){}
-  try{ document.getElementById('cfg-url-fluxo-v2').value = links.fluxoV2||'';  }catch(e){}
   try{ document.getElementById('cfg-url-custo').value    = links.custo||'';    }catch(e){}
   var modal = document.getElementById('veltro-config-modal');
   if(modal) { modal.style.display = 'flex'; }
@@ -16728,13 +16729,16 @@ function veltroFecharConfig() {
 function veltroSalvarConfigModal() {
   var id = veltroGetEmpresaAtual();
   if(!id) return;
+  var fluxoUrl = ((document.getElementById('cfg-url-fluxo')||{}).value||'').trim();
   var links = {
     principal: ((document.getElementById('cfg-url-principal')||{}).value||'').trim(),
     estoque:   ((document.getElementById('cfg-url-estoque')||{}).value||'').trim(),
     estados:   ((document.getElementById('cfg-url-estados')||{}).value||'').trim(),
     produtos:  ((document.getElementById('cfg-url-produtos')||{}).value||'').trim(),
-    fluxo:     ((document.getElementById('cfg-url-fluxo')||{}).value||'').trim(),
-    fluxoV2:   ((document.getElementById('cfg-url-fluxo-v2')||{}).value||'').trim(),
+    fluxo:     fluxoUrl,
+    // 🆕 Sistema unificado: a URL do Fluxo de Caixa é a mesma do v2.
+    // Detecção automática (por aba Mídia/Custos Fixos) decide qual motor usar.
+    fluxoV2:   fluxoUrl,
     custo:     ((document.getElementById('cfg-url-custo')||{}).value||'').trim()
   };
   veltroSaveLinks(id, links);
@@ -21268,15 +21272,10 @@ window.addEventListener('load', function() {
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
       </div>
       <div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#34D399;text-transform:uppercase;margin-bottom:5px">💵 Fluxo de Caixa (abas mensais)</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#34D399;text-transform:uppercase;margin-bottom:5px">💵 Fluxo de Caixa (mensal + Mídia + Custos Fixos)</div>
         <input type="text" id="cfg-url-fluxo" placeholder="URL do Google Sheets (opcional)"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
-      </div>
-      <div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#818CF8;text-transform:uppercase;margin-bottom:5px">⚡ Fluxo v2 — Mídia + Custos Fixos</div>
-        <input type="text" id="cfg-url-fluxo-v2" placeholder="URL Google Sheets com abas Mídia e Custos Fixos"
-          style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:4px">Alimenta automático: Marketing (mídia/canal) e Raio X (ROAS, CPA)</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:4px">Detecta automático abas Mídia/Custos Fixos. Alimenta Marketing (mídia/canal) e Raio X (ROAS, CPA).</div>
       </div>
       <div>
         <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#FBBF24;text-transform:uppercase;margin-bottom:5px">💰 Custo de Produtos</div>
