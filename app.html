@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX28-7-COLUNAS';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX29-HEADERS';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -10245,7 +10245,14 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
       if(!txt || txt.length < 50) continue;
 
       var rows = [];
-      try { rows = parseGS(txt); } catch(pe) { continue; }
+      var headers = [];
+      try {
+        // 🆕 Usa parseGSWithHeaders pra capturar labels do gviz (col.label)
+        // Necessário pra detectar modelo 7 col vs 6 col corretamente.
+        var parsed = parseGSWithHeaders(txt);
+        rows = parsed.rows;
+        headers = parsed.headers;
+      } catch(pe) { continue; }
       if(!rows || rows.length < 3) continue;
 
       // 🆕 Detectar Caixa Inicial em CADA aba mensal (não só primeira)
@@ -10284,25 +10291,27 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
       // Se col1 (B) tem rótulo "Custo Fixo" ou "Fixo" → modelo 7 col.
       var idxData = 0, idxFixo = -1, idxMov = 1, idxClassif = 2, idxDesc = 3, idxStatus = 4;
       try {
-        // Procura cabeçalho nas primeiras 3 linhas
-        for(var hri = 0; hri < Math.min(3, rows.length); hri++) {
-          var hr = rows[hri];
-          if(!hr) continue;
-          var col1Label = String(hr[1]||'').toLowerCase();
-          var col2Label = String(hr[2]||'').toLowerCase();
-          // Se col1 menciona "fixo" e col2 menciona "movimento" → 7 col
-          if((col1Label.includes('fixo') || col1Label.includes('custo fixo')) &&
-             col2Label.includes('moviment')) {
-            idxFixo    = 1;
-            idxMov     = 2;
-            idxClassif = 3;
-            idxDesc    = 4;
-            idxStatus  = 5;
-            console.log('[FC v2] 🎯 Aba "'+aba+'": modelo 7 colunas detectado (Fan Club)');
-            break;
-          }
+        // 🆕 Usa headers do gviz (col.label) — mais confiável que rows
+        // O gviz junta L1+L2 da planilha em col.label, então headers[0] pode ser
+        // "FLUXO DE CAIXA — JANEIRO-26 — FAN CLUB Data" (título + label da col).
+        // Buscamos "fixo" e "movimento" por substring.
+        var col1Label = String(headers[1]||'').toLowerCase();
+        var col2Label = String(headers[2]||'').toLowerCase();
+        // Se col1 menciona "fixo" e col2 menciona "movimento" → modelo 7 col
+        if((col1Label.includes('fixo') || col1Label.includes('custo fixo')) &&
+           col2Label.includes('moviment')) {
+          idxFixo    = 1;
+          idxMov     = 2;
+          idxClassif = 3;
+          idxDesc    = 4;
+          idxStatus  = 5;
+          console.log('[FC v2] 🎯 Aba "'+aba+'": modelo 7 colunas detectado (Fan Club) · headers:',
+                      headers.slice(0, 7));
+        } else {
+          console.log('[FC v2] 🔧 Aba "'+aba+'": modelo 6 colunas (consolidado) · headers:',
+                      headers.slice(0, 6));
         }
-      } catch(eDetCol){}
+      } catch(eDetCol){ console.warn('[FC v2] Erro detectando colunas:', eDetCol); }
       //
       // 🛡️ REGRA DE OURO PRA LINHA VÁLIDA (cumulativa):
       //    1. Coluna A tem data parseável
