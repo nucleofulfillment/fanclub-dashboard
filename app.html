@@ -3238,33 +3238,37 @@ body.light body::before { opacity: 0; }
       <div id="conc-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px"></div>
 
       <!-- ─────────────────────────────────────────────────────────
-           SEÇÃO 2: CALENDÁRIOS LADO A LADO
-           Esquerda: Calendário de Liberações (por canal — cf-body)
-           Direita:  Previsão de recebimento (próximas 4 semanas — conc-calendario)
+           SEÇÃO 2: CALENDÁRIO DE LIBERAÇÕES (largura total — linha horizontal)
+           Cards de canais ficam em uma linha só, com scroll horizontal
+           se houver muitos canais (mantém leitura limpa).
            ───────────────────────────────────────────────────────── -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
-
-        <div class="card">
-          <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
-          <div id="cf-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:4px 0">
-            <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px;grid-column:1/-1">Navegue até esta página para carregar</div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+          <div id="cf-body" style="display:flex;flex-wrap:nowrap;gap:12px;padding:4px 0;min-width:max-content">
+            <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px">Navegue até esta página para carregar</div>
           </div>
         </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────────
+           SEÇÃO 3: PREVISÃO 4 SEMANAS + GRÁFICO POR CANAL (lado a lado)
+           Esquerda: Previsão de recebimento próximas 4 semanas (lista compacta)
+           Direita:  Gráfico de Previsão de Recebimentos por Canal (barras)
+           ───────────────────────────────────────────────────────── -->
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;margin-bottom:20px" class="conc-charts-row">
 
         <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px">
           <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">📅 Previsão de recebimento (próximas 4 semanas)</div>
           <div id="conc-calendario"></div>
         </div>
 
-      </div>
+        <div class="card">
+          <div class="ch"><div><div class="ct">Previsão de Recebimentos por Canal</div><div class="cs">Data venda + prazo por marketplace — empilhado por canal</div></div></div>
+          <canvas id="ch-cf" height="120"></canvas>
+          <div id="cf-chart-footer" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px 0;border-top:1px solid var(--border);margin-top:8px;flex-wrap:wrap"></div>
+        </div>
 
-      <!-- ─────────────────────────────────────────────────────────
-           SEÇÃO 3: GRÁFICO DE PREVISÃO DE RECEBIMENTOS (largura total)
-           ───────────────────────────────────────────────────────── -->
-      <div class="card" style="margin-bottom:20px">
-        <div class="ch"><div><div class="ct">Previsão de Recebimentos por Canal</div><div class="cs">Data venda + prazo por marketplace — empilhado por canal</div></div></div>
-        <canvas id="ch-cf" height="120"></canvas>
-        <div id="cf-chart-footer" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px 0;border-top:1px solid var(--border);margin-top:8px;flex-wrap:wrap"></div>
       </div>
 
       <!-- ─────────────────────────────────────────────────────────
@@ -3426,7 +3430,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX7-UNIFICADO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX11-COMISSOES';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -8859,7 +8863,15 @@ var PREC_CANAIS = {
   'Shein':        {comissao: 0.20, taxaFixa: 5.00,  nome: '👗 Shein',          cor: '#FF6B9D', taxaInfo: '20% + R$5,00 por produto'},
   'Dafiti':       {comissao: 0.25, taxaFixa: 0,     nome: '👟 Dafiti',         cor: '#FF6900', mensalidade: 299, taxaInfo: '25% + mensalidade R$299/mês (sem taxa fixa por item)'},
   'Loja Própria': {comissao: 0.00, taxaFixa: 0,     nome: '🏪 Loja Própria',   cor: '#6EE7B7', taxaInfo: 'Sem comissão — use campo % ADS para tráfego pago'},
-  'TikTok Shop':  {comissao: 0.12, taxaFixa: 4.00,  nome: '🎵 TikTok Shop',    cor: '#69C9D0', taxaInfo: '6% comissão + 6% frete + R$4 por item (fev/2026)'}
+  'TikTok Shop':  {comissao: 0.12, taxaFixa: 4.00,  nome: '🎵 TikTok Shop',    cor: '#69C9D0', taxaInfo: '6% comissão + 6% frete + R$4 por item (fev/2026)'},
+  // 🆕 Canais adicionais — alinhados com CANAIS_DISPONIVEIS pra garantir
+  // que o cálculo de comissão funcione no Financeiro e Precificação
+  'Posthaus':     {comissao: 0.16, taxaFixa: 5.00,  nome: '📦 Posthaus',       cor: '#7C3AED', taxaInfo: '16% + R$5,00 por produto'},
+  'Magalu':       {comissao: 0.16, taxaFixa: 0,     nome: '🏬 Magalu',         cor: '#0086FF', taxaInfo: '16% sobre o valor do produto'},
+  'Amazon':       {comissao: 0.15, taxaFixa: 0,     nome: '📦 Amazon',         cor: '#FF9900', taxaInfo: '15% sobre o valor do produto'},
+  'Americanas':   {comissao: 0.16, taxaFixa: 0,     nome: '🛒 Americanas',     cor: '#E60014', taxaInfo: '16% sobre o valor do produto'},
+  'Netshoes':     {comissao: 0.20, taxaFixa: 0,     nome: '👟 Netshoes',       cor: '#000000', taxaInfo: '20% sobre o valor do produto'},
+  'Olist':        {comissao: 0.12, taxaFixa: 0,     nome: '📦 Olist',          cor: '#0F9D58', taxaInfo: '12% sobre o valor do produto'}
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -9972,6 +9984,9 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
 
   var caixaInicial = 0;
   var caixaInicialDefinido = false;
+  // 🆕 Map { 'Janeiro-26': 25689, 'Fevereiro-26': 514348, ... }
+  // Cada aba mensal tem seu próprio caixa inicial.
+  var caixaInicialPorAba = {};
   var baseUrl = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json';
 
   for(var i = 0; i < abasMensais.length; i++) {
@@ -9986,24 +10001,31 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
       try { rows = parseGS(txt); } catch(pe) { continue; }
       if(!rows || rows.length < 3) continue;
 
-      // Detectar Caixa Inicial nas primeiras linhas (só do primeiro mês)
-      if(!caixaInicialDefinido) {
-        for(var ci = 0; ci < Math.min(5, rows.length); ci++) {
-          var rci = rows[ci];
-          if(!rci) continue;
-          var temCI = rci.some(function(v){ return String(v||'').toLowerCase().includes('caixa ini'); });
-          if(temCI) {
-            // Caixa inicial está na col F (saldo) = índice 5
-            var ciVal = parseFloat(rci[5]) || parseFloat(rci[6]) || 0;
-            // Se ainda não pegou, tenta primeiro número positivo
-            if(!ciVal) {
-              rci.forEach(function(v){ if(!ciVal && parseFloat(v) > 0) ciVal = parseFloat(v); });
-            }
+      // 🆕 Detectar Caixa Inicial em CADA aba mensal (não só primeira)
+      // Cada mês tem seu próprio caixa inicial (encadeado da aba anterior).
+      // Quando o usuário filtra por mês, mostra o caixa inicial daquele mês específico.
+      var caixaInicialDestaAba = 0;
+      for(var ci = 0; ci < Math.min(5, rows.length); ci++) {
+        var rci = rows[ci];
+        if(!rci) continue;
+        var temCI = rci.some(function(v){ return String(v||'').toLowerCase().includes('caixa ini'); });
+        if(temCI) {
+          // Caixa inicial está na col F (saldo) = índice 5
+          var ciVal = parseFloat(rci[5]) || parseFloat(rci[6]) || 0;
+          // Se ainda não pegou, tenta primeiro número positivo
+          if(!ciVal) {
+            rci.forEach(function(v){ if(!ciVal && parseFloat(v) > 0) ciVal = parseFloat(v); });
+          }
+          caixaInicialDestaAba = ciVal;
+          caixaInicialPorAba[aba] = ciVal;
+          // Primeiro mês definido também alimenta o caixaInicial geral (Todos os meses)
+          if(!caixaInicialDefinido) {
             caixaInicial = ciVal;
             caixaInicialDefinido = true;
-            console.log('[FC v2] Caixa Inicial: R$ '+caixaInicial.toLocaleString('pt-BR'));
-            break;
+            console.log('[FC v2] Caixa Inicial GERAL (1º mês): R$ '+caixaInicial.toLocaleString('pt-BR'));
           }
+          console.log('[FC v2] Caixa Inicial "'+aba+'": R$ '+ciVal.toLocaleString('pt-BR'));
+          break;
         }
       }
 
@@ -10219,13 +10241,28 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
     console.warn('[FC v2] Erro aba Custos Fixos:', e.message);
   }
 
-  // ─── Finaliza: ordena por data dentro de cada aba ────────────────
+  // ─── Finaliza: ordena TUDO por data (independente da aba de origem) ────
+  // Antes a ordenação preservava a ordem das abas, o que fazia Mídia e
+  // Custos Fixos aparecerem no fim da lista. Agora os lançamentos ficam
+  // intercalados cronologicamente como o usuário espera.
   _fcDados.sort(function(a,b){
-    if(a.aba !== b.aba) return 0; // preserva ordem das abas
-    return a.data < b.data ? -1 : (a.data > b.data ? 1 : 0);
+    if(a.data !== b.data) return a.data < b.data ? -1 : 1;
+    // Empate de data: ordem estável por origem (mensal > mídia > custos fixos)
+    var ordemAba = function(aba) {
+      if(!aba) return 0;
+      var s = String(aba).toLowerCase();
+      if(s === 'mídia' || s === 'midia') return 2;
+      if(s.indexOf('custos fixos') >= 0) return 3;
+      return 1; // abas mensais (Janeiro-26 etc.)
+    };
+    return ordemAba(a.aba) - ordemAba(b.aba);
   });
 
   console.log('[FC v2] ✅ TOTAL: '+_fcDados.length+' lançamentos · '+_fcMeses.length+' abas');
+
+  // 🆕 Expor map de caixa inicial por aba pra renderização usar quando filtrar mês
+  window._fcCaixaInicialPorAba = caixaInicialPorAba;
+  console.log('[FC v2] Caixa inicial por aba:', caixaInicialPorAba);
 
   if(_fcDados.length === 0) {
     if(statusEl){ statusEl.textContent='❌ Sem dados — verifique publicação'; statusEl.style.color='var(--red)'; }
@@ -10686,8 +10723,18 @@ function renderFluxoCaixa() {
   console.log('[FC] Lançamentos: total='+dados.length+' fixo='+linhasComFixo.length+' mov='+linhasComMov.length+' ambos='+linhasAmbos.length);
   if(linhasAmbos.length > 0) console.warn('[FC] ⚠️ Linhas com B e C preenchidos (possível dupla contagem):', linhasAmbos.slice(0,3).map(function(d){ return d.data+' B='+d.custoFixo+' C='+d.movimento; }));
 
-  // Caixa inicial = do primeiro lançamento do período filtrado
-  var caixaInicial = dados[0] ? dados[0].caixaInicial : 0;
+  // 🆕 Caixa inicial inteligente:
+  //   - Filtro "todos" → usa caixa inicial do PRIMEIRO mês (Janeiro)
+  //   - Filtro mês específico (ex: Abril-26) → usa caixa inicial DAQUELE mês
+  // Isso reflete corretamente o saldo encadeado entre meses.
+  var mesSelKpi = (document.getElementById('fc-mes-sel')||{}).value || 'todos';
+  var mapCaixa = window._fcCaixaInicialPorAba || {};
+  var caixaInicial;
+  if(mesSelKpi !== 'todos' && mapCaixa[mesSelKpi] !== undefined) {
+    caixaInicial = mapCaixa[mesSelKpi];
+  } else {
+    caixaInicial = dados[0] ? dados[0].caixaInicial : 0;
+  }
 
   var hoje = new Date().toISOString().slice(0,10);
 
@@ -10734,26 +10781,59 @@ function renderFluxoCaixa() {
 
   // ── Gráfico diário ────────────────────────────────────────
   var porDia = {};
-  var saldoAcum = caixaInicial;
   // Ordenar por data
   var sorted = dados.slice().sort(function(a,b){ return a.data.localeCompare(b.data); });
   sorted.forEach(function(d) {
     if(!d.data) return;
     var mov = d.movimento + d.custoFixo;  // somar B + C (custo fixo + movimento variável)
-    if(!porDia[d.data]) porDia[d.data] = {real:0, proj:0, status: d.status};
+    if(!porDia[d.data]) porDia[d.data] = {real:0, proj:0, entradas:0, saidas:0};
     porDia[d.data].proj += mov;
     if(d.status === 'R' || d.status === 'P') porDia[d.data].real += mov;
+    if(mov > 0) porDia[d.data].entradas += mov;
+    else        porDia[d.data].saidas   += mov;  // negativo
   });
 
-  var dias = Object.keys(porDia).sort();
+  // 🎯 Função robusta de parse de data — aceita YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY
+  function _parseDataKey(s) {
+    if(!s) return null;
+    var str = String(s).trim();
+    // YYYY-MM-DD
+    var m1 = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(m1) return { iso: m1[1]+'-'+m1[2].padStart(2,'0')+'-'+m1[3].padStart(2,'0'), dd: m1[3].padStart(2,'0'), mm: m1[2].padStart(2,'0'), yyyy: m1[1] };
+    // DD/MM/YYYY ou DD-MM-YYYY
+    var m2 = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if(m2) {
+      var yr = m2[3].length === 2 ? '20'+m2[3] : m2[3];
+      return { iso: yr+'-'+m2[2].padStart(2,'0')+'-'+m2[1].padStart(2,'0'), dd: m2[1].padStart(2,'0'), mm: m2[2].padStart(2,'0'), yyyy: yr };
+    }
+    return null;
+  }
+
+  // Ordena dias cronologicamente (não alfabeticamente)
+  var dias = Object.keys(porDia)
+    .map(function(d) { return { raw: d, parsed: _parseDataKey(d) }; })
+    .filter(function(x){ return x.parsed; })
+    .sort(function(a, b) { return a.parsed.iso < b.parsed.iso ? -1 : 1; });
+
   var saldoRealAcum = caixaInicial, saldoProjAcum = caixaInicial;
   var labDias = [], dataReal = [], dataProj = [];
-  dias.forEach(function(d) {
-    saldoRealAcum += porDia[d].real;
-    saldoProjAcum += porDia[d].proj;
-    labDias.push(d.slice(5));  // MM-DD
+  // Arrays paralelos pra alimentar tooltip rico
+  var tooltipData = [];
+  dias.forEach(function(x) {
+    var dKey = x.raw;
+    var p = x.parsed;
+    saldoRealAcum += porDia[dKey].real;
+    saldoProjAcum += porDia[dKey].proj;
+    labDias.push(p.dd + '/' + p.mm);  // DD/MM (formato BR)
     dataReal.push(parseFloat(saldoRealAcum.toFixed(2)));
     dataProj.push(parseFloat(saldoProjAcum.toFixed(2)));
+    tooltipData.push({
+      dataLabel: p.dd + '/' + p.mm + '/' + p.yyyy,
+      entradas: porDia[dKey].entradas,
+      saidas:   Math.abs(porDia[dKey].saidas),
+      saldoReal: saldoRealAcum,
+      saldoProj: saldoProjAcum
+    });
   });
 
   var el1 = document.getElementById('ch-fc-diario');
@@ -10765,16 +10845,51 @@ function renderFluxoCaixa() {
         labels: labDias,
         datasets:[
           {label:'Realizado',data:dataReal,borderColor:'#6EE7B7',backgroundColor:'rgba(110,231,183,.1)',
-           borderWidth:2,pointRadius:0,fill:true,tension:.3},
+           borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:'#6EE7B7',fill:true,tension:.3},
           {label:'Projetado',data:dataProj,borderColor:'#F59E0B',backgroundColor:'rgba(245,158,11,.05)',
-           borderWidth:1.5,borderDash:[4,3],pointRadius:0,fill:false,tension:.3}
+           borderWidth:1.5,borderDash:[4,3],pointRadius:0,pointHoverRadius:4,pointHoverBackgroundColor:'#F59E0B',fill:false,tension:.3}
         ]
       },
       options:{
         responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'#181B22',callbacks:{label:function(c){return ' '+c.dataset.label+': '+fMF(c.raw);}}}},
+        interaction:{ mode:'index', intersect:false },
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#181B22',
+            titleColor:'#E5E7EB',
+            bodyColor:'#94A3B8',
+            borderColor:'rgba(255,255,255,.08)',
+            borderWidth:1,
+            padding:12,
+            displayColors:true,
+            callbacks:{
+              title: function(items) {
+                if(!items || !items.length) return '';
+                var idx = items[0].dataIndex;
+                var t = tooltipData[idx];
+                return t ? t.dataLabel : '';
+              },
+              label: function(c) {
+                return ' ' + c.dataset.label + ': ' + fMF(c.raw);
+              },
+              afterBody: function(items) {
+                if(!items || !items.length) return [];
+                var idx = items[0].dataIndex;
+                var t = tooltipData[idx];
+                if(!t) return [];
+                return [
+                  '',
+                  '↑ Entradas: ' + fMF(t.entradas),
+                  '↓ Saídas:   ' + fMF(t.saidas),
+                  'Líquido:    ' + fMF(t.entradas - t.saidas)
+                ];
+              }
+            }
+          }
+        },
         scales:{
-          x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:9},maxTicksLimit:12}},
+          x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:9},maxTicksLimit:12,autoSkip:true}},
           y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748B',font:{family:'JetBrains Mono',size:9},
              callback:function(v){return fM(v);}}}
         }
