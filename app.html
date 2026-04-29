@@ -3257,20 +3257,32 @@ body.light body::before { opacity: 0; }
 
       <!-- ─────────────────────────────────────────────────────────
            SEÇÃO 2: CALENDÁRIO DE LIBERAÇÕES (largura total — linha horizontal)
-           Cards de canais ficam em uma linha só, com scroll horizontal
-           se houver muitos canais (mantém leitura limpa).
+           Cards de canais ficam em uma linha só, com largura uniforme
+           (--card-w controla largura única pra todos). Scroll horizontal
+           quando houver muitos canais.
            ───────────────────────────────────────────────────────── -->
       <div class="card" style="margin-bottom:14px">
         <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-          <div id="cf-body" style="display:flex;flex-wrap:nowrap;gap:12px;padding:4px 0;min-width:max-content">
+          <div id="cf-body" class="cf-cards-row" style="display:flex;flex-wrap:nowrap;gap:12px;padding:4px 0;min-width:max-content;align-items:stretch">
             <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px">Navegue até esta página para carregar</div>
           </div>
         </div>
       </div>
 
       <!-- ─────────────────────────────────────────────────────────
-           SEÇÃO 3: PREVISÃO 4 SEMANAS + GRÁFICO POR CANAL (lado a lado)
+           SEÇÃO 3: DETALHAMENTO POR MARKETPLACE (tabela)
+           Movido pra ficar acima dos gráficos, abaixo dos cards.
+           ───────────────────────────────────────────────────────── -->
+      <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:18px">
+        <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">📊 Detalhamento por marketplace</div>
+        <div style="overflow-x:auto">
+          <table id="conc-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:760px"></table>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────────
+           SEÇÃO 4: PREVISÃO 4 SEMANAS + GRÁFICO POR CANAL (lado a lado)
            Esquerda: Previsão de recebimento próximas 4 semanas (lista compacta)
            Direita:  Gráfico de Previsão de Recebimentos por Canal (barras)
            ───────────────────────────────────────────────────────── -->
@@ -3287,16 +3299,6 @@ body.light body::before { opacity: 0; }
           <div id="cf-chart-footer" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px 0;border-top:1px solid var(--border);margin-top:8px;flex-wrap:wrap"></div>
         </div>
 
-      </div>
-
-      <!-- ─────────────────────────────────────────────────────────
-           SEÇÃO 4: DETALHAMENTO POR MARKETPLACE (tabela)
-           ───────────────────────────────────────────────────────── -->
-      <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:18px">
-        <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">📊 Detalhamento por marketplace</div>
-        <div style="overflow-x:auto">
-          <table id="conc-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:760px"></table>
-        </div>
       </div>
 
       <!-- ─────────────────────────────────────────────────────────
@@ -3448,7 +3450,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX13-FIN-AUTO-IMP';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX16-DATA-FORMAT';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -5942,7 +5944,8 @@ function renderAll(d){
       const pedCount = info.count || 0;
 
       return '<div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;'+
-        'padding:14px 12px;border-top:3px solid '+cor+';display:flex;flex-direction:column;gap:10px;min-width:0">'+
+        'padding:14px 12px;border-top:3px solid '+cor+';display:flex;flex-direction:column;gap:10px;'+
+        'width:200px;flex-shrink:0;flex-grow:0;min-width:0">'+
 
         // Cabeçalho: nome + status
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:4px">'+
@@ -9886,14 +9889,50 @@ var MESES_FC = {
 
 /* Cores por classificação */
 var FC_CORES = {
-  'Vendas':           '#6EE7B7', 'Fornecedores': '#F43F5E',
-  'Folha':            '#818CF8', 'Tributo':      '#FB923C',
-  'Tributos':         '#FB923C', 'Impostos':     '#FB923C',
-  'Mídia':            '#F472B6', 'Marketing':    '#F472B6',
-  'Tarifas':          '#60A5FA', 'Tecnologia':   '#A78BFA',
-  'Despesa Fixa':     '#94A3B8', 'Serviços':     '#64748B',
-  'Reembolso Cliente':'#F59E0B', 'Consultoria':  '#38BDF8',
-  'Diretoria':        '#E879F9', 'Plataforma':   '#4ADE80',
+  // Receitas
+  'Vendas':           '#6EE7B7',
+  // CMV / Mercadoria
+  'Fornecedores':     '#F43F5E',
+  'Insumos':          '#FB7185',
+  // Pessoal
+  'Folha':            '#818CF8',
+  'Pessoal':          '#A5B4FC',
+  'Pró-labore':       '#7C3AED',
+  'Diretoria':        '#E879F9',
+  'Consultoria':      '#38BDF8',
+  'FGTS':             '#6366F1',
+  'INSS':             '#4F46E5',
+  // Tributos
+  'Tributo':          '#FB923C',
+  'Tributos':         '#FB923C',
+  'Tributo Vendas':   '#FB923C',
+  'Impostos':         '#F97316',
+  // Marketing / Mídia
+  'Mídia':            '#F472B6',
+  'Marketing':        '#EC4899',
+  // Logística / Operacional
+  'Logística':        '#22D3EE',
+  'Armazém / Estocagem':'#0EA5E9',
+  // Tarifas / Financeiro
+  'Tarifas':          '#60A5FA',
+  'Tarifa Bancária':  '#3B82F6',
+  // Marketplace
+  'Comissão Marketplace': '#FACC15',
+  'Plataforma':       '#4ADE80',
+  // Infra fixa
+  'Despesa Fixa':     '#94A3B8',
+  'Aluguel':          '#A78BFA',
+  'Energia':          '#FBBF24',
+  'Água':             '#06B6D4',
+  'Internet / Telecom': '#0891B2',
+  'Tecnologia':       '#8B5CF6',
+  'Seguro':           '#64748B',
+  'Contabilidade':    '#475569',
+  // Diversos
+  'Serviços':         '#64748B',
+  'Reembolso':        '#F59E0B',
+  'Reembolso Cliente':'#F59E0B',
+  'Outros':           '#9CA3AF',
   'default':          '#64748B'
 };
 function fcCor(classif) { return FC_CORES[classif] || FC_CORES.default; }
@@ -9988,6 +10027,8 @@ async function _fcv2ListarAbas(sheetId) {
 async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
   _fcDados = [];
   _fcMeses = [];
+  // 🆕 Reseta detecção de formato de data (vai ser inferida na 1ª data ambígua)
+  window._fcv2FormatoDataDetectado = null;
 
   var abas = abasPreDetectadas || await _fcv2ListarAbas(sheetId);
 
@@ -10077,6 +10118,10 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
       //    4. Coluna C (classificação) é texto (não número, não vazio)
       // Se qualquer um falha, descarta. Subtotais ("(-) MÍDIA DO MÊS") falham
       // em (1) por não ter data, e em (4) por ter classif vazia.
+      // 🆕 Pré-detecta formato de data DESTA aba antes de processar
+      // (Google CSV pode usar MM/DD americano em alguns casos)
+      try { _fcv2DetectarFormatoData([rows], [0]); } catch(eDet){}
+
       var linhasValidas = 0;
       var linhasDescartadas = 0;
       for(var ri = 0; ri < rows.length; ri++) {
@@ -10153,6 +10198,8 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
     if(midiaRes.ok) {
       var midiaTxt = await midiaRes.text();
       var midiaRows = parseGS(midiaTxt);
+      // 🆕 Pré-detecta formato de data da aba Mídia (col B = idx 1)
+      try { _fcv2DetectarFormatoData([midiaRows], [1]); } catch(eDet){}
       var midiaCount = 0;
       var midiaDescartadas = 0;
       midiaRows.forEach(function(r){
@@ -10298,6 +10345,33 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
 
   console.log('[FC v2] ✅ TOTAL: '+_fcDados.length+' lançamentos · '+_fcMeses.length+' abas');
 
+  // 🆕 FIX: garante que loadFluxoV2() rode após detectar v2.
+  // Motivo: loadFluxoV2 popula _fluxoV2Data.midia/custosFixos (usado por
+  // Marketing, Raio X, Financeiro auto-preenchimento). Antes só rodava no
+  // boot se fc_fluxo_v2_url já existisse — agora dispara aqui com fallback
+  // pra fc_url se a chave v2 ainda não foi setada (primeira conexão).
+  try {
+    if(typeof loadFluxoV2 === 'function') {
+      // Garante que a chave v2 está apontando pra mesma URL do motor
+      var urlAtual = localStorage.getItem('fc_fluxo_v2_url') || localStorage.getItem('fc_url') || '';
+      if(urlAtual && !localStorage.getItem('fc_fluxo_v2_url')) {
+        localStorage.setItem('fc_fluxo_v2_url', urlAtual);
+        console.log('[FC v2] 🔧 Espelhando fc_url → fc_fluxo_v2_url pra loadFluxoV2()');
+      }
+      loadFluxoV2(true).then(function(){
+        console.log('[FC v2] ✅ loadFluxoV2 disparado pós-motor — _fluxoV2Data populado');
+        // Se o Financeiro está aberto, refaz o auto-preenchimento
+        try {
+          var pgFin = document.getElementById('page-financeiro');
+          if(pgFin && pgFin.classList.contains('active') && typeof finAutoPreencherDoFluxo === 'function') {
+            finAutoPreencherDoFluxo();
+            if(typeof atualizarResultado === 'function') atualizarResultado();
+          }
+        } catch(eAuto) {}
+      }).catch(function(e){ console.warn('[FC v2] loadFluxoV2 falhou:', e); });
+    }
+  } catch(eFV2) { console.warn('[FC v2] loadFluxoV2 erro:', eFV2); }
+
   // 🆕 Expor map de caixa inicial por aba pra renderização usar quando filtrar mês
   window._fcCaixaInicialPorAba = caixaInicialPorAba;
   console.log('[FC v2] Caixa inicial por aba:', caixaInicialPorAba);
@@ -10326,6 +10400,40 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
   renderFluxoCaixa();
 }
 
+/* 🆕 Pré-escaneia datas de várias colunas pra inferir formato (DD/MM vs MM/DD)
+   ANTES de processar linha por linha. Usa "voto majoritário": se em alguma
+   linha aparece um valor > 12 numa posição, sabemos qual é dia.
+   Aceita arrays de rows e índices de coluna onde tem data. */
+function _fcv2DetectarFormatoData(rowsList, colIdxList) {
+  var votoDia0 = 0, votoDia1 = 0; // contam quantas vezes posição0 ou 1 é dia (>12)
+  rowsList.forEach(function(rows, idx) {
+    var col = colIdxList[idx];
+    if(!rows || !rows.length) return;
+    rows.forEach(function(r) {
+      if(!r) return;
+      var v = r[col];
+      if(typeof v !== 'string' || !v.includes('/')) return;
+      var p = v.split('/');
+      if(p.length !== 3) return;
+      var na = parseInt(p[0], 10), nb = parseInt(p[1], 10);
+      if(isNaN(na) || isNaN(nb)) return;
+      if(na > 12 && na <= 31) votoDia0++;       // pos 0 é dia → DD/MM
+      if(nb > 12 && nb <= 31) votoDia1++;       // pos 1 é dia → MM/DD
+    });
+  });
+  if(votoDia0 > votoDia1) {
+    window._fcv2FormatoDataDetectado = 'DD/MM';
+    console.log('[FC v2] 📅 Formato detectado: DD/MM (BR) — votos:', votoDia0, 'vs', votoDia1);
+  } else if(votoDia1 > votoDia0) {
+    window._fcv2FormatoDataDetectado = 'MM/DD';
+    console.log('[FC v2] 📅 Formato detectado: MM/DD (US) — votos:', votoDia0, 'vs', votoDia1);
+  } else {
+    window._fcv2FormatoDataDetectado = 'DD/MM'; // default BR
+    console.log('[FC v2] 📅 Formato ambíguo (sem dias > 12) — assumindo DD/MM (BR)');
+  }
+  return window._fcv2FormatoDataDetectado;
+}
+
 /* Helper: normaliza diferentes formatos de data pra YYYY-MM-DD */
 function _fcv2NormalizarData(dataVal) {
   if(dataVal === null || dataVal === undefined || dataVal === '') return '';
@@ -10338,8 +10446,30 @@ function _fcv2NormalizarData(dataVal) {
     if(dataVal.includes('/')) {
       var p = dataVal.split('/');
       if(p.length === 3) {
-        var d=p[0].trim(), m2=p[1].trim(), y2=p[2].trim();
-        if(y2.length === 4) return y2+'-'+m2.padStart(2,'0')+'-'+d.padStart(2,'0');
+        var a=p[0].trim(), b=p[1].trim(), y2=p[2].trim();
+        if(y2.length === 4) {
+          // 🆕 FIX: detectar formato MM/DD vs DD/MM por heurística
+          // - Se a > 12: a só pode ser DIA (formato DD/MM)
+          // - Se b > 12: b só pode ser DIA (formato MM/DD, ex: Google CSV americano)
+          // - Se ambos ≤ 12: ambíguo. Usa "voto" da planilha:
+          //   se já vimos antes datas onde a OU b > 12, repete o formato
+          // - Fallback: assume DD/MM (BR) pq Sheets em pt-BR usa esse formato
+          var na = parseInt(a, 10), nb = parseInt(b, 10);
+          var dia, mes;
+          if(na > 12) { dia = a; mes = b; }            // DD/MM
+          else if(nb > 12) { dia = b; mes = a; }       // MM/DD (americano)
+          else {
+            // Ambíguo — usa cache de detecção da planilha atual
+            var fmt = window._fcv2FormatoDataDetectado;
+            if(fmt === 'MM/DD') { dia = b; mes = a; }
+            else { dia = a; mes = b; }                  // default DD/MM
+          }
+          // Salva detecção pra próximas chamadas (decisão estável)
+          if(na > 12) window._fcv2FormatoDataDetectado = 'DD/MM';
+          else if(nb > 12) window._fcv2FormatoDataDetectado = 'MM/DD';
+
+          return y2+'-'+mes.padStart(2,'0')+'-'+dia.padStart(2,'0');
+        }
       }
     }
     if(dataVal.match(/^\d{4}-\d{2}-\d{2}/)) return dataVal.slice(0,10);
@@ -15057,9 +15187,32 @@ function finAutoPreencherDoFluxo() {
   if(!window._fluxoV2Data) {
     var bM = document.getElementById('fin-mkt-badge');
     var bF = document.getElementById('fin-custo-fixo-badge');
+    var bT = document.getElementById('fin-tax-badge');
     if(bM) bM.style.display = 'none';
     if(bF) bF.style.display = 'none';
+    if(bT) bT.style.display = 'none';
     return;
+  }
+
+  // 🆕 Se _fluxoV2Data existe mas tá vazio (motor v2 do Fluxo carregou
+  // mas loadFluxoV2 ainda não rodou), dispara o load em paralelo.
+  // Não bloqueia o resto — quando vier, refaz tudo.
+  var midiaOk = window._fluxoV2Data.midia && window._fluxoV2Data.midia.length > 0;
+  var cfOk    = window._fluxoV2Data.custosFixos && window._fluxoV2Data.custosFixos.length > 0;
+  if(!midiaOk && !cfOk) {
+    if(typeof loadFluxoV2 === 'function' && !window._finAutoLoadingV2) {
+      window._finAutoLoadingV2 = true;
+      console.log('[Fin auto] _fluxoV2Data vazio — disparando loadFluxoV2(true)');
+      // Garante chave de URL
+      var urlAtual = localStorage.getItem('fc_fluxo_v2_url') || localStorage.getItem('fc_url') || '';
+      if(urlAtual && !localStorage.getItem('fc_fluxo_v2_url')) {
+        localStorage.setItem('fc_fluxo_v2_url', urlAtual);
+      }
+      loadFluxoV2(true).then(function(){
+        window._finAutoLoadingV2 = false;
+        finAutoPreencherDoFluxo(); // re-executa quando vier
+      }).catch(function(){ window._finAutoLoadingV2 = false; });
+    }
   }
 
   // ─── Período ─────────────────────────────────────────────────
