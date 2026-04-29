@@ -3426,7 +3426,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX2';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX3';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9927,12 +9927,13 @@ async function _fcv2ListarAbas(sheetId) {
   return [];
 }
 
-/* Engine principal — popula _fcDados a partir de 3 fontes */
-async function _fcLoadV2(sheetId, statusEl) {
+/* Engine principal — popula _fcDados a partir de 3 fontes.
+   abasPreDetectadas (opcional): se o caller já listou as abas, evita re-fetch */
+async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
   _fcDados = [];
   _fcMeses = [];
 
-  var abas = await _fcv2ListarAbas(sheetId);
+  var abas = abasPreDetectadas || await _fcv2ListarAbas(sheetId);
 
   // ⛔ Sem fallback de "abas conhecidas" — Google retorna a primeira aba
   // quando solicitamos uma que não existe, contaminando _fcDados.
@@ -10311,13 +10312,42 @@ async function loadFluxoCaixa() {
     if(statusEl){ statusEl.textContent='❌ URL inválida'; statusEl.style.color='var(--red)'; } return;
   }
 
-  // ⚡ DETECÇÃO V2: se a URL é a mesma do Fluxo V2, ou tem abas Mídia + Custos Fixos
-  // → usa o motor v2 (mais rico: agrega abas mensais + Mídia + Custos Fixos)
+  // ⚡ DETECÇÃO V2 (MULTI-CAMADA, ROBUSTA):
+  // ────────────────────────────────────────────────────────────
+  // 1. Match explícito com fc_fluxo_v2_url (caminho rápido)
+  // 2. Lista abas REAIS via HTML scraping → se tem "Mídia" e/ou "Custos Fixos" é v2
+  // 3. Probe HTTP na aba Mídia (último recurso)
+  // ────────────────────────────────────────────────────────────
   var fluxoV2Url = localStorage.getItem('fc_fluxo_v2_url') || '';
   var v2SheetId = fluxoV2Url ? (fluxoV2Url.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)||[])[1] : null;
   var ehV2 = (v2SheetId && v2SheetId === sheetId);
 
-  // Se não é v2 explícito, tenta detectar pela estrutura (aba "Mídia" presente)
+  // 🎯 NOVO: lista abas reais ANTES de decidir motor — método robusto
+  var abasReaisParaDeteccao = null;
+  if(!ehV2) {
+    try {
+      if(typeof _detectarAbasViaHTML === 'function') {
+        var abasObj = await _detectarAbasViaHTML(sheetId);
+        if(abasObj && abasObj.length) {
+          abasReaisParaDeteccao = abasObj.map(function(a){ return a.nome; }).filter(Boolean);
+          console.log('[FC] Abas reais detectadas:', abasReaisParaDeteccao);
+          // Se contém "Mídia" OU "Custos Fixos", é v2
+          var temMidia = abasReaisParaDeteccao.some(function(n){
+            return n && (n.toLowerCase() === 'mídia' || n.toLowerCase() === 'midia');
+          });
+          var temCF = abasReaisParaDeteccao.some(function(n){
+            return n && n.toLowerCase().indexOf('custos fixos') >= 0;
+          });
+          if(temMidia || temCF) {
+            ehV2 = true;
+            console.log('[FC] 🎯 Detectado formato V2 (aba Mídia/Custos Fixos presente nas abas reais)');
+          }
+        }
+      }
+    } catch(e) { console.warn('[FC] Erro listando abas reais:', e); }
+  }
+
+  // Fallback: probe HTTP na aba Mídia
   if(!ehV2) {
     try {
       var probeUrl = 'https://docs.google.com/spreadsheets/d/'+sheetId+
@@ -10327,7 +10357,7 @@ async function loadFluxoCaixa() {
         var probeTxt = await probeRes.text();
         if(probeTxt && probeTxt.length > 100 && !probeTxt.includes('"status":"error"')) {
           ehV2 = true;
-          console.log('[FC] 🎯 Detectado formato V2 (aba Mídia presente)');
+          console.log('[FC] 🎯 Detectado formato V2 (probe Mídia OK)');
         }
       }
     } catch(e) {}
@@ -10336,7 +10366,8 @@ async function loadFluxoCaixa() {
   if(ehV2) {
     if(statusEl) { statusEl.textContent = '⏳ Carregando v2 (mensais + Mídia + Custos Fixos)...'; statusEl.style.color='var(--muted)'; }
     try {
-      await _fcLoadV2(sheetId, statusEl);
+      // 🎯 Se já temos as abas detectadas, passa pra _fcLoadV2 pra economizar 1 fetch
+      await _fcLoadV2(sheetId, statusEl, abasReaisParaDeteccao);
     } catch(e) {
       console.error('[FC v2] Erro:', e);
       if(statusEl){ statusEl.textContent='❌ Erro v2: '+(e.message||e); statusEl.style.color='var(--red)'; }
@@ -10346,23 +10377,41 @@ async function loadFluxoCaixa() {
 
   // ─── FLUXO ANTIGO (backward-compat) ──────────────────────────────
   var baseUrl = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json';
-  var abas = null;
 
-  // Tentar descobrir abas via feed
-  try {
-    var feedRes = await fetch('https://spreadsheets.google.com/feeds/worksheets/'+sheetId+'/public/basic?alt=json');
-    if(feedRes.ok) {
-      var feedJson = await feedRes.json();
-      var entries = feedJson.feed && feedJson.feed.entry;
-      if(entries) abas = entries.map(function(e){ return e.title && e.title.$t; }).filter(Boolean);
-    }
-  } catch(e) {}
-
-  // Fallback: tentar abas conhecidas
+  // 🎯 USA APENAS abas reais detectadas (HTML scraping ou feed)
+  // Sem fallback "abas conhecidas" que gera fantasmas (Maio-26, Junho-26, etc.)
+  var abas = abasReaisParaDeteccao;
   if(!abas) {
-    var ano = new Date().getFullYear().toString().slice(-2);
-    abas = Object.values(MESES_FC).map(function(m){ return m.charAt(0).toUpperCase()+m.slice(1)+'-'+ano; });
+    if(typeof _detectarAbasViaHTML === 'function') {
+      try {
+        var abasObj = await _detectarAbasViaHTML(sheetId);
+        if(abasObj && abasObj.length) {
+          abas = abasObj.map(function(a){ return a.nome; }).filter(Boolean);
+        }
+      } catch(e) {}
+    }
   }
+  // Último fallback: feed antigo (raramente funciona)
+  if(!abas) {
+    try {
+      var feedRes = await fetch('https://spreadsheets.google.com/feeds/worksheets/'+sheetId+'/public/basic?alt=json');
+      if(feedRes.ok) {
+        var feedJson = await feedRes.json();
+        var entries = feedJson.feed && feedJson.feed.entry;
+        if(entries) abas = entries.map(function(e){ return e.title && e.title.$t; }).filter(Boolean);
+      }
+    } catch(e) {}
+  }
+
+  // ⛔ Sem abas reais → aborta com mensagem clara (não inventa)
+  if(!abas || !abas.length) {
+    if(statusEl){ statusEl.textContent='❌ Não detectei abas — verifique se a planilha está pública'; statusEl.style.color='var(--red)'; }
+    return;
+  }
+
+  // Dedup
+  abas = abas.filter(function(a,i){ return abas.indexOf(a)===i; });
+  console.log('[FC] Abas detectadas:', abas);
 
   if(statusEl) statusEl.textContent = '⏳ Carregando '+abas.length+' aba(s)...';
   _fcDados = [];
