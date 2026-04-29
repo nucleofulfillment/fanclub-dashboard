@@ -3426,7 +3426,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX4-DEPLOY';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX5-REGEX';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -6557,6 +6557,12 @@ async function _detectarAbasViaHTML(sheetId) {
 
   // Lista de regex pra extrair nomes de abas (por prioridade)
   var regexes = [
+    {
+      // ⭐ Padrão atual do Google Sheets htmlview (descoberto em 04/2026)
+      // items.push({name: "Janeiro-26", pageUrl: "...", gid: "..."...
+      label: 'items-push-name',
+      pattern: /items\.push\(\{name:\s*"([^"]+)"/g
+    },
     {
       label: 'sheet-tab-caption',
       pattern: /class="docs-sheet-tab-caption">([^<]+)<\/div>/g
