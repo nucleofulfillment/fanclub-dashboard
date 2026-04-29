@@ -336,12 +336,13 @@ p{font-size:17px;line-height:1.65;color:var(--muted2);font-weight:400}
    HERO
    ═══════════════════════════════════════════════════════════ */
 .hero{
-  padding-top:160px;
+  padding-top:80px;
   padding-bottom:80px;
   position:relative;
   overflow:hidden;
   min-height:100vh;
 }
+@media(max-width:768px){.hero{padding-top:60px}}
 
 /* Data lines SVG no fundo */
 .data-lines{
@@ -1972,7 +1973,7 @@ section > div:not(.section-particles){position:relative;z-index:1}
   <div class="hero-particles" id="heroParticles" aria-hidden="true"></div>
 
   <div class="container">
-    <div class="eyebrow reveal">
+    <div class="eyebrow reveal" style="margin-top:30px">
       <span class="eyebrow-dot"></span>
       Sistema operacional de inteligência · 2026
     </div>
@@ -2826,14 +2827,6 @@ section > div:not(.section-particles){position:relative;z-index:1}
           </span>
         </a>
         <div class="footer-tagline">O Raio X da sua operação. Sistema operacional de inteligência para e-commerce multicanal.</div>
-
-        <div class="footer-founder">
-          <div class="footer-founder-avatar" id="footerAvatar"></div>
-          <div class="footer-founder-text">
-            Fundado por <strong>Osvaldo Machado Jr.</strong><br>
-            Por quem viveu o problema.
-          </div>
-        </div>
       </div>
 
       <div class="footer-col">
