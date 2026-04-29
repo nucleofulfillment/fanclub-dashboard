@@ -229,6 +229,22 @@ body::before {
 }
 .ftab:hover { border-color:var(--accent); color:var(--accent); background:rgba(110,231,183,.07); }
 .ftab.on { background:var(--s2); color:var(--text); border-color:var(--border2); box-shadow:0 1px 8px rgba(0,0,0,.4); }
+/* 🆕 Quando o .ftab é um <select> (dropdown de meses): manter visual de botão */
+select.ftab {
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+  height:auto; line-height:1.2;
+  padding-right:24px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 12px) calc(50% - 1px), calc(100% - 7px) calc(50% - 1px);
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+select.ftab:hover {
+  background-image: linear-gradient(45deg, transparent 50%, var(--accent) 50%),
+                    linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+}
+select.ftab option { background:var(--s1); color:var(--text); }
 .fsep { width:1px; height:20px; background:var(--border2); flex-shrink:0; }
 
 /* ──────────── PROJEÇÃO ──────────── */
@@ -1354,6 +1370,10 @@ body.light body::before { opacity: 0; }
       <button class="ftab" onclick="setPreset('7d',this)">7 dias</button>
       <button class="ftab" onclick="setPreset('30d',this)">30 dias</button>
       <button class="ftab" onclick="setPreset('mes',this)">Este mês</button>
+      <select class="ftab" id="f-mes-sel" onchange="setPresetMes(this.value, this); this.value='';" style="cursor:pointer;padding:0 10px;height:30px;border-radius:6px" title="Selecionar um mês específico">
+        <option value="">▼ Outros meses</option>
+        <!-- Populado dinamicamente após carregar dados em _atualizarDropdownMeses() -->
+      </select>
       <button class="ftab on" onclick="setPreset('tudo',this)">Tudo</button>
       <button class="ftab" id="preset-custom" style="display:none" onclick="event.preventDefault()" title="Período personalizado ativo">Personalizado</button>
     </div>
@@ -3243,6 +3263,7 @@ body.light body::before { opacity: 0; }
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <select id="conc-periodo-mock" onchange="conciliacaoRender()" style="background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:7px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px">
+            <option value="todos">Todos os meses</option>
             <option value="abril-26">Abril 2026</option>
             <option value="marco-26">Março 2026</option>
             <option value="fevereiro-26">Fevereiro 2026</option>
@@ -3451,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX24-RAIOX-AUTOLOAD';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX26-PEDIDOS-DATA';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -5549,6 +5570,77 @@ function marcarPersonalizado() {
   } catch(e){}
 }
 
+/* 🆕 Filtra um mês específico via dropdown.
+   mes: string YYYY-MM (ex: '2026-04'). Se vazio/inválido, ignora. */
+function setPresetMes(mes, sel) {
+  if(!mes || !/^\d{4}-\d{2}$/.test(mes)) return;
+  // Desmarca outros botões + marca o dropdown
+  document.querySelectorAll('#filtro-global .ftab').forEach(function(b){ b.classList.remove('on'); });
+  try { var pc = document.getElementById('preset-custom'); if(pc) pc.style.display = 'none'; } catch(e){}
+
+  var ano = parseInt(mes.slice(0,4), 10);
+  var m = parseInt(mes.slice(5,7), 10);
+  var ultDia = new Date(ano, m, 0).getDate();
+  var from = mes + '-01';
+  var to   = mes + '-' + String(ultDia).padStart(2,'0');
+  // Se o mês inclui hoje, limita 'to' em hoje
+  var hoje = td();
+  if(to > hoje) to = hoje;
+
+  document.getElementById('f-from').value = from;
+  document.getElementById('f-to').value = to;
+  applyFilter();
+  // Mantém o select com label "Outros meses" mas registra o mês escolhido visualmente
+  // via botão "Personalizado" que aparece automaticamente
+}
+
+/* 🆕 Popula o dropdown de meses com os meses presentes nos dados (allRows).
+   Lista do mais recente pro mais antigo. Limita a 24 meses pra não inflar. */
+function _atualizarDropdownMeses() {
+  try {
+    var sel = document.getElementById('f-mes-sel');
+    if(!sel || typeof allRows === 'undefined' || !allRows.length) return;
+
+    var dataIdx = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
+    var mesesUnicos = {};
+    allRows.forEach(function(r){
+      if(!r) return;
+      var raw = r[dataIdx];
+      if(!raw) return;
+      // Espera YYYY-MM-DD ou DD/MM/YYYY
+      var s = String(raw);
+      var match = s.match(/(\d{4})-(\d{2})-/);
+      if(!match) match = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if(!match) return;
+      var ym;
+      if(match.length === 3) {
+        // YYYY-MM-DD
+        ym = match[1] + '-' + match[2];
+      } else {
+        // DD/MM/YYYY
+        ym = match[3] + '-' + match[2];
+      }
+      mesesUnicos[ym] = true;
+    });
+
+    var listaMeses = Object.keys(mesesUnicos).sort().reverse(); // mais recente primeiro
+    listaMeses = listaMeses.slice(0, 24); // máx 24 meses
+
+    var MES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    var optsHtml = '<option value="">▼ Outros meses</option>';
+    listaMeses.forEach(function(ym){
+      var ano = ym.slice(0,4);
+      var mIdx = parseInt(ym.slice(5,7), 10) - 1;
+      var nome = MES_NOMES[mIdx] || '';
+      optsHtml += '<option value="'+ym+'">'+nome+' '+ano+'</option>';
+    });
+
+    sel.innerHTML = optsHtml;
+  } catch(e){ console.warn('[Filtro] Erro populando dropdown de meses:', e); }
+}
+
 /* Detectar se o filtro atual bate com algum preset oficial e marcar o botão certo.
    Se não bater com nenhum, ativa "Personalizado". Chamado após applyFilter(). */
 function _atualizarBotaoPresetAtivo() {
@@ -5606,6 +5698,12 @@ function applyFilter(){
 
   // ATUALIZAR o botão de preset ativo (ou Personalizado se não bater com nenhum)
   _atualizarBotaoPresetAtivo();
+
+  // 🆕 Atualizar dropdown de meses (uma vez já basta — função idempotente)
+  if(!window._dropdownMesesPopulado) {
+    _atualizarDropdownMeses();
+    window._dropdownMesesPopulado = true;
+  }
 
   // SINCRONIZAR filtros locais (read-only) e disparar recálculo nos menus afetados
   sincronizarFiltrosLocais(from, to);
@@ -7302,6 +7400,8 @@ async function refresh(){
     // Invalidar cache de pedidos ao receber novos dados
     _pedidosCache = null;
     _pedidosCacheKey = '';
+    // 🆕 Repopular dropdown de meses pq dados mudaram
+    window._dropdownMesesPopulado = false;
     allRows=rows;
     loadProdutos();  // carrega aba de produtos em paralelo
     loadEstados();   // carrega GMV por estado em paralelo (mesmo padrão)
@@ -11489,11 +11589,60 @@ var _CONC_MOCK = {
   }
 };
 
+/* Helper: agrega todos os meses do mock em um único conjunto consolidado */
+function _concAgregarTodos() {
+  var agg = { label: 'Todos os meses', marketplaces: [], previsoes: [], alertas: [] };
+  var mpMap = {}; // id → { nome, vendido, taxaSoma, taxaCount, recebido }
+
+  // Soma vendido e recebido por marketplace; taxa = média ponderada
+  Object.keys(_CONC_MOCK).forEach(function(periodo){
+    var dados = _CONC_MOCK[periodo];
+    if(!dados || !dados.marketplaces) return;
+    dados.marketplaces.forEach(function(m){
+      if(!mpMap[m.id]) {
+        mpMap[m.id] = { id:m.id, nome:m.nome, vendido:0, taxaPond:0, recebido:0 };
+      }
+      mpMap[m.id].vendido  += m.vendido;
+      mpMap[m.id].recebido += m.recebido;
+      // taxa ponderada pelo vendido (canal que mais vende pesa mais)
+      mpMap[m.id].taxaPond += (m.taxa * m.vendido);
+    });
+  });
+
+  agg.marketplaces = Object.values(mpMap).map(function(m){
+    var taxa = m.vendido > 0 ? (m.taxaPond / m.vendido) : 0;
+    return {
+      id:       m.id,
+      nome:     m.nome,
+      vendido:  m.vendido,
+      taxa:     Math.round(taxa * 10) / 10, // 1 decimal
+      recebido: m.recebido
+    };
+  }).sort(function(a,b){ return b.vendido - a.vendido; });
+
+  // Previsões: usa as do mês mais recente como projeção forward
+  if(_CONC_MOCK['abril-26'] && _CONC_MOCK['abril-26'].previsoes) {
+    agg.previsoes = _CONC_MOCK['abril-26'].previsoes;
+  }
+
+  // Alertas consolidados
+  agg.alertas = [
+    { tipo:'ok', texto:'Visão consolidada · soma dos 4 meses (Jan-Abr 2026)' }
+  ];
+
+  return agg;
+}
+
 /* Render principal — orquestra KPIs, tabela, calendário e alertas */
 function conciliacaoRender() {
   var sel = document.getElementById('conc-periodo-mock');
   var periodo = sel ? sel.value : 'abril-26';
-  var dados = _CONC_MOCK[periodo];
+  var dados;
+  if(periodo === 'todos') {
+    dados = _concAgregarTodos();
+  } else {
+    dados = _CONC_MOCK[periodo];
+  }
   if(!dados) return;
 
   // Calcular totais
@@ -19941,15 +20090,61 @@ function raioxAtualizarVisibilidadeNav() {
    - Estoque (de _veltroEstoqueAtual / projCalcularDados)
    ─────────────────────────────────────────────────────────── */
 
+/* 🆕 Detecta formato de data dos pedidos (MM/DD vs DD/MM).
+   Olha algumas linhas pra encontrar uma data com dia > 12 (prova).
+   Salva em window._raioxFormatoDataPedido pra reutilizar. */
+function _raioxDetectarFormatoDataPedido() {
+  if(window._raioxFormatoDataPedido) return window._raioxFormatoDataPedido;
+  if(typeof allRows === 'undefined' || !allRows.length) return 'DD/MM';
+
+  var dataIdx = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
+  var votoDia0 = 0, votoDia1 = 0;
+
+  // Escaneia até 200 linhas pra inferir o formato
+  var amostra = Math.min(allRows.length, 200);
+  for(var i = 0; i < amostra; i++) {
+    var r = allRows[i];
+    if(!r || !r[dataIdx]) continue;
+    var s = String(r[dataIdx]);
+    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if(!m) continue;
+    var na = parseInt(m[1], 10), nb = parseInt(m[2], 10);
+    if(isNaN(na) || isNaN(nb)) continue;
+    if(na > 12 && na <= 31) votoDia0++;       // pos 0 é dia → DD/MM
+    if(nb > 12 && nb <= 31) votoDia1++;       // pos 1 é dia → MM/DD
+  }
+
+  var fmt;
+  if(votoDia0 > votoDia1)      { fmt = 'DD/MM'; }
+  else if(votoDia1 > votoDia0) { fmt = 'MM/DD'; }
+  else                          { fmt = 'DD/MM'; } // default BR
+
+  console.log('[Raio X · Pedidos] 📅 Formato data: '+fmt+' (votos DD/MM:'+votoDia0+' · MM/DD:'+votoDia1+')');
+  window._raioxFormatoDataPedido = fmt;
+  return fmt;
+}
+
 function _raioxParseDataPedido(s) {
   if(!s) return null;
-  // dd/mm/aaaa hh:mm
+  // dd/mm/aaaa hh:mm OU mm/dd/aaaa hh:mm (depende localidade do Sheets)
   var m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
   if(!m) return null;
-  var dia = parseInt(m[1], 10);
-  var mes = parseInt(m[2], 10) - 1;
+  var na = parseInt(m[1], 10);
+  var nb = parseInt(m[2], 10);
   var ano = parseInt(m[3], 10);
   if(ano < 100) ano += 2000;
+
+  // 🆕 Decide formato (DD/MM vs MM/DD) — auto-detect ou heurística por valor
+  var dia, mes;
+  if(na > 12) { dia = na; mes = nb - 1; }       // pos 0 só pode ser dia
+  else if(nb > 12) { dia = nb; mes = na - 1; }  // pos 1 só pode ser dia
+  else {
+    // Ambíguo — usa formato detectado da planilha inteira
+    var fmt = _raioxDetectarFormatoDataPedido();
+    if(fmt === 'MM/DD') { dia = nb; mes = na - 1; }
+    else { dia = na; mes = nb - 1; }
+  }
+
   var d = new Date(ano, mes, dia);
   return isNaN(d.getTime()) ? null : d;
 }
