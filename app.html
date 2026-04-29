@@ -1285,6 +1285,10 @@ body.light body::before { opacity: 0; }
       <span class="nav-icon">🎯</span>
       <span>Projeção de Estoque</span>
     </div>
+    <div class="nav-item" onclick="showPage('marketplace',this)" data-page="marketplace" data-label="Marketplace">
+      <span class="nav-icon">🏪</span>
+      <span>Marketplace</span>
+    </div>
     <div class="nav-item" onclick="showPage('marketing',this)" data-page="marketing" data-label="Marketing" data-sync="resumos">
       <span class="nav-icon">📣</span>
       <span>Marketing</span>
@@ -1859,21 +1863,9 @@ body.light body::before { opacity: 0; }
         </div>
       </div>
 
-      <!-- Fluxo financeiro -->
-      <div class="slabel">fluxo financeiro por canal</div>
-      <div class="g2 fu" style="margin-bottom:14px">
-        <div class="card">
-          <div class="ch"><div><div class="ct">Previsão de Recebimentos por Canal</div><div class="cs">Data venda + prazo por marketplace — empilhado por canal</div></div></div>
-          <canvas id="ch-cf" height="200"></canvas>
-          <div id="cf-chart-footer" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px 0;border-top:1px solid var(--border);margin-top:8px;flex-wrap:wrap"></div>
-        </div>
-        <div class="card">
-          <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
-          <div id="cf-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:4px 0">
-            <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px;grid-column:1/-1">Navegue até esta página para carregar</div>
-          </div>
-        </div>
-      </div>
+      <!-- 🏪 Bloco "fluxo financeiro por canal" movido pro módulo Marketplace
+           (Previsão de Recebimentos por Canal + Calendário de Liberações).
+           IDs ch-cf, cf-chart-footer e cf-body continuam os mesmos — só mudaram de lugar. -->
 
     </main>
   </div>
@@ -3202,10 +3194,57 @@ body.light body::before { opacity: 0; }
         </div>
       </div>
 
-      <!-- ═══════════════════════════════════════════════════════
-           SUB-MÓDULO: CONCILIAÇÃO MARKETPLACES (preview com mocks)
-           Será conectado aos dados reais quando API Magazord chegar
-           ═══════════════════════════════════════════════════════ -->
+      <!-- 🏪 Sub-módulo "Conciliação Marketplaces" movido pro módulo Marketplace.
+           IDs (conc-kpis, conc-tabela, conc-calendario, conc-alertas, conc-periodo-mock)
+           e funções (conciliacaoRender*) preservados — só mudaram de lugar no DOM. -->
+
+    </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       🏪 PAGE: MARKETPLACE
+       Consolidação de:
+         · Previsão de Recebimentos por Canal (vinha do Financeiro)
+         · Calendário de Liberações (vinha do Financeiro)
+         · Conciliação Marketplaces (vinha do Fluxo de Caixa)
+       Lógica JS preservada — IDs e funções mantidos idênticos.
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="page-marketplace" class="page">
+    <main class="main">
+
+      <!-- Header da página -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+        <div>
+          <div style="font-family:var(--fdisplay);font-size:22px;font-weight:700">🏪 Marketplace</div>
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:3px">
+            Recebíveis, conciliação e calendário de liberações por canal
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────────
+           SEÇÃO 1: FLUXO FINANCEIRO POR CANAL
+           (movido do módulo Financeiro — ch-cf e cf-body intactos)
+           ───────────────────────────────────────────────────────── -->
+      <div class="slabel">fluxo financeiro por canal</div>
+      <div class="g2 fu" style="margin-bottom:14px">
+        <div class="card">
+          <div class="ch"><div><div class="ct">Previsão de Recebimentos por Canal</div><div class="cs">Data venda + prazo por marketplace — empilhado por canal</div></div></div>
+          <canvas id="ch-cf" height="200"></canvas>
+          <div id="cf-chart-footer" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px 0;border-top:1px solid var(--border);margin-top:8px;flex-wrap:wrap"></div>
+        </div>
+        <div class="card">
+          <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
+          <div id="cf-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:4px 0">
+            <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px;grid-column:1/-1">Navegue até esta página para carregar</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────────
+           SEÇÃO 2: CONCILIAÇÃO MARKETPLACES (preview com mocks)
+           (movido do módulo Fluxo de Caixa — IDs preservados)
+           ───────────────────────────────────────────────────────── -->
       <div style="margin-top:30px;padding-top:24px;border-top:2px dashed var(--s3)">
 
         <!-- Header com badge "preview" -->
@@ -3362,7 +3401,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.28.RAIOX13';
+var VELTRO_BUILD_VERSION = '2026.04.29.MARKETPLACE01';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -7250,6 +7289,7 @@ function showPage(pageId, navEl) {
     try { if(typeof precAtualizarVisibilidadeBusca === 'function') precAtualizarVisibilidadeBusca(); } catch(e){}
   }
   if(pageId === 'fluxocaixa') renderFluxoCaixaPage();
+  if(pageId === 'marketplace') renderMarketplacePage();
   if(pageId === 'projecao') {
     try { projRender(); } catch(e){ console.error('[Projeção]', e); }
   }
@@ -9912,8 +9952,32 @@ function renderFluxoTabela() {
 function renderFluxoCaixaPage() {
   var saved = localStorage.getItem(FC_URL_KEY);
   if(saved) loadFluxoCaixa();
-  // Renderizar a sub-seção de Conciliação (com mocks por enquanto)
-  try { conciliacaoRender(); } catch(e) { console.error('[Conciliação]', e); }
+  // 🏪 Sub-seção Conciliação Marketplaces foi movida pro módulo Marketplace.
+  // A função conciliacaoRender() agora é disparada por renderMarketplacePage().
+}
+
+/* ═══════════════════════════════════════════════════════════
+   🏪 RENDER PAGE MARKETPLACE
+   Disparado por showPage('marketplace').
+   - Chama conciliacaoRender() (mocks) — mesma função do fluxo antigo
+   - Reaproveita _lastProcessedData se já houver dados financeiros
+     processados, pra repopular ch-cf e cf-body sem precisar reload.
+   - Lógica zero alterada: apenas re-orquestra renders existentes.
+   ═══════════════════════════════════════════════════════════ */
+function renderMarketplacePage() {
+  // 1) Sub-seção Conciliação (mocks) — sempre renderiza
+  try { conciliacaoRender(); } catch(e) { console.error('[Marketplace · Conciliação]', e); }
+
+  // 2) Se já temos dados financeiros processados em cache, repopula
+  //    o gráfico ch-cf e os cards cf-body (mesma lógica que o Financeiro
+  //    usa via syncFinanceiroKPIs). Se não houver dados ainda, deixa
+  //    o estado inicial — quando o usuário rodar o filtro global ou abrir
+  //    Financeiro, o cache é populado e os IDs continuam visíveis aqui.
+  try {
+    if(window._lastProcessedData && typeof syncFinanceiroKPIs === 'function') {
+      syncFinanceiroKPIs(window._lastProcessedData);
+    }
+  } catch(e) { console.error('[Marketplace · syncFinanceiroKPIs]', e); }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -10070,8 +10134,11 @@ function conciliacaoRenderTabela(marketplaces) {
     } else {
       status = '🔴 Falta muito'; cor = 'var(--red)';
     }
+    // 🏪 Nome do marketplace renderizado como cchip colorido (mesmo padrão da tabela de Performance)
+    var canalCor = (typeof CCORES !== 'undefined' && CCORES[m.nome]) ? CCORES[m.nome] : '#94A3B8';
+    var nomeChip = '<span class="cchip" style="background:'+canalCor+'18;color:'+canalCor+';border:1px solid '+canalCor+'33">'+m.nome+'</span>';
     return '<tr style="border-bottom:1px solid var(--s3)">'+
-      '<td style="padding:10px 8px;color:var(--text);font-weight:500">'+m.nome+'</td>'+
+      '<td style="padding:10px 8px">'+nomeChip+'</td>'+
       '<td style="padding:10px 8px;text-align:right">'+fR(m.vendido)+'</td>'+
       '<td style="padding:10px 8px;text-align:right;color:var(--muted)">'+m.taxa+'%</td>'+
       '<td style="padding:10px 8px;text-align:right;color:var(--accent);font-weight:600">'+fR(esp)+'</td>'+
