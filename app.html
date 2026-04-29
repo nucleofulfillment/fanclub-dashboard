@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX26-PEDIDOS-DATA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX28-7-COLUNAS';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -10277,15 +10277,38 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
       }
 
       // Estrutura nova (planilha v2):
-      // A=Data | B=Movimento | C=Classificação | D=Descrição | E=R/P/N | F=Saldo
+      //   Modelo 6 col (consolidado): A=Data | B=Movimento | C=Classificação | D=Descrição | E=R/P/N | F=Saldo
+      //   Modelo 7 col (Fan Club):    A=Data | B=Custo Fixo | C=Movimento | D=Classificação | E=Descrição | F=R/P/N | G=Saldo
+      //
+      // 🆕 Detecta automaticamente via cabeçalho.
+      // Se col1 (B) tem rótulo "Custo Fixo" ou "Fixo" → modelo 7 col.
+      var idxData = 0, idxFixo = -1, idxMov = 1, idxClassif = 2, idxDesc = 3, idxStatus = 4;
+      try {
+        // Procura cabeçalho nas primeiras 3 linhas
+        for(var hri = 0; hri < Math.min(3, rows.length); hri++) {
+          var hr = rows[hri];
+          if(!hr) continue;
+          var col1Label = String(hr[1]||'').toLowerCase();
+          var col2Label = String(hr[2]||'').toLowerCase();
+          // Se col1 menciona "fixo" e col2 menciona "movimento" → 7 col
+          if((col1Label.includes('fixo') || col1Label.includes('custo fixo')) &&
+             col2Label.includes('moviment')) {
+            idxFixo    = 1;
+            idxMov     = 2;
+            idxClassif = 3;
+            idxDesc    = 4;
+            idxStatus  = 5;
+            console.log('[FC v2] 🎯 Aba "'+aba+'": modelo 7 colunas detectado (Fan Club)');
+            break;
+          }
+        }
+      } catch(eDetCol){}
       //
       // 🛡️ REGRA DE OURO PRA LINHA VÁLIDA (cumulativa):
       //    1. Coluna A tem data parseável
-      //    2. Coluna B (movimento) é número diferente de zero
-      //    3. Coluna E (status) é exatamente 'R' ou 'P' (não 'N' nas planilhas atuais)
-      //    4. Coluna C (classificação) é texto (não número, não vazio)
-      // Se qualquer um falha, descarta. Subtotais ("(-) MÍDIA DO MÊS") falham
-      // em (1) por não ter data, e em (4) por ter classif vazia.
+      //    2. Movimento OU Custo Fixo é número diferente de zero
+      //    3. Status é 'R', 'P' ou 'N'
+      //    4. Classificação é texto (não número, não vazio)
       // 🆕 Pré-detecta formato de data DESTA aba antes de processar
       // (Google CSV pode usar MM/DD americano em alguns casos)
       try { _fcv2DetectarFormatoData([rows], [0]); } catch(eDet){}
@@ -10296,18 +10319,22 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
         var r = rows[ri];
         if(!r || r.length < 4) continue;
 
-        var dataVal    = r[0];
-        var movimento  = parseFloat(r[1]) || 0;
-        var classif    = String(r[2]||'').trim();
-        var descricao  = String(r[3]||'').trim();
-        var status     = String(r[4]||'').trim().toUpperCase();
+        var dataVal    = r[idxData];
+        var movimento  = parseFloat(r[idxMov]) || 0;
+        // 🆕 Custo Fixo (modelo 7 col) — se existir, soma ao movimento
+        var custoFixoVal = (idxFixo >= 0) ? (parseFloat(r[idxFixo]) || 0) : 0;
+        // Movimento efetivo: usa o que estiver preenchido (Custo Fixo OU Movimento)
+        var movEfetivo = (movimento !== 0) ? movimento : custoFixoVal;
+        var classif    = String(r[idxClassif]||'').trim();
+        var descricao  = String(r[idxDesc]||'').trim();
+        var status     = String(r[idxStatus]||'').trim().toUpperCase();
 
         // ⛔ REGRA 1: data parseável
         var dataStr = _fcv2NormalizarData(dataVal);
         if(!dataStr) { linhasDescartadas++; continue; }
 
-        // ⛔ REGRA 2: movimento não-zero
-        if(movimento === 0) { linhasDescartadas++; continue; }
+        // ⛔ REGRA 2: movimento efetivo não-zero (Movimento OU Custo Fixo)
+        if(movEfetivo === 0) { linhasDescartadas++; continue; }
 
         // ⛔ REGRA 3: status válido (R/P apenas — N pra abas mensais é raro)
         if(status !== 'R' && status !== 'P' && status !== 'N') { linhasDescartadas++; continue; }
@@ -10317,8 +10344,8 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
         if(/^-?\d+([.,]\d+)?$/.test(classif)) { linhasDescartadas++; continue; }
 
         // ⛔ Sanidade: movimento absurdo (provável total agregado)
-        if(Math.abs(movimento) > 50000000) {
-          console.warn('[FC v2] Linha descartada (movimento absurdo): aba='+aba+' data='+dataStr+' mov='+movimento);
+        if(Math.abs(movEfetivo) > 50000000) {
+          console.warn('[FC v2] Linha descartada (movimento absurdo): aba='+aba+' data='+dataStr+' mov='+movEfetivo);
           linhasDescartadas++; continue;
         }
 
@@ -10336,8 +10363,8 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
           aba: aba,
           caixaInicial: caixaInicial,
           data: dataStr,
-          custoFixo: 0,           // v2 não tem coluna Custo Fixo separada nas abas mensais
-          movimento: movimento,
+          custoFixo: 0,           // movimento já consolidado em movEfetivo
+          movimento: movEfetivo,
           classif: classif,
           descricao: descricao,
           status: status,
@@ -10536,6 +10563,14 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
             if(typeof atualizarResultado === 'function') atualizarResultado();
           }
         } catch(eAuto) {}
+        // 🆕 Se Raio X está aberto, re-renderiza pra usar mídia real
+        try {
+          var pgRX = document.getElementById('page-raiox');
+          if(pgRX && pgRX.classList.contains('active') && typeof raioxRender === 'function') {
+            console.log('[FC v2] Re-renderizando Raio X com mídia real (callback pós-motor)');
+            raioxRender();
+          }
+        } catch(eRX) {}
       }).catch(function(e){ console.warn('[FC v2] loadFluxoV2 falhou:', e); });
     }
   } catch(eFV2) { console.warn('[FC v2] loadFluxoV2 erro:', eFV2); }
