@@ -3450,7 +3450,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX16-DATA-FORMAT';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX17-LOOP-LOAD';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9649,14 +9649,32 @@ function _fcv2ParseNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-/* Carrega uma aba específica via gviz por NOME (case-sensitive) */
+/* Carrega uma aba específica via gviz por NOME (case-sensitive)
+   🛡️ FIX: NÃO reutiliza loadGS pq esse filtra linhas como se fossem
+   pedidos (precisa pedidoId e ≥10 colunas), o que zera Mídia/Custos Fixos.
+   Faz fetch direto + parseGS sem filtro. */
 async function _fcv2LoadAba(sheetId, nomeAba) {
   var url = 'https://docs.google.com/spreadsheets/d/' + sheetId +
             '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(nomeAba) +
             '&nocache=' + Date.now();
-  // Reaproveita loadGS que já lida com gviz/tq response format
-  var rows = await loadGS(url);
-  return rows || [];
+  try {
+    var res = await fetch(url);
+    if(!res.ok) {
+      console.warn('[FluxoV2] HTTP '+res.status+' ao ler aba "'+nomeAba+'"');
+      return [];
+    }
+    var txt = await res.text();
+    if(!txt || txt.length < 50) return [];
+    var rows = [];
+    try { rows = parseGS(txt); } catch(pe) {
+      console.warn('[FluxoV2] parseGS falhou pra "'+nomeAba+'":', pe.message);
+      return [];
+    }
+    return rows || [];
+  } catch(e) {
+    console.warn('[FluxoV2] Erro fetch "'+nomeAba+'":', e.message);
+    return [];
+  }
 }
 
 /* Função principal — carrega aba Mídia + Custos Fixos */
@@ -15197,20 +15215,36 @@ function finAutoPreencherDoFluxo() {
   // 🆕 Se _fluxoV2Data existe mas tá vazio (motor v2 do Fluxo carregou
   // mas loadFluxoV2 ainda não rodou), dispara o load em paralelo.
   // Não bloqueia o resto — quando vier, refaz tudo.
+  // 🛡️ FIX16+: contador de tentativas pra bloquear loop infinito.
+  // Se loadFluxoV2 falhar 2x seguidas, desiste pra não travar o navegador.
   var midiaOk = window._fluxoV2Data.midia && window._fluxoV2Data.midia.length > 0;
   var cfOk    = window._fluxoV2Data.custosFixos && window._fluxoV2Data.custosFixos.length > 0;
   if(!midiaOk && !cfOk) {
-    if(typeof loadFluxoV2 === 'function' && !window._finAutoLoadingV2) {
+    window._finAutoTentativas = window._finAutoTentativas || 0;
+    if(window._finAutoTentativas >= 2) {
+      // Já tentou 2x e falhou. Para de tentar pra não travar.
+      // Usuário precisa apertar "Atualizar" do Fluxo de Caixa pra recarregar.
+      if(!window._finAutoLoopBloqueadoLog) {
+        console.warn('[Fin auto] ⛔ loadFluxoV2 falhou 2x — bloqueando loop. Recarregue o Fluxo de Caixa manualmente.');
+        window._finAutoLoopBloqueadoLog = true;
+      }
+    } else if(typeof loadFluxoV2 === 'function' && !window._finAutoLoadingV2) {
       window._finAutoLoadingV2 = true;
-      console.log('[Fin auto] _fluxoV2Data vazio — disparando loadFluxoV2(true)');
+      window._finAutoTentativas++;
+      console.log('[Fin auto] _fluxoV2Data vazio — disparando loadFluxoV2(true) tentativa '+window._finAutoTentativas+'/2');
       // Garante chave de URL
       var urlAtual = localStorage.getItem('fc_fluxo_v2_url') || localStorage.getItem('fc_url') || '';
       if(urlAtual && !localStorage.getItem('fc_fluxo_v2_url')) {
         localStorage.setItem('fc_fluxo_v2_url', urlAtual);
       }
-      loadFluxoV2(true).then(function(){
+      loadFluxoV2(true).then(function(res){
         window._finAutoLoadingV2 = false;
-        finAutoPreencherDoFluxo(); // re-executa quando vier
+        // Só re-executa se realmente carregou alguma coisa (evita loop)
+        var ok = res && ((res.midia && res.midia.length) || (res.custosFixos && res.custosFixos.length));
+        if(ok) {
+          window._finAutoTentativas = 0; // sucesso reseta contador
+          finAutoPreencherDoFluxo();
+        }
       }).catch(function(){ window._finAutoLoadingV2 = false; });
     }
   }
