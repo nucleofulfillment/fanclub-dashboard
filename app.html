@@ -3246,6 +3246,7 @@ body.light body::before { opacity: 0; }
             <option value="abril-26">Abril 2026</option>
             <option value="marco-26">Março 2026</option>
             <option value="fevereiro-26">Fevereiro 2026</option>
+            <option value="janeiro-26">Janeiro 2026</option>
           </select>
         </div>
       </div>
@@ -3262,7 +3263,7 @@ body.light body::before { opacity: 0; }
            quando houver muitos canais.
            ───────────────────────────────────────────────────────── -->
       <div class="card" style="margin-bottom:14px">
-        <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
+        <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">Pedidos cujo prazo de repasse ainda não chegou — liberações futuras por canal</div></div></div>
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <div id="cf-body" class="cf-cards-row" style="display:flex;flex-wrap:nowrap;gap:12px;padding:4px 0;min-width:max-content;align-items:stretch">
             <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px">Navegue até esta página para carregar</div>
@@ -3450,7 +3451,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX21-RAIOX-3D';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX22-MKT-CALENDARIO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -5928,7 +5929,21 @@ function renderAll(d){
   // Calcular total GMV de todos os canais para % participação
   var totalGMVCF = Object.values(d.cfc).reduce(function(s,i){ return s+i.gmv; }, 0);
 
-  document.getElementById('cf-body').innerHTML=Object.entries(d.cfc)
+  // 🆕 Mensagem informativa: o cf-body só mostra LIBERAÇÕES FUTURAS
+  // (pedidos cujo prazo de repasse ainda não chegou). Se está vazio ou
+  // com poucos canais, é normal — explica pro usuário não pensar que é bug.
+  var totalCanaisCF = Object.keys(d.cfc).length;
+  var msgInfoCF = '';
+  if(totalCanaisCF === 0) {
+    msgInfoCF = '<div style="text-align:center;padding:30px 20px;font-family:var(--fmono);font-size:11px;color:var(--muted);background:rgba(96,165,250,.05);border:1px dashed rgba(96,165,250,.25);border-radius:8px;line-height:1.6">'+
+      '<div style="font-size:28px;margin-bottom:8px">📭</div>'+
+      '<div style="color:var(--text);font-weight:600;margin-bottom:4px">Sem liberações futuras</div>'+
+      'O Calendário mostra apenas pedidos cujo prazo de repasse ainda não chegou.<br>'+
+      'Pedidos antigos já caíram no caixa.'+
+    '</div>';
+    document.getElementById('cf-body').innerHTML = msgInfoCF;
+  } else {
+    document.getElementById('cf-body').innerHTML=Object.entries(d.cfc)
     .sort((a,b)=>(a[1].data||'').localeCompare(b[1].data||''))
     .map(function([canal,info]){
       const diff=info.data?Math.round((new Date(info.data)-new Date(today))/86400000):999;
@@ -5993,6 +6008,7 @@ function renderAll(d){
 
       '<\/div>';
     }).join('');
+  } // fecha else (totalCanaisCF > 0)
 
   makeCharts(d);
   syncFinanceiroKPIs(d);
@@ -11440,6 +11456,26 @@ var _CONC_MOCK = {
     ],
     alertas: [
       { tipo:'ok', texto:'Conciliação fechou em 96% — mês saudável' }
+    ]
+  },
+  'janeiro-26': {
+    label: 'Janeiro 2026',
+    marketplaces: [
+      { id:'mercadolivre', nome:'Mercado Livre', vendido:25400, taxa:16, recebido:21300 },
+      { id:'shopee',       nome:'Shopee',        vendido: 5800, taxa:18, recebido: 4750 },
+      { id:'shein',        nome:'Shein',         vendido: 3900, taxa:15, recebido: 3300 },
+      { id:'tiktok',       nome:'TikTok Shop',   vendido:  400, taxa:12, recebido:  352 },
+      { id:'posthaus',     nome:'Posthaus',      vendido: 2200, taxa:17, recebido: 1820 },
+      { id:'lojapropria',  nome:'Loja Própria',  vendido: 3500, taxa: 0, recebido: 3500 }
+    ],
+    previsoes: [
+      { semana:'01/02 - 07/02', valor: 1800 },
+      { semana:'08/02 - 14/02', valor: 1500 },
+      { semana:'15/02 - 21/02', valor:  700 },
+      { semana:'22/02 - 28/02', valor:  300 }
+    ],
+    alertas: [
+      { tipo:'ok', texto:'Conciliação fechou em 94% — mês saudável' }
     ]
   }
 };
