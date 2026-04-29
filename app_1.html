@@ -3426,7 +3426,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX1';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX2';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -10002,46 +10002,54 @@ async function _fcLoadV2(sheetId, statusEl) {
 
       // Estrutura nova (planilha v2):
       // A=Data | B=Movimento | C=Classificação | D=Descrição | E=R/P/N | F=Saldo
+      //
+      // 🛡️ REGRA DE OURO PRA LINHA VÁLIDA (cumulativa):
+      //    1. Coluna A tem data parseável
+      //    2. Coluna B (movimento) é número diferente de zero
+      //    3. Coluna E (status) é exatamente 'R' ou 'P' (não 'N' nas planilhas atuais)
+      //    4. Coluna C (classificação) é texto (não número, não vazio)
+      // Se qualquer um falha, descarta. Subtotais ("(-) MÍDIA DO MÊS") falham
+      // em (1) por não ter data, e em (4) por ter classif vazia.
       var linhasValidas = 0;
+      var linhasDescartadas = 0;
       for(var ri = 0; ri < rows.length; ri++) {
         var r = rows[ri];
         if(!r || r.length < 4) continue;
-
-        // Pula linhas de cabeçalho/totais/títulos
-        var col0 = String(r[0]||'').toLowerCase().trim();
-        var col2 = String(r[2]||'').toLowerCase().trim();
-        var col3 = String(r[3]||'').toLowerCase().trim();
-        if(col0 === 'data' || col0 === 'mês' || col0.includes('subtotal')) continue;
-        if(col0.includes('saldo final')) continue;
-        if(col3.includes('caixa inicial')) continue;
-        // Pula linhas de "(-) MÍDIA DO MÊS" e "(-) CUSTOS FIXOS DO MÊS" — vão entrar via abas próprias
-        if(col0.startsWith('(-)') || col0.includes('mídia do mês') || col0.includes('custos fixos do mês')) continue;
-        // Pula totais
-        if(col0.startsWith('subtotal') || col0.startsWith('total')) continue;
 
         var dataVal    = r[0];
         var movimento  = parseFloat(r[1]) || 0;
         var classif    = String(r[2]||'').trim();
         var descricao  = String(r[3]||'').trim();
-        var status     = String(r[4]||'N').trim().toUpperCase();
+        var status     = String(r[4]||'').trim().toUpperCase();
 
-        if(!classif && !descricao && movimento === 0) continue;
-
-        // ⛔ EXIGE data válida — sem isso, linha provavelmente é subtotal/título
+        // ⛔ REGRA 1: data parseável
         var dataStr = _fcv2NormalizarData(dataVal);
-        if(!dataStr) continue;
+        if(!dataStr) { linhasDescartadas++; continue; }
 
-        // ⛔ Validações sanitárias contra dados absurdos
-        // Movimento de mais de 50 milhões é provavelmente lixo (formula sumindo)
+        // ⛔ REGRA 2: movimento não-zero
+        if(movimento === 0) { linhasDescartadas++; continue; }
+
+        // ⛔ REGRA 3: status válido (R/P apenas — N pra abas mensais é raro)
+        if(status !== 'R' && status !== 'P' && status !== 'N') { linhasDescartadas++; continue; }
+
+        // ⛔ REGRA 4: classificação é texto não-vazio (não-numérico)
+        if(!classif) { linhasDescartadas++; continue; }
+        if(/^-?\d+([.,]\d+)?$/.test(classif)) { linhasDescartadas++; continue; }
+
+        // ⛔ Sanidade: movimento absurdo (provável total agregado)
         if(Math.abs(movimento) > 50000000) {
           console.warn('[FC v2] Linha descartada (movimento absurdo): aba='+aba+' data='+dataStr+' mov='+movimento);
-          continue;
+          linhasDescartadas++; continue;
         }
-        // Classificação que parece número puro (não tem letra) é parse errado
-        if(classif && /^-?\d+([.,]\d+)?$/.test(classif)) {
-          console.warn('[FC v2] Linha descartada (classif numérica): aba='+aba+' data='+dataStr+' classif='+classif);
-          continue;
-        }
+
+        // ⛔ Filtros de palavras-chave (proteção extra)
+        var col0Lower = String(r[0]||'').toLowerCase().trim();
+        var col3Lower = descricao.toLowerCase();
+        if(col0Lower === 'data' || col0Lower === 'mês') { linhasDescartadas++; continue; }
+        if(col0Lower.includes('subtotal') || col0Lower.startsWith('total')) { linhasDescartadas++; continue; }
+        if(col0Lower.includes('saldo final') || col0Lower.startsWith('(-)')) { linhasDescartadas++; continue; }
+        if(col0Lower.includes('mídia do mês') || col0Lower.includes('custos fixos do mês')) { linhasDescartadas++; continue; }
+        if(col3Lower.includes('caixa inicial')) { linhasDescartadas++; continue; }
 
         _fcDados.push({
           aba: aba,
@@ -10051,11 +10059,14 @@ async function _fcLoadV2(sheetId, statusEl) {
           movimento: movimento,
           classif: classif,
           descricao: descricao,
-          status: status || 'N',
+          status: status,
           saldo: 0,                // recalculado no render
           fonte: 'mensal'          // marca origem pra debug
         });
         linhasValidas++;
+      }
+      if(linhasDescartadas > 0) {
+        console.log('[FC v2] Aba "'+aba+'": '+linhasValidas+' válidas, '+linhasDescartadas+' descartadas');
       }
 
       if(linhasValidas > 0) {
@@ -10075,25 +10086,42 @@ async function _fcLoadV2(sheetId, statusEl) {
       var midiaTxt = await midiaRes.text();
       var midiaRows = parseGS(midiaTxt);
       var midiaCount = 0;
+      var midiaDescartadas = 0;
       midiaRows.forEach(function(r){
-        if(!r || r.length < 5) return;
-        var s0 = String(r[0]||'').trim();
-        // Pula cabeçalho ("Mês"), totais ("TOTAL JANEIRO-26"), vazios
-        if(!s0 || s0.toLowerCase() === 'mês' || /^TOTAL/i.test(s0)) return;
-        if(r[4] === null || r[4] === undefined || r[4] === '') return;
+        // Estrutura: A=Mês | B=Data | C=Canal | D=Plataforma | E=Valor
+        if(!r || r.length < 5) { midiaDescartadas++; return; }
 
-        var mesAba = s0;  // ex: "Janeiro-26"
-        var dataStr = _fcv2NormalizarData(r[1]);
-        if(!dataStr) return;
+        var s0 = String(r[0]||'').trim();
         var canal = String(r[2]||'').trim();
         var plataforma = String(r[3]||'').trim();
         var valor = parseFloat(r[4]) || 0;
-        if(valor === 0) return;
+
+        // ⛔ REGRA 1: Mês deve ser nome de mês (Janeiro-26, etc.)
+        var infoMes = _fcv2EhAbaMensal(s0);
+        if(!infoMes) { midiaDescartadas++; return; }
+
+        // ⛔ REGRA 2: Data parseável
+        var dataStr = _fcv2NormalizarData(r[1]);
+        if(!dataStr) { midiaDescartadas++; return; }
+
+        // ⛔ REGRA 3: Canal e plataforma são textos
+        if(!canal || /^-?\d+([.,]\d+)?$/.test(canal)) { midiaDescartadas++; return; }
+        if(!plataforma) { midiaDescartadas++; return; }
+
+        // ⛔ REGRA 4: Valor não-zero
+        if(valor === 0) { midiaDescartadas++; return; }
+
+        // ⛔ Sanidade
+        if(Math.abs(valor) > 10000000) {
+          console.warn('[FC v2 Mídia] Valor absurdo: '+valor+' em '+s0);
+          midiaDescartadas++; return;
+        }
+
         // Garante que é negativo (despesa)
         if(valor > 0) valor = -valor;
 
         _fcDados.push({
-          aba: mesAba,
+          aba: s0,
           caixaInicial: caixaInicial,
           data: dataStr,
           custoFixo: 0,
@@ -10105,9 +10133,9 @@ async function _fcLoadV2(sheetId, statusEl) {
           fonte: 'midia'
         });
         midiaCount++;
-        if(_fcMeses.indexOf(mesAba) < 0) _fcMeses.push(mesAba);
+        if(_fcMeses.indexOf(s0) < 0) _fcMeses.push(s0);
       });
-      console.log('[FC v2] Aba Mídia: '+midiaCount+' lançamentos');
+      console.log('[FC v2] Aba Mídia: '+midiaCount+' válidos, '+midiaDescartadas+' descartados');
     }
   } catch(e) {
     console.warn('[FC v2] Erro aba Mídia:', e.message);
@@ -10124,25 +10152,37 @@ async function _fcLoadV2(sheetId, statusEl) {
       var cfTxt = await cfRes.text();
       var cfRows = parseGS(cfTxt);
       var cfCount = 0;
+      var cfDescartados = 0;
       cfRows.forEach(function(r){
-        if(!r || r.length < 4) return;
-        var s0 = String(r[0]||'').trim();
-        if(!s0 || s0.toLowerCase() === 'mês' || /^TOTAL/i.test(s0)) return;
-        if(r[3] === null || r[3] === undefined || r[3] === '') return;
+        // Estrutura: A=Mês | B=Categoria | C=Descrição | D=Valor
+        if(!r || r.length < 4) { cfDescartados++; return; }
 
-        var mesAba = s0;
+        var s0 = String(r[0]||'').trim();
         var categoria = String(r[1]||'').trim();
         var descricao = String(r[2]||'').trim();
         var valor = parseFloat(r[3]) || 0;
-        if(valor === 0) return;
+
+        // ⛔ REGRA 1: Mês válido
+        var infoMes = _fcv2EhAbaMensal(s0);
+        if(!infoMes) { cfDescartados++; return; }
+
+        // ⛔ REGRA 2: Categoria e descrição são textos
+        if(!categoria || /^-?\d+([.,]\d+)?$/.test(categoria)) { cfDescartados++; return; }
+        if(!descricao) { cfDescartados++; return; }
+
+        // ⛔ REGRA 3: Valor não-zero
+        if(valor === 0) { cfDescartados++; return; }
+
+        // ⛔ Sanidade
+        if(Math.abs(valor) > 10000000) {
+          console.warn('[FC v2 CustosFixos] Valor absurdo: '+valor+' em '+s0);
+          cfDescartados++; return;
+        }
+
         if(valor > 0) valor = -valor;
 
         // Atribui dia padrão da categoria
         var dia = FC_V2_DATAS_CUSTO_FIXO[categoria] || FC_V2_DATAS_CUSTO_FIXO['default'];
-
-        // Extrai mês/ano do nome da aba
-        var infoMes = _fcv2EhAbaMensal(mesAba);
-        if(!infoMes) return;
         var dataStr = infoMes.ano + '-' +
                       String(infoMes.mesNum).padStart(2,'0') + '-' +
                       String(dia).padStart(2,'0');
@@ -10151,7 +10191,7 @@ async function _fcLoadV2(sheetId, statusEl) {
         var status = (dataStr <= hojeStr) ? 'P' : 'N';
 
         _fcDados.push({
-          aba: mesAba,
+          aba: s0,
           caixaInicial: caixaInicial,
           data: dataStr,
           custoFixo: valor,        // ⭐ vai pra coluna Custo Fixo (lógica antiga lê dessa col)
@@ -10163,9 +10203,9 @@ async function _fcLoadV2(sheetId, statusEl) {
           fonte: 'custofixo'
         });
         cfCount++;
-        if(_fcMeses.indexOf(mesAba) < 0) _fcMeses.push(mesAba);
+        if(_fcMeses.indexOf(s0) < 0) _fcMeses.push(s0);
       });
-      console.log('[FC v2] Aba Custos Fixos: '+cfCount+' lançamentos sintéticos');
+      console.log('[FC v2] Aba Custos Fixos: '+cfCount+' válidos, '+cfDescartados+' descartados');
     }
   } catch(e) {
     console.warn('[FC v2] Erro aba Custos Fixos:', e.message);
