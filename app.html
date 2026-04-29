@@ -3450,7 +3450,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX17-LOOP-LOAD';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX18-CONSOLIDADO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9677,15 +9677,23 @@ async function _fcv2LoadAba(sheetId, nomeAba) {
   }
 }
 
-/* Função principal — carrega aba Mídia + Custos Fixos */
+/* Função principal — DERIVA Mídia + Custos Fixos dos lançamentos das abas
+   mensais já carregados em _fcDados (motor v2 do Fluxo).
+
+   🆕 V4 (consolidado): A planilha agora tem TUDO nas abas mensais (sem
+   abas separadas Mídia/Custos Fixos). Esta função extrai os lançamentos
+   por classificação e formata pra _fluxoV2Data, mantendo compat com:
+   - Marketing (mktAutoPreencherInvestimento)
+   - Raio X (_raioxRenderAnaliseMidia)
+   - Financeiro (finAutoPreencherDoFluxo) */
 async function loadFluxoV2(forceRefresh) {
-  var url = localStorage.getItem(FC_V2_URL_KEY);
-  if(!url) {
-    window._fluxoV2Data = null;
+  // Se _fcDados ainda não foi carregado, não tem o que derivar
+  if(typeof _fcDados === 'undefined' || !_fcDados || !_fcDados.length) {
+    console.log('[FluxoV2] _fcDados ainda não carregado — aguardando motor v2');
     return null;
   }
 
-  // Cache válido? Pula
+  // Cache válido? Pula (a menos que forçado)
   if(!forceRefresh && window._fluxoV2Data && window._fluxoV2Data.loadedAt) {
     var idade = Date.now() - window._fluxoV2Data.loadedAt;
     if(idade < FC_V2_CACHE_TTL_MS) {
@@ -9693,91 +9701,85 @@ async function loadFluxoV2(forceRefresh) {
     }
   }
 
-  var sheetId = _fcv2ExtrairSheetId(url);
-  if(!sheetId) {
-    console.warn('[FluxoV2] sheetId não detectado em:', url);
-    return null;
-  }
+  console.log('[FluxoV2] 🔄 Derivando Mídia + Custos Fixos de _fcDados ('+_fcDados.length+' lançamentos)...');
 
-  console.log('[FluxoV2] 🚀 Carregando abas Mídia + Custos Fixos...');
+  // ─── Categorias que contam como CUSTO FIXO ──────────────────
+  // Despesas recorrentes mensais (folha, aluguel, software, etc.)
+  var CLASSIF_CUSTO_FIXO = {
+    'Folha': true, 'FGTS': true, 'INSS': true, 'Aluguel': true,
+    'Energia': true, 'Água': true, 'Internet / Telecom': true,
+    'Tecnologia': true, 'Insumos': true, 'Contabilidade': true,
+    'Seguro': true, 'Armazém / Estocagem': true,
+    'Pró-labore': true, 'Pessoal': true
+  };
 
-  // Carrega 2 abas em paralelo
-  var resultados;
-  try {
-    resultados = await Promise.all([
-      _fcv2LoadAba(sheetId, 'Mídia').catch(function(e){
-        console.warn('[FluxoV2] Falha ao ler aba Mídia:', e);
-        return [];
-      }),
-      _fcv2LoadAba(sheetId, 'Custos Fixos').catch(function(e){
-        console.warn('[FluxoV2] Falha ao ler aba Custos Fixos:', e);
-        return [];
-      })
-    ]);
-  } catch(e) {
-    console.error('[FluxoV2] Erro geral no load:', e);
-    return null;
-  }
-
-  var rowsMidia = resultados[0] || [];
-  var rowsCF    = resultados[1] || [];
-
-  // ─── Parse aba Mídia ────────────────────────────────────────
-  // Formato esperado (após cabeçalho):
-  //   A=Mês (ex: "Janeiro-26")
-  //   B=Data (ex: 03/01/2026)
-  //   C=Canal (ex: "Loja Própria")
-  //   D=Plataforma/Descrição (ex: "Meta Ads — diário")
-  //   E=Valor (negativo, ex: -5200)
-  // Pular linhas: cabeçalho ("Mês"), totais ("TOTAL JANEIRO-26"), vazias
   var midia = [];
-  rowsMidia.forEach(function(r){
-    if(!r || !r.length) return;
-    var col0 = r[0]; // Mês
-    var col1 = r[1]; // Data
-    var col2 = r[2]; // Canal
-    var col3 = r[3]; // Plataforma
-    var col4 = r[4]; // Valor
-
-    // Pula cabeçalho e totais
-    var s0 = String(col0||'').trim();
-    if(!s0 || s0 === 'Mês' || /^TOTAL/i.test(s0)) return;
-    if(col4 === null || col4 === undefined || col4 === '') return;
-
-    var valor = _fcv2ParseNum(col4);
-    if(valor === 0) return;
-
-    var data = _fcv2ParseData(col1);
-
-    midia.push({
-      mes:        s0,
-      data:       data,
-      canal:      String(col2||'').trim(),
-      plataforma: String(col3||'').trim(),
-      valor:      Math.abs(valor),  // armazena positivo, é despesa
-      desc:       String(col3||'').trim()
-    });
-  });
-
-  // ─── Parse aba Custos Fixos ─────────────────────────────────
-  // Formato:
-  //   A=Mês | B=Categoria | C=Descrição | D=Valor
   var custosFixos = [];
-  rowsCF.forEach(function(r){
-    if(!r || !r.length) return;
-    var s0 = String(r[0]||'').trim();
-    if(!s0 || s0 === 'Mês' || /^TOTAL/i.test(s0)) return;
-    if(r[3] === null || r[3] === undefined || r[3] === '') return;
 
-    var valor = _fcv2ParseNum(r[3]);
+  _fcDados.forEach(function(d) {
+    if(!d || !d.classif) return;
+    var classif = String(d.classif).trim();
+    var valor = (parseFloat(d.movimento)||0) + (parseFloat(d.custoFixo)||0);
     if(valor === 0) return;
+    var valorAbs = Math.abs(valor);
 
-    custosFixos.push({
-      mes:        s0,
-      categoria:  String(r[1]||'').trim(),
-      descricao:  String(r[2]||'').trim(),
-      valor:      Math.abs(valor)
-    });
+    // ─── Mídia ──────────────────────────────────────────────────
+    if(classif === 'Mídia') {
+      // Descrição esperada: "Loja Própria · Meta Ads — diário"
+      // ou "Mercado Livre · Mercado Ads — diário"
+      var desc = String(d.descricao || '').trim();
+      var canal = '', plataforma = desc;
+
+      if(desc.indexOf('·') >= 0) {
+        var parts = desc.split('·').map(function(s){return s.trim();});
+        canal = parts[0] || '';
+        plataforma = parts[1] || desc;
+        // Remove sufixo "— diário" se existir
+        plataforma = plataforma.replace(/\s*—\s*di[áa]ri[oa]\s*$/i, '').trim();
+      }
+
+      // Se não conseguiu extrair canal, tenta mapear por palavra-chave
+      if(!canal) {
+        var descLower = desc.toLowerCase();
+        if(descLower.indexOf('shopee') >= 0)        canal = 'Shopee';
+        else if(descLower.indexOf('mercado') >= 0)   canal = 'Mercado Livre';
+        else if(descLower.indexOf('shein') >= 0)     canal = 'Shein';
+        else if(descLower.indexOf('posthaus') >= 0)  canal = 'Posthaus';
+        else if(descLower.indexOf('tiktok') >= 0)    canal = 'TikTok Shop';
+        else if(descLower.indexOf('dafiti') >= 0)    canal = 'Dafiti';
+        else if(descLower.indexOf('meta') >= 0 || descLower.indexOf('google') >= 0
+                || descLower.indexOf('loja própria') >= 0 || descLower.indexOf('loja propria') >= 0) {
+          canal = 'Loja Própria';
+        } else {
+          canal = 'Outros';
+        }
+      }
+
+      // Converte data string YYYY-MM-DD pra Date
+      var dt = null;
+      if(d.data) {
+        var m = String(d.data).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if(m) dt = new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+      }
+
+      midia.push({
+        mes:        d.aba,                  // ex: "Janeiro-26"
+        data:       dt,                     // Date object
+        canal:      canal,
+        plataforma: plataforma || canal,
+        valor:      valorAbs,
+        desc:       plataforma || desc
+      });
+    }
+    // ─── Custos Fixos ───────────────────────────────────────────
+    else if(CLASSIF_CUSTO_FIXO[classif]) {
+      custosFixos.push({
+        mes:        d.aba,                  // ex: "Janeiro-26"
+        categoria:  classif,
+        descricao:  String(d.descricao || ''),
+        valor:      valorAbs
+      });
+    }
   });
 
   window._fluxoV2Data = {
@@ -9786,8 +9788,8 @@ async function loadFluxoV2(forceRefresh) {
     loadedAt: Date.now()
   };
 
-  console.log('[FluxoV2] ✅ Carregado:',
-    midia.length + ' lançamentos de mídia,',
+  console.log('[FluxoV2] ✅ Derivado: '+
+    midia.length + ' lançamentos de mídia, ' +
     custosFixos.length + ' itens de custo fixo');
 
   // Se Marketing está aberto, repopula auto
@@ -10561,16 +10563,24 @@ async function loadFluxoCaixa() {
         if(abasObj && abasObj.length) {
           abasReaisParaDeteccao = abasObj.map(function(a){ return a.nome; }).filter(Boolean);
           console.log('[FC] Abas reais detectadas:', abasReaisParaDeteccao);
-          // Se contém "Mídia" OU "Custos Fixos", é v2
+          // Se contém "Mídia" OU "Custos Fixos", é v2 (modelo antigo)
           var temMidia = abasReaisParaDeteccao.some(function(n){
             return n && (n.toLowerCase() === 'mídia' || n.toLowerCase() === 'midia');
           });
           var temCF = abasReaisParaDeteccao.some(function(n){
             return n && n.toLowerCase().indexOf('custos fixos') >= 0;
           });
-          if(temMidia || temCF) {
+          // 🆕 V4 (consolidado): detecta abas mensais "Janeiro-26", "Fevereiro-26" etc.
+          // Se tem ≥1 aba mensal, é v2 mesmo sem aba Mídia/CF separadas
+          var temAbaMensal = abasReaisParaDeteccao.some(function(n){
+            return n && typeof _fcv2EhAbaMensal === 'function' && _fcv2EhAbaMensal(n);
+          });
+          if(temMidia || temCF || temAbaMensal) {
             ehV2 = true;
-            console.log('[FC] 🎯 Detectado formato V2 (aba Mídia/Custos Fixos presente nas abas reais)');
+            var motivo = temAbaMensal && !temMidia && !temCF
+              ? 'V2 consolidado (abas mensais sem Mídia/CF separadas)'
+              : 'V2 com abas Mídia/Custos Fixos';
+            console.log('[FC] 🎯 Detectado: '+motivo);
           }
         }
       }
