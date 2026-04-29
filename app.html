@@ -3426,7 +3426,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX5-REGEX';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX6-CAIXA-INI';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -10054,6 +10054,7 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
         var col3Lower = descricao.toLowerCase();
         if(col0Lower === 'data' || col0Lower === 'mês') { linhasDescartadas++; continue; }
         if(col0Lower.includes('subtotal') || col0Lower.startsWith('total')) { linhasDescartadas++; continue; }
+        if(col0Lower.startsWith('resumo')) { linhasDescartadas++; continue; }
         if(col0Lower.includes('saldo final') || col0Lower.startsWith('(-)')) { linhasDescartadas++; continue; }
         if(col0Lower.includes('mídia do mês') || col0Lower.includes('custos fixos do mês')) { linhasDescartadas++; continue; }
         if(col3Lower.includes('caixa inicial')) { linhasDescartadas++; continue; }
