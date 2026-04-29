@@ -3450,7 +3450,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX20-PLATAFORMA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX21-RAIOX-3D';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -20322,13 +20322,13 @@ function raioxRender() {
   var cfg = raioxGetConfig();
 
   // 🆕 Janela ativa do gráfico (afeta TODA a página)
-  // 24h literal seria 1d, mas pra termômetro/diagnóstico usamos mínimo 7d (estatístico)
+  // 24h literal seria 1d, mas pra termômetro/diagnóstico usamos mínimo 3d (estatístico)
   var janelaAtual = window._raioxJanela || '24h';
   var diasAnaliseInterpretacao; // pra termômetro/diagnóstico
   var diasAnaliseLiteral;        // pra tooltip/resumo (literal)
   if(janelaAtual === '24h') {
     diasAnaliseLiteral = 1;
-    diasAnaliseInterpretacao = 7; // mínimo estatístico
+    diasAnaliseInterpretacao = 3; // mínimo estatístico (era 7, encurtado pra 3)
   } else if(janelaAtual === '10d') {
     diasAnaliseLiteral = 10;
     diasAnaliseInterpretacao = 10;
@@ -20426,12 +20426,12 @@ function raioxRender() {
   html += '<div class="raiox-split-grid" style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px">';
 
   // 🌡️ TERMÔMETRO (lado esquerdo)
-  // Resumo de indicadores — usa janela ativa (com mínimo 7d pra estatística)
+  // Resumo de indicadores — usa janela ativa (com mínimo 3d pra estatística)
   function _raioxResumoIndicadores() {
     try {
       var aux = raioxGerarLinhasAuxiliares(analise.vendas.dadosDiarios, modoDemo || 'real');
       var keysAux = Object.keys(analise.vendas.dadosDiarios).sort();
-      // Janela de comparação: dias da janela atual (mínimo 7)
+      // Janela de comparação: dias da janela atual (mínimo 3)
       var nDias = diasAnaliseInterpretacao;
       function _calcVar(arr) {
         if(!arr || arr.length < nDias * 2) return null;
@@ -20479,9 +20479,9 @@ function raioxRender() {
   }
 
   // Helper: label legível da janela
-  var labelJanela = janelaAtual === '24h' ? '7 dias (mín)' : (janelaAtual === '10d' ? '10 dias' : '30 dias');
+  var labelJanela = janelaAtual === '24h' ? '3 dias (mín)' : (janelaAtual === '10d' ? '10 dias' : '30 dias');
   var avisoJanela24h = (janelaAtual === '24h')
-    ? '<div style="font-family:var(--fmono);font-size:9px;color:rgba(252,211,77,.85);background:rgba(252,211,77,.06);border-left:2px solid rgba(252,211,77,.50);padding:6px 8px;border-radius:4px;margin-bottom:10px;line-height:1.45">⚠️ Filtro 24h: termômetro e diagnósticos usam <strong>mínimo 7 dias</strong> pra ter validade estatística. Tooltip do gráfico mantém comparação 1d.</div>'
+    ? '<div style="font-family:var(--fmono);font-size:9px;color:rgba(252,211,77,.85);background:rgba(252,211,77,.06);border-left:2px solid rgba(252,211,77,.50);padding:6px 8px;border-radius:4px;margin-bottom:10px;line-height:1.45">⚠️ Filtro 24h: termômetro e diagnósticos usam <strong>mínimo 3 dias</strong> pra ter validade estatística. Tooltip do gráfico mantém comparação 1d.</div>'
     : '';
 
   html +=
