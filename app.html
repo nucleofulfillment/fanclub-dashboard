@@ -1641,35 +1641,45 @@ body.light body::before { opacity: 0; }
         </div>
         <!-- Mídia/ADS — vermelho -->
         <div class="kpi" style="--cc:#F43F5E" id="fin-mkt-card">
-          <div class="ico">📢</div><div class="lbl">Mídia / ADS</div>
+          <div class="ico">📢</div><div class="lbl">Mídia / ADS <span id="fin-mkt-badge" style="font-family:var(--fmono);font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(110,231,183,.15);color:var(--accent);margin-left:4px;display:none">⚡auto</span></div>
           <div class="val" id="fin-mkt" style="font-size:18px">R$ 0,00</div>
           <div class="sub" id="fin-mkt-sub" style="font-size:9px">aguardando dados de Marketing</div>
           <details style="margin-top:4px">
             <summary style="font-family:var(--fmono);font-size:9px;color:var(--muted2);cursor:pointer;outline:none">override manual %</summary>
-            <div style="display:flex;align-items:center;gap:4px;margin-top:4px">
+            <div style="display:flex;align-items:center;gap:4px;margin-top:4px;flex-wrap:wrap">
               <input type="number" id="fin-mkt-pct" value="0" min="0" max="100" step="0.1"
-                oninput="atualizarResultado()" placeholder="0"
+                oninput="this.dataset.edited='1'; finAutoPreencherDoFluxo(); atualizarResultado()" placeholder="0"
                 style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
                        padding:3px 5px;font-family:var(--fmono);font-size:11px;
                        color:var(--text);outline:none;color-scheme:dark;text-align:center">
               <span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">% sobre GMV</span>
+              <button id="fin-mkt-restaurar" type="button" onclick="finRestaurarMidiaDoFluxo()"
+                style="display:none;font-family:var(--fmono);font-size:9px;padding:2px 6px;border-radius:4px;
+                       background:rgba(110,231,183,.12);color:var(--accent);border:1px solid rgba(110,231,183,.3);
+                       cursor:pointer;outline:none">↻ restaurar do fluxo</button>
             </div>
           </details>
         </div>
         <!-- Impostos — laranja (com alíquota editável embutida) -->
-        <div class="kpi" style="--cc:#FB923C">
-          <div class="ico">🧾</div><div class="lbl">Impostos</div>
+        <div class="kpi" style="--cc:#FB923C" id="fin-tax-card">
+          <div class="ico">🧾</div><div class="lbl">Impostos <span id="fin-tax-badge" style="font-family:var(--fmono);font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(110,231,183,.15);color:var(--accent);margin-left:4px;display:none">⚡auto</span></div>
           <div class="val" id="fin-tax" style="font-size:18px">—</div>
           <div style="display:flex;align-items:center;gap:4px;margin-top:6px">
             <span style="font-family:var(--fmono);font-size:10px;color:var(--muted)">Alíquota</span>
             <input type="number" id="tax-rate" value="6" min="0" max="100" step="0.5"
-              oninput="updateTaxIndicator(); atualizarResultado();"
+              oninput="this.dataset.edited='1'; finAutoPreencherDoFluxo(); updateTaxIndicator(); atualizarResultado();"
               style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
                      padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
                      color:var(--amber);outline:none;color-scheme:dark;text-align:center">
             <span style="font-family:var(--fmono);font-size:11px;color:var(--amber)">%</span>
           </div>
-          <div class="sub" id="fin-tax-rate" style="margin-top:3px">sobre GMV total</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:3px">
+            <div class="sub" id="fin-tax-rate" style="font-size:9px">sobre GMV total</div>
+            <button id="fin-tax-restaurar" type="button" onclick="finRestaurarTributosDoFluxo()"
+              style="display:none;font-family:var(--fmono);font-size:9px;padding:1px 5px;border-radius:3px;
+                     background:rgba(110,231,183,.12);color:var(--accent);border:1px solid rgba(110,231,183,.3);
+                     cursor:pointer;outline:none">↻ fluxo</button>
+          </div>
         </div>
       </div>
 
@@ -1768,16 +1778,24 @@ body.light body::before { opacity: 0; }
           <div class="sub" style="font-size:9px">% do GMV LP</div>
         </div>
         <!-- Custo Fixo (R$ mensal) -->
-        <div class="kpi" style="--cc:#94A3B8">
-          <div class="ico">🏭</div><div class="lbl">Custo Fixo</div>
+        <div class="kpi" style="--cc:#94A3B8" id="fin-custo-fixo-card">
+          <div class="ico">🏭</div><div class="lbl">Custo Fixo <span id="fin-custo-fixo-badge" style="font-family:var(--fmono);font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(110,231,183,.15);color:var(--accent);margin-left:4px;display:none">⚡auto</span></div>
           <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
             <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">R$</span>
-            <input type="number" id="fin-custo-fixo" value="0" min="0" step="1" oninput="atualizarResultado()" onchange="atualizarResultado()"
+            <input type="number" id="fin-custo-fixo" value="0" min="0" step="1"
+              oninput="this.dataset.edited='1'; finAutoPreencherDoFluxo(); atualizarResultado()"
+              onchange="this.dataset.edited='1'; finAutoPreencherDoFluxo(); atualizarResultado()"
               style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:5px;padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;color:var(--text);outline:none;color-scheme:dark;-moz-appearance:textfield"
               onwheel="this.blur()">
           </div>
           <div class="val" id="fin-custo-fixo-aplicado" style="font-size:13px;color:var(--text)">— aplicado</div>
-          <div class="sub" style="font-size:9px">mensal / período</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
+            <div class="sub" style="font-size:9px">mensal / período</div>
+            <button id="fin-custo-fixo-restaurar" type="button" onclick="finRestaurarCustoFixoDoFluxo()"
+              style="display:none;font-family:var(--fmono);font-size:9px;padding:1px 5px;border-radius:3px;
+                     background:rgba(110,231,183,.12);color:var(--accent);border:1px solid rgba(110,231,183,.3);
+                     cursor:pointer;outline:none">↻ fluxo</button>
+          </div>
         </div>
       </div>
 
@@ -3430,7 +3448,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX11-COMISSOES';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX13-FIN-AUTO-IMP';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9840,6 +9858,26 @@ function fluxoV2SomaCustosFixos(from, to) {
   }, 0);
 }
 
+/* 🆕 Soma tributos sobre vendas no período.
+   Lê de _fcDados onde classif inclui "Tributo" (matching tolerante).
+   Retorna valor absoluto (sempre positivo). */
+function fluxoV2SomaTributos(from, to) {
+  if(!window._fcDados || !window._fcDados.length) return 0;
+
+  return _fcDados.reduce(function(s, d){
+    if(!d.data) return s;
+    if(from && d.data < from) return s;
+    if(to   && d.data > to)   return s;
+
+    // Match tolerante na classificação ("Tributo Vendas", "Tributos", "Imposto")
+    var c = String(d.classif || '').toLowerCase();
+    if(c.indexOf('tributo') < 0 && c.indexOf('imposto') < 0) return s;
+
+    var mov = (parseFloat(d.movimento)||0) + (parseFloat(d.custoFixo)||0);
+    return s + Math.abs(mov);
+  }, 0);
+}
+
 var MESES_FC = {
   '01':'janeiro','02':'fevereiro','03':'março','04':'abril',
   '05':'maio','06':'junho','07':'julho','08':'agosto',
@@ -15005,8 +15043,190 @@ function renderCidades() {
     '<\/div>';
   }).join('');
 }
+/* ═══════════════════════════════════════════════════════════════════
+   🆕 AUTO-PREENCHIMENTO FINANCEIRO ← FLUXO V2
+   - finAutoPreencherDoFluxo(): roda toda vez que muda período/dados.
+     Lê total de Mídia (todos canais) e soma de Custos Fixos do fluxo
+     pro período do filtro. Preenche os inputs com badge ⚡auto/✏️manual
+     respeitando override do usuário (dataset.edited='1').
+   - finRestaurarMidiaDoFluxo / finRestaurarCustoFixoDoFluxo: limpam
+     o flag manual e re-puxam do fluxo.
+═══════════════════════════════════════════════════════════════════ */
+function finAutoPreencherDoFluxo() {
+  // Sem fluxo v2 carregado → nada a fazer
+  if(!window._fluxoV2Data) {
+    var bM = document.getElementById('fin-mkt-badge');
+    var bF = document.getElementById('fin-custo-fixo-badge');
+    if(bM) bM.style.display = 'none';
+    if(bF) bF.style.display = 'none';
+    return;
+  }
+
+  // ─── Período ─────────────────────────────────────────────────
+  var fFrom = (document.getElementById('fin-from')||{}).value || '';
+  var fTo   = (document.getElementById('fin-to')||{}).value   || '';
+
+  // ─── 1. MÍDIA (% override > total fluxo) ─────────────────────
+  // Como o card hoje só tem input "% override", o auto vai preencher
+  // a sub-label e injetar o valor R$ direto via campo escondido.
+  // O cálculo no syncFinanceiroKPIs lê _fluxoV2_midia_auto e usa
+  // se mktPct === 0 e Marketing não tiver dado.
+  try {
+    var totalMidia = (typeof fluxoV2TotalMidia === 'function')
+      ? fluxoV2TotalMidia(fFrom, fTo) : 0;
+    window._fluxoV2_midia_auto = totalMidia;
+
+    var pctOverride = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
+    var mktInput = document.getElementById('fin-mkt-pct');
+    var manualMkt = mktInput && mktInput.dataset.edited === '1' && pctOverride > 0;
+
+    var bM = document.getElementById('fin-mkt-badge');
+    var rM = document.getElementById('fin-mkt-restaurar');
+    if(bM) {
+      if(manualMkt) {
+        bM.textContent = '✏️manual';
+        bM.style.background = 'rgba(245,158,11,.15)';
+        bM.style.color = '#F59E0B';
+        bM.style.display = '';
+      } else if(totalMidia > 0) {
+        bM.textContent = '⚡auto';
+        bM.style.background = 'rgba(110,231,183,.15)';
+        bM.style.color = 'var(--accent)';
+        bM.style.display = '';
+      } else {
+        bM.style.display = 'none';
+      }
+    }
+    if(rM) rM.style.display = manualMkt ? '' : 'none';
+  } catch(e) { console.warn('[Fin auto-mídia]', e); }
+
+  // ─── 2. CUSTO FIXO ───────────────────────────────────────────
+  try {
+    var totalCustosFixos = (typeof fluxoV2SomaCustosFixos === 'function')
+      ? fluxoV2SomaCustosFixos(fFrom, fTo) : 0;
+
+    // Calcula a média mensal do período pra preencher o input
+    // (que é "R$ mensal", aplicado proporcionalmente pelo syncFinanceiroKPIs)
+    var diasPeriodo = 30;
+    if(fFrom && fTo) {
+      var dF = new Date(fFrom + 'T00:00:00');
+      var dT = new Date(fTo   + 'T00:00:00');
+      var diff = Math.round((dT - dF) / 86400000) + 1;
+      if(diff > 0) diasPeriodo = diff;
+    }
+    var custoFixoMensalAuto = Math.round(totalCustosFixos * (30 / diasPeriodo));
+
+    var cfInput = document.getElementById('fin-custo-fixo');
+    var manualCF = cfInput && cfInput.dataset.edited === '1';
+
+    if(cfInput && !manualCF && custoFixoMensalAuto > 0) {
+      cfInput.value = custoFixoMensalAuto;
+    }
+
+    var bF = document.getElementById('fin-custo-fixo-badge');
+    var rF = document.getElementById('fin-custo-fixo-restaurar');
+    if(bF) {
+      if(manualCF) {
+        bF.textContent = '✏️manual';
+        bF.style.background = 'rgba(245,158,11,.15)';
+        bF.style.color = '#F59E0B';
+        bF.style.display = '';
+      } else if(custoFixoMensalAuto > 0) {
+        bF.textContent = '⚡auto';
+        bF.style.background = 'rgba(110,231,183,.15)';
+        bF.style.color = 'var(--accent)';
+        bF.style.display = '';
+      } else {
+        bF.style.display = 'none';
+      }
+    }
+    if(rF) rF.style.display = manualCF ? '' : 'none';
+
+    console.log('[Fin auto] Mídia:'+(window._fluxoV2_midia_auto||0).toFixed(0)+
+                ' · CustoFixo mensal:'+custoFixoMensalAuto.toFixed(0)+
+                ' · período:'+(fFrom||'?')+'→'+(fTo||'?')+' ('+diasPeriodo+'d)');
+  } catch(e) { console.warn('[Fin auto-custofixo]', e); }
+
+  // ─── 3. TRIBUTOS (Imposto sobre Vendas) ──────────────────────
+  // Lê total de tributos do período no fluxo, calcula a alíquota
+  // efetiva (% sobre GMV) e preenche o input tax-rate.
+  // GMV vem do _filtroAtual ou _lastProcessedData filtrado.
+  try {
+    var totalTributos = (typeof fluxoV2SomaTributos === 'function')
+      ? fluxoV2SomaTributos(fFrom, fTo) : 0;
+
+    // Calcular GMV do período pra derivar a alíquota efetiva
+    var gmvPeriodo = 0;
+    try {
+      var lp = window._lastProcessedData;
+      if(lp && lp.entr) gmvPeriodo = lp.total || lp.entr.reduce(function(s,p){return s + (parseFloat(p.valor)||0);}, 0);
+    } catch(eg) {}
+
+    var aliqEfetiva = 0;
+    if(totalTributos > 0 && gmvPeriodo > 0) {
+      aliqEfetiva = (totalTributos / gmvPeriodo) * 100;
+    }
+
+    var taxInput = document.getElementById('tax-rate');
+    var manualTax = taxInput && taxInput.dataset.edited === '1';
+
+    if(taxInput && !manualTax && aliqEfetiva > 0) {
+      // Arredonda pra 1 casa decimal (ex: 5.74% → 5.7%)
+      taxInput.value = aliqEfetiva.toFixed(1);
+    }
+
+    var bT = document.getElementById('fin-tax-badge');
+    var rT = document.getElementById('fin-tax-restaurar');
+    if(bT) {
+      if(manualTax) {
+        bT.textContent = '✏️manual';
+        bT.style.background = 'rgba(245,158,11,.15)';
+        bT.style.color = '#F59E0B';
+        bT.style.display = '';
+      } else if(aliqEfetiva > 0) {
+        bT.textContent = '⚡auto';
+        bT.style.background = 'rgba(110,231,183,.15)';
+        bT.style.color = 'var(--accent)';
+        bT.style.display = '';
+      } else {
+        bT.style.display = 'none';
+      }
+    }
+    if(rT) rT.style.display = manualTax ? '' : 'none';
+  } catch(e) { console.warn('[Fin auto-tributos]', e); }
+}
+
+function finRestaurarMidiaDoFluxo() {
+  var inp = document.getElementById('fin-mkt-pct');
+  if(inp) {
+    delete inp.dataset.edited;
+    inp.value = '';
+  }
+  finAutoPreencherDoFluxo();
+  if(typeof atualizarResultado === 'function') atualizarResultado();
+}
+
+function finRestaurarCustoFixoDoFluxo() {
+  var inp = document.getElementById('fin-custo-fixo');
+  if(inp) delete inp.dataset.edited;
+  finAutoPreencherDoFluxo();
+  if(typeof atualizarResultado === 'function') atualizarResultado();
+}
+
+function finRestaurarTributosDoFluxo() {
+  var inp = document.getElementById('tax-rate');
+  if(inp) delete inp.dataset.edited;
+  finAutoPreencherDoFluxo();
+  if(typeof updateTaxIndicator === 'function') updateTaxIndicator();
+  if(typeof atualizarResultado === 'function') atualizarResultado();
+}
+
 function syncFinanceiroKPIs(d) {
   if(!d) return;
+
+  // 🆕 Auto-preenche Mídia + Custo Fixo do fluxo v2 antes de calcular
+  try { finAutoPreencherDoFluxo(); } catch(e) { console.warn('[Fin auto]', e); }
+
   var cnt  = d.aprov.length + d.trans.length + d.entr.length;
   var rate = parseFloat((document.getElementById("tax-rate")||{}).value)||6;
   var custoFixoMensal = parseFloat((document.getElementById("fin-custo-fixo")||{}).value)||0;
@@ -15169,14 +15389,20 @@ function syncFinanceiroKPIs(d) {
   var custoFinanceiro   = gmvLojaPropria * (pctFinanceiro / 100); // só LP (sincronizado entre módulos)
 
   // ═══════════════════════════════════════════════════════════════════
-  // MÍDIA: prioriza override manual, senão puxa do Marketing
+  // MÍDIA: prioridade → manual % > fluxo v2 (todos canais) > Marketing IA
   // ═══════════════════════════════════════════════════════════════════
-  var mktPct = parseFloat((document.getElementById('fin-mkt-pct')||{}).value)||0;
+  var mktPctInput = document.getElementById('fin-mkt-pct');
+  var mktPct = parseFloat((mktPctInput||{}).value)||0;
+  var mktManual = mktPctInput && mktPctInput.dataset.edited === '1' && mktPct > 0;
   var custoMkt = 0;
   var mktFonte = '';
-  if(mktPct > 0) {
+  if(mktManual) {
     custoMkt = d.total * (mktPct/100);
     mktFonte = 'manual: '+mktPct.toFixed(1)+'% do GMV';
+  } else if(window._fluxoV2_midia_auto && window._fluxoV2_midia_auto > 0) {
+    // 🆕 Auto do fluxo v2: total de mídia (todos canais) já filtrado pelo período
+    custoMkt = window._fluxoV2_midia_auto;
+    mktFonte = '⚡auto: Fluxo v2 (todos canais)';
   } else if(window._mktDataIA && window._mktDataIA.investimento && window._mktDataIA.investimento.total > 0) {
     var invTotal = window._mktDataIA.investimento.total || 0;
     custoMkt = invTotal * (diasPeriodo / 30);
