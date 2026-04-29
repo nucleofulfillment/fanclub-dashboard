@@ -3450,7 +3450,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX18-CONSOLIDADO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX20-PLATAFORMA';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9740,18 +9740,41 @@ async function loadFluxoV2(forceRefresh) {
 
       // Se não conseguiu extrair canal, tenta mapear por palavra-chave
       if(!canal) {
+        // Normaliza removendo espaços extras pra detectar variações tipo "Tik Tok"
         var descLower = desc.toLowerCase();
+        var descSemEspacos = descLower.replace(/\s+/g, '');
         if(descLower.indexOf('shopee') >= 0)        canal = 'Shopee';
         else if(descLower.indexOf('mercado') >= 0)   canal = 'Mercado Livre';
+        else if(descLower.indexOf('meli') >= 0)      canal = 'Mercado Livre';
         else if(descLower.indexOf('shein') >= 0)     canal = 'Shein';
-        else if(descLower.indexOf('posthaus') >= 0)  canal = 'Posthaus';
-        else if(descLower.indexOf('tiktok') >= 0)    canal = 'TikTok Shop';
+        else if(descLower.indexOf('posthaus') >= 0 || descLower.indexOf('post haus') >= 0)  canal = 'Posthaus';
+        else if(descSemEspacos.indexOf('tiktok') >= 0) canal = 'TikTok Shop';  // pega "TikTok" e "Tik Tok"
         else if(descLower.indexOf('dafiti') >= 0)    canal = 'Dafiti';
-        else if(descLower.indexOf('meta') >= 0 || descLower.indexOf('google') >= 0
-                || descLower.indexOf('loja própria') >= 0 || descLower.indexOf('loja propria') >= 0) {
+        else if(descLower.indexOf('magalu') >= 0 || descLower.indexOf('magazine') >= 0) canal = 'Magalu';
+        else if(descLower.indexOf('amazon') >= 0)    canal = 'Amazon';
+        else if(descLower.indexOf('americanas') >= 0) canal = 'Americanas';
+        else if(descLower.indexOf('netshoes') >= 0)  canal = 'Netshoes';
+        else if(descLower.indexOf('meta') >= 0 || descLower.indexOf('facebook') >= 0
+                || descLower.indexOf('instagram') >= 0 || descLower.indexOf('google') >= 0
+                || descLower.indexOf('loja própria') >= 0 || descLower.indexOf('loja propria') >= 0
+                || descLower.indexOf('site') >= 0) {
           canal = 'Loja Própria';
         } else {
           canal = 'Outros';
+        }
+      }
+
+      // 🆕 Pra Loja Própria: detectar PLATAFORMA (Meta vs Google) automaticamente
+      // do texto livre, mesmo sem o "·". Importante pra Marketing dividir certo
+      // os campos de "Investimento Meta Ads" vs "Investimento Google Ads".
+      if(canal === 'Loja Própria') {
+        var descLowerLP = desc.toLowerCase();
+        if(descLowerLP.indexOf('google') >= 0) {
+          plataforma = 'Google Ads';
+        } else if(descLowerLP.indexOf('meta') >= 0
+               || descLowerLP.indexOf('facebook') >= 0
+               || descLowerLP.indexOf('insta') >= 0) {
+          plataforma = 'Meta Ads';
         }
       }
 
