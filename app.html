@@ -3451,7 +3451,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX22-MKT-CALENDARIO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX23-RAIOX-MIDIA-REAL';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -19764,12 +19764,40 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
     });
   }
 
-  var midia       = _gerarSerie(p.midia,       0.85, 41);
+  // 🆕 MÍDIA REAL — quando cenário 'real' E _fluxoV2Data.midia existe,
+  // usa lançamentos reais agregados por dia em vez de série simulada.
+  // Soma TODOS os canais por dia. Dias sem lançamento ficam zerados
+  // (aparece como anomalia no termômetro/diagnóstico).
+  function _gerarSerieMidiaReal() {
+    if(!window._fluxoV2Data || !window._fluxoV2Data.midia || !window._fluxoV2Data.midia.length) {
+      return null; // sem dados, fallback pra simulação
+    }
+    // Indexa lançamentos por chave YYYY-MM-DD
+    var porDia = {};
+    window._fluxoV2Data.midia.forEach(function(m){
+      if(!m.data) return;
+      var dt = m.data instanceof Date ? m.data : new Date(m.data);
+      if(isNaN(dt.getTime())) return;
+      var key = dt.getFullYear() + '-' +
+                String(dt.getMonth()+1).padStart(2,'0') + '-' +
+                String(dt.getDate()).padStart(2,'0');
+      porDia[key] = (porDia[key] || 0) + (m.valor || 0);
+    });
+    // Mapeia pra cada dia do dadosDiarios. Se não tem dado real pro dia,
+    // marca como null (será preenchido com média do mês pra não distorcer)
+    var serie = keys.map(function(k){
+      return porDia[k] !== undefined ? porDia[k] : 0;
+    });
+    return serie;
+  }
+
+  var midiaReal = (cenario === 'real') ? _gerarSerieMidiaReal() : null;
+  var midia       = midiaReal || _gerarSerie(p.midia,       0.85, 41);
   var estoque     = _gerarSerie(p.estoque,     0.70, 23);
   var mercado     = _gerarSerie(p.mercado,     0.95, 17);
   var marketplace = _gerarSerie(p.marketplace, 0.78, 29);
 
-  return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace };
+  return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace, midiaEhReal: !!midiaReal };
 }
 
 /* Detecta pontos de alerta (outliers) na linha de vendas */
@@ -20246,6 +20274,64 @@ function raioxGerarDiagnosticos(analise) {
     confianca: 65,
     simulado: true
   });
+
+  // 🆕 Mídia atrasada — detecta dias úteis recentes sem lançamento de mídia
+  // Se houver dias úteis sem mídia em _fluxoV2Data nos últimos 7 dias, alerta
+  try {
+    if(window._fluxoV2Data && window._fluxoV2Data.midia && window._fluxoV2Data.midia.length) {
+      // Indexa lançamentos por dia
+      var midiaPorDia = {};
+      window._fluxoV2Data.midia.forEach(function(m){
+        if(!m.data) return;
+        var dt = m.data instanceof Date ? m.data : new Date(m.data);
+        if(isNaN(dt.getTime())) return;
+        var key = dt.getFullYear() + '-' +
+                  String(dt.getMonth()+1).padStart(2,'0') + '-' +
+                  String(dt.getDate()).padStart(2,'0');
+        midiaPorDia[key] = (midiaPorDia[key] || 0) + (m.valor || 0);
+      });
+
+      // Verifica os últimos 7 dias úteis (excluindo hoje)
+      var hoje = new Date();
+      hoje.setHours(0,0,0,0);
+      var diasSemMidia = [];
+      for(var i = 1; i <= 14; i++) {
+        var d = new Date(hoje);
+        d.setDate(d.getDate() - i);
+        var wd = d.getDay(); // 0=dom, 1=seg, ..., 6=sáb
+        // Verifica todo dia (Loja Própria deveria lançar todo dia)
+        var key = d.getFullYear() + '-' +
+                  String(d.getMonth()+1).padStart(2,'0') + '-' +
+                  String(d.getDate()).padStart(2,'0');
+        var total = midiaPorDia[key] || 0;
+        // Tolerância: se sáb/dom, espera valor pequeno; se dia útil, espera valor maior
+        var minimoEsperado = (wd === 0 || wd === 6) ? 100 : 1000;
+        if(total < minimoEsperado) {
+          diasSemMidia.push({
+            data: key,
+            wd: wd,
+            valor: total,
+            label: String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')
+          });
+        }
+        if(diasSemMidia.length >= 3) break; // mostra no máximo 3
+      }
+
+      if(diasSemMidia.length > 0) {
+        var labels = diasSemMidia.map(function(d){ return d.label; }).join(', ');
+        diags.push({
+          tipo: 'midia-atrasada',
+          severidade: 'atencao',
+          titulo: 'Mídia possivelmente não lançada',
+          desc: 'Detectamos '+diasSemMidia.length+' dia(s) recentes com pouca ou nenhuma mídia lançada na planilha: '+labels+'.',
+          detalhe: 'Verifique se houve gasto nesses dias e atualize a planilha pra análise correta de ROAS/CPA.',
+          confianca: 85,
+          simulado: false
+        });
+      }
+    }
+  } catch(eMidiaAtrasada) { console.warn('[Raio X] Erro detectando mídia atrasada:', eMidiaAtrasada); }
+
 
   // Sazonalidade (placeholder)
   diags.push({
