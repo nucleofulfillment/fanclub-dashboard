@@ -3212,90 +3212,84 @@ body.light body::before { opacity: 0; }
   <div id="page-marketplace" class="page">
     <main class="main">
 
-      <!-- Header da página -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+      <!-- Header da página com filtro de período -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
         <div>
-          <div style="font-family:var(--fdisplay);font-size:22px;font-weight:700">🏪 Marketplace</div>
-          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:3px">
-            Recebíveis, conciliação e calendário de liberações por canal
+          <div style="font-family:var(--fdisplay);font-size:22px;font-weight:700;display:flex;align-items:center;gap:10px">
+            🏪 Marketplace
+            <span style="font-family:var(--fmono);font-size:9px;color:#FB923C;background:rgba(251,146,60,.15);padding:2px 8px;border-radius:4px;font-weight:500;letter-spacing:.5px">PREVIEW · DADOS FICTÍCIOS</span>
           </div>
+          <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:3px">
+            Recebíveis, conciliação e calendário de liberações por canal · Será ativado após integração com Magazord
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="conc-periodo-mock" onchange="conciliacaoRender()" style="background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:7px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px">
+            <option value="abril-26">Abril 2026</option>
+            <option value="marco-26">Março 2026</option>
+            <option value="fevereiro-26">Fevereiro 2026</option>
+          </select>
         </div>
       </div>
 
       <!-- ─────────────────────────────────────────────────────────
-           SEÇÃO 1: FLUXO FINANCEIRO POR CANAL
-           (movido do módulo Financeiro — ch-cf e cf-body intactos)
+           SEÇÃO 1: KPIs DA CONCILIAÇÃO (resumo no topo)
            ───────────────────────────────────────────────────────── -->
-      <div class="slabel">fluxo financeiro por canal</div>
-      <div class="g2 fu" style="margin-bottom:14px">
-        <div class="card">
-          <div class="ch"><div><div class="ct">Previsão de Recebimentos por Canal</div><div class="cs">Data venda + prazo por marketplace — empilhado por canal</div></div></div>
-          <canvas id="ch-cf" height="200"></canvas>
-          <div id="cf-chart-footer" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px 0;border-top:1px solid var(--border);margin-top:8px;flex-wrap:wrap"></div>
-        </div>
+      <div id="conc-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px"></div>
+
+      <!-- ─────────────────────────────────────────────────────────
+           SEÇÃO 2: CALENDÁRIOS LADO A LADO
+           Esquerda: Calendário de Liberações (por canal — cf-body)
+           Direita:  Previsão de recebimento (próximas 4 semanas — conc-calendario)
+           ───────────────────────────────────────────────────────── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
+
         <div class="card">
           <div class="ch"><div><div class="ct">Calendário de Liberações</div><div class="cs">GMV, comissão estimada e líquido por canal</div></div></div>
           <div id="cf-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:4px 0">
             <div style="text-align:center;color:var(--muted);padding:20px;font-family:var(--fmono);font-size:12px;grid-column:1/-1">Navegue até esta página para carregar</div>
           </div>
         </div>
+
+        <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px">
+          <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">📅 Previsão de recebimento (próximas 4 semanas)</div>
+          <div id="conc-calendario"></div>
+        </div>
+
       </div>
 
       <!-- ─────────────────────────────────────────────────────────
-           SEÇÃO 2: CONCILIAÇÃO MARKETPLACES (preview com mocks)
-           (movido do módulo Fluxo de Caixa — IDs preservados)
+           SEÇÃO 3: GRÁFICO DE PREVISÃO DE RECEBIMENTOS (largura total)
            ───────────────────────────────────────────────────────── -->
-      <div style="margin-top:30px;padding-top:24px;border-top:2px dashed var(--s3)">
+      <div class="card" style="margin-bottom:20px">
+        <div class="ch"><div><div class="ct">Previsão de Recebimentos por Canal</div><div class="cs">Data venda + prazo por marketplace — empilhado por canal</div></div></div>
+        <canvas id="ch-cf" height="120"></canvas>
+        <div id="cf-chart-footer" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px 0;border-top:1px solid var(--border);margin-top:8px;flex-wrap:wrap"></div>
+      </div>
 
-        <!-- Header com badge "preview" -->
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
-          <div>
-            <h2 style="font-family:var(--fhead);font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:10px">
-              💰 Conciliação Marketplaces
-              <span style="font-family:var(--fmono);font-size:9px;color:#FB923C;background:rgba(251,146,60,.15);padding:2px 8px;border-radius:4px;font-weight:500;letter-spacing:.5px">PREVIEW · DADOS FICTÍCIOS</span>
-            </h2>
-            <div style="font-family:var(--fmono);font-size:11px;color:var(--muted)">Vendido vs recebido por marketplace · Será ativado após integração com Magazord</div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <select id="conc-periodo-mock" onchange="conciliacaoRender()" style="background:var(--s2);border:1px solid var(--s3);color:var(--text);padding:7px 12px;border-radius:6px;font-family:var(--fmono);font-size:11px">
-              <option value="abril-26">Abril 2026</option>
-              <option value="marco-26">Março 2026</option>
-              <option value="fevereiro-26">Fevereiro 2026</option>
-            </select>
-          </div>
+      <!-- ─────────────────────────────────────────────────────────
+           SEÇÃO 4: DETALHAMENTO POR MARKETPLACE (tabela)
+           ───────────────────────────────────────────────────────── -->
+      <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:18px">
+        <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">📊 Detalhamento por marketplace</div>
+        <div style="overflow-x:auto">
+          <table id="conc-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:760px"></table>
         </div>
+      </div>
 
-        <!-- KPIs gerais -->
-        <div id="conc-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px"></div>
+      <!-- ─────────────────────────────────────────────────────────
+           SEÇÃO 5: DIFERENÇAS E ALERTAS
+           ───────────────────────────────────────────────────────── -->
+      <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:14px">
+        <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">⚠️ Diferenças e alertas</div>
+        <div id="conc-alertas"></div>
+      </div>
 
-        <!-- Tabela por marketplace -->
-        <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:18px">
-          <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">📊 Detalhamento por marketplace</div>
-          <div style="overflow-x:auto">
-            <table id="conc-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:760px"></table>
-          </div>
-        </div>
-
-        <!-- Calendário de previsão + Pendências -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
-
-          <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px">
-            <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">📅 Previsão de recebimento (próximas 4 semanas)</div>
-            <div id="conc-calendario"></div>
-          </div>
-
-          <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px">
-            <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">⚠️ Diferenças e alertas</div>
-            <div id="conc-alertas"></div>
-          </div>
-
-        </div>
-
-        <!-- Aviso final -->
-        <div style="background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.25);border-radius:8px;padding:14px 18px;font-family:var(--fmono);font-size:11px;color:var(--muted);line-height:1.7">
-          💡 <strong style="color:var(--accent)">Próximos passos:</strong> a integração com a API da Magazord vai trazer dados reais de vendas, status (entregue) e datas precisas. A taxa e prazo de cada marketplace é configurável em <strong style="color:var(--text)">Admin → Editar empresa → Marketplaces</strong> (em breve). Até lá, esse painel mostra dados fictícios pra você visualizar como vai ficar.
-        </div>
-
+      <!-- ─────────────────────────────────────────────────────────
+           AVISO FINAL
+           ───────────────────────────────────────────────────────── -->
+      <div style="background:rgba(110,231,183,.06);border:1px solid rgba(110,231,183,.25);border-radius:8px;padding:14px 18px;font-family:var(--fmono);font-size:11px;color:var(--muted);line-height:1.7">
+        💡 <strong style="color:var(--accent)">Próximos passos:</strong> a integração com a API da Magazord vai trazer dados reais de vendas, status (entregue) e datas precisas. A taxa e prazo de cada marketplace é configurável em <strong style="color:var(--text)">Admin → Editar empresa → Marketplaces</strong> (em breve). Até lá, esse painel mostra dados fictícios pra você visualizar como vai ficar.
       </div>
 
     </main>
@@ -3432,7 +3426,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FLUXOV2';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX1';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9850,6 +9844,397 @@ function fcCor(classif) { return FC_CORES[classif] || FC_CORES.default; }
 
 function toggleFCConfig() { /* config agora é via ⚙ Links no sidebar */ }
 
+/* ═══════════════════════════════════════════════════════════════
+   ⚡ ENGINE V2 DO FLUXO DE CAIXA — lê planilha v2 com 3 fontes:
+   ─────────────────────────────────────────────────────────────
+   1. Abas mensais (Janeiro-26, Fevereiro-26, ...) — operacional
+   2. Aba Mídia — lançamentos diários por canal
+   3. Aba Custos Fixos — overhead mensal (datas atribuídas)
+
+   Junta tudo em _fcDados (estrutura compatível com renderFluxoCaixa).
+═══════════════════════════════════════════════════════════════ */
+
+/* Datas padrão de saída pra Custos Fixos (configuráveis depois) */
+var FC_V2_DATAS_CUSTO_FIXO = {
+  'Folha':                  5,
+  'FGTS':                   7,
+  'INSS':                   7,
+  'Aluguel':                10,
+  'Armazém / Estocagem':    10,
+  'Energia':                12,
+  'Água':                   12,
+  'Internet / Telecom':     15,
+  'Tecnologia':             15,
+  'Insumos':                20,
+  'Contabilidade':          20,
+  'Seguro':                 25,
+  'Outros':                 25,
+  'default':                15
+};
+
+/* Helper: detecta se uma aba tem nome de mês válido (Janeiro-26, Fev-26 etc) */
+function _fcv2EhAbaMensal(nome) {
+  if(!nome) return null;
+  var s = String(nome).toLowerCase().trim();
+  var meses = {
+    'janeiro':1,  'jan':1,
+    'fevereiro':2,'fev':2,
+    'março':3,    'marco':3, 'mar':3,
+    'abril':4,    'abr':4,
+    'maio':5,     'mai':5,
+    'junho':6,    'jun':6,
+    'julho':7,    'jul':7,
+    'agosto':8,   'ago':8,
+    'setembro':9, 'set':9,
+    'outubro':10, 'out':10,
+    'novembro':11,'nov':11,
+    'dezembro':12,'dez':12
+  };
+  for(var k in meses) {
+    if(s.indexOf(k) === 0) {
+      var anoMatch = s.match(/(\d{2,4})$/);
+      var ano = anoMatch ? parseInt(anoMatch[1]) : new Date().getFullYear();
+      if(ano < 100) ano += 2000;
+      return { mesNum: meses[k], ano: ano, ord: ano*100 + meses[k] };
+    }
+  }
+  return null;
+}
+
+/* Lista todas as abas via HTML scraping (mais robusto que feed deprecado).
+   Reusa _detectarAbasViaHTML que já é usado no carregamento de pedidos. */
+async function _fcv2ListarAbas(sheetId) {
+  // Tenta o método robusto primeiro (HTML scraping)
+  if(typeof _detectarAbasViaHTML === 'function') {
+    try {
+      var abasObj = await _detectarAbasViaHTML(sheetId);
+      if(abasObj && abasObj.length) {
+        return abasObj.map(function(a){ return a.nome; }).filter(Boolean);
+      }
+    } catch(e) {
+      console.warn('[FC v2] _detectarAbasViaHTML falhou:', e);
+    }
+  }
+  // Fallback: feed antigo (geralmente não funciona mais)
+  try {
+    var feedRes = await fetch('https://spreadsheets.google.com/feeds/worksheets/'+sheetId+'/public/basic?alt=json');
+    if(feedRes.ok) {
+      var feedJson = await feedRes.json();
+      var entries = feedJson.feed && feedJson.feed.entry;
+      if(entries) return entries.map(function(e){ return e.title && e.title.$t; }).filter(Boolean);
+    }
+  } catch(e) {}
+  return [];
+}
+
+/* Engine principal — popula _fcDados a partir de 3 fontes */
+async function _fcLoadV2(sheetId, statusEl) {
+  _fcDados = [];
+  _fcMeses = [];
+
+  var abas = await _fcv2ListarAbas(sheetId);
+
+  // ⛔ Sem fallback de "abas conhecidas" — Google retorna a primeira aba
+  // quando solicitamos uma que não existe, contaminando _fcDados.
+  if(!abas.length) {
+    if(statusEl) {
+      statusEl.textContent = '❌ Não consegui detectar as abas — verifique se a planilha está pública';
+      statusEl.style.color = 'var(--red)';
+    }
+    console.error('[FC v2] Nenhuma aba detectada — abortando');
+    return;
+  }
+
+  // Dedup pra garantir
+  abas = abas.filter(function(a, i){ return abas.indexOf(a) === i; });
+  console.log('[FC v2] Abas detectadas ('+abas.length+'):', abas);
+
+  // Separa abas mensais das auxiliares — APENAS abas que de fato existem
+  var abasMensais = [];
+  abas.forEach(function(nome){
+    var info = _fcv2EhAbaMensal(nome);
+    if(info) abasMensais.push({ nome: nome, info: info });
+  });
+  abasMensais.sort(function(a,b){ return a.info.ord - b.info.ord; });
+
+  console.log('[FC v2] '+abasMensais.length+' aba(s) mensal(is):',
+              abasMensais.map(function(a){return a.nome;}));
+
+  // ─── ETAPA 1: Carrega abas mensais ──────────────────────────────
+  if(statusEl) statusEl.textContent = '⏳ Lendo '+abasMensais.length+' aba(s) mensal(is)...';
+
+  var caixaInicial = 0;
+  var caixaInicialDefinido = false;
+  var baseUrl = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json';
+
+  for(var i = 0; i < abasMensais.length; i++) {
+    var aba = abasMensais[i].nome;
+    try {
+      var res = await fetch(baseUrl + '&sheet='+encodeURIComponent(aba)+'&nocache='+Date.now());
+      if(!res.ok) continue;
+      var txt = await res.text();
+      if(!txt || txt.length < 50) continue;
+
+      var rows = [];
+      try { rows = parseGS(txt); } catch(pe) { continue; }
+      if(!rows || rows.length < 3) continue;
+
+      // Detectar Caixa Inicial nas primeiras linhas (só do primeiro mês)
+      if(!caixaInicialDefinido) {
+        for(var ci = 0; ci < Math.min(5, rows.length); ci++) {
+          var rci = rows[ci];
+          if(!rci) continue;
+          var temCI = rci.some(function(v){ return String(v||'').toLowerCase().includes('caixa ini'); });
+          if(temCI) {
+            // Caixa inicial está na col F (saldo) = índice 5
+            var ciVal = parseFloat(rci[5]) || parseFloat(rci[6]) || 0;
+            // Se ainda não pegou, tenta primeiro número positivo
+            if(!ciVal) {
+              rci.forEach(function(v){ if(!ciVal && parseFloat(v) > 0) ciVal = parseFloat(v); });
+            }
+            caixaInicial = ciVal;
+            caixaInicialDefinido = true;
+            console.log('[FC v2] Caixa Inicial: R$ '+caixaInicial.toLocaleString('pt-BR'));
+            break;
+          }
+        }
+      }
+
+      // Estrutura nova (planilha v2):
+      // A=Data | B=Movimento | C=Classificação | D=Descrição | E=R/P/N | F=Saldo
+      var linhasValidas = 0;
+      for(var ri = 0; ri < rows.length; ri++) {
+        var r = rows[ri];
+        if(!r || r.length < 4) continue;
+
+        // Pula linhas de cabeçalho/totais/títulos
+        var col0 = String(r[0]||'').toLowerCase().trim();
+        var col2 = String(r[2]||'').toLowerCase().trim();
+        var col3 = String(r[3]||'').toLowerCase().trim();
+        if(col0 === 'data' || col0 === 'mês' || col0.includes('subtotal')) continue;
+        if(col0.includes('saldo final')) continue;
+        if(col3.includes('caixa inicial')) continue;
+        // Pula linhas de "(-) MÍDIA DO MÊS" e "(-) CUSTOS FIXOS DO MÊS" — vão entrar via abas próprias
+        if(col0.startsWith('(-)') || col0.includes('mídia do mês') || col0.includes('custos fixos do mês')) continue;
+        // Pula totais
+        if(col0.startsWith('subtotal') || col0.startsWith('total')) continue;
+
+        var dataVal    = r[0];
+        var movimento  = parseFloat(r[1]) || 0;
+        var classif    = String(r[2]||'').trim();
+        var descricao  = String(r[3]||'').trim();
+        var status     = String(r[4]||'N').trim().toUpperCase();
+
+        if(!classif && !descricao && movimento === 0) continue;
+
+        // ⛔ EXIGE data válida — sem isso, linha provavelmente é subtotal/título
+        var dataStr = _fcv2NormalizarData(dataVal);
+        if(!dataStr) continue;
+
+        // ⛔ Validações sanitárias contra dados absurdos
+        // Movimento de mais de 50 milhões é provavelmente lixo (formula sumindo)
+        if(Math.abs(movimento) > 50000000) {
+          console.warn('[FC v2] Linha descartada (movimento absurdo): aba='+aba+' data='+dataStr+' mov='+movimento);
+          continue;
+        }
+        // Classificação que parece número puro (não tem letra) é parse errado
+        if(classif && /^-?\d+([.,]\d+)?$/.test(classif)) {
+          console.warn('[FC v2] Linha descartada (classif numérica): aba='+aba+' data='+dataStr+' classif='+classif);
+          continue;
+        }
+
+        _fcDados.push({
+          aba: aba,
+          caixaInicial: caixaInicial,
+          data: dataStr,
+          custoFixo: 0,           // v2 não tem coluna Custo Fixo separada nas abas mensais
+          movimento: movimento,
+          classif: classif,
+          descricao: descricao,
+          status: status || 'N',
+          saldo: 0,                // recalculado no render
+          fonte: 'mensal'          // marca origem pra debug
+        });
+        linhasValidas++;
+      }
+
+      if(linhasValidas > 0) {
+        _fcMeses.push(aba);
+        console.log('[FC v2] Aba "'+aba+'": '+linhasValidas+' lançamentos operacionais');
+      }
+    } catch(e) {
+      console.warn('[FC v2] Erro aba mensal "'+aba+'":', e.message);
+    }
+  }
+
+  // ─── ETAPA 2: Aba Mídia ──────────────────────────────────────────
+  if(statusEl) statusEl.textContent = '⏳ Lendo aba Mídia...';
+  try {
+    var midiaRes = await fetch(baseUrl + '&sheet='+encodeURIComponent('Mídia')+'&nocache='+Date.now());
+    if(midiaRes.ok) {
+      var midiaTxt = await midiaRes.text();
+      var midiaRows = parseGS(midiaTxt);
+      var midiaCount = 0;
+      midiaRows.forEach(function(r){
+        if(!r || r.length < 5) return;
+        var s0 = String(r[0]||'').trim();
+        // Pula cabeçalho ("Mês"), totais ("TOTAL JANEIRO-26"), vazios
+        if(!s0 || s0.toLowerCase() === 'mês' || /^TOTAL/i.test(s0)) return;
+        if(r[4] === null || r[4] === undefined || r[4] === '') return;
+
+        var mesAba = s0;  // ex: "Janeiro-26"
+        var dataStr = _fcv2NormalizarData(r[1]);
+        if(!dataStr) return;
+        var canal = String(r[2]||'').trim();
+        var plataforma = String(r[3]||'').trim();
+        var valor = parseFloat(r[4]) || 0;
+        if(valor === 0) return;
+        // Garante que é negativo (despesa)
+        if(valor > 0) valor = -valor;
+
+        _fcDados.push({
+          aba: mesAba,
+          caixaInicial: caixaInicial,
+          data: dataStr,
+          custoFixo: 0,
+          movimento: valor,
+          classif: 'Mídia',
+          descricao: canal + ' · ' + plataforma,
+          status: 'P',
+          saldo: 0,
+          fonte: 'midia'
+        });
+        midiaCount++;
+        if(_fcMeses.indexOf(mesAba) < 0) _fcMeses.push(mesAba);
+      });
+      console.log('[FC v2] Aba Mídia: '+midiaCount+' lançamentos');
+    }
+  } catch(e) {
+    console.warn('[FC v2] Erro aba Mídia:', e.message);
+  }
+
+  // ─── ETAPA 3: Aba Custos Fixos ───────────────────────────────────
+  if(statusEl) statusEl.textContent = '⏳ Lendo aba Custos Fixos...';
+  var hoje = new Date();
+  var hojeStr = hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0')+'-'+String(hoje.getDate()).padStart(2,'0');
+
+  try {
+    var cfRes = await fetch(baseUrl + '&sheet='+encodeURIComponent('Custos Fixos')+'&nocache='+Date.now());
+    if(cfRes.ok) {
+      var cfTxt = await cfRes.text();
+      var cfRows = parseGS(cfTxt);
+      var cfCount = 0;
+      cfRows.forEach(function(r){
+        if(!r || r.length < 4) return;
+        var s0 = String(r[0]||'').trim();
+        if(!s0 || s0.toLowerCase() === 'mês' || /^TOTAL/i.test(s0)) return;
+        if(r[3] === null || r[3] === undefined || r[3] === '') return;
+
+        var mesAba = s0;
+        var categoria = String(r[1]||'').trim();
+        var descricao = String(r[2]||'').trim();
+        var valor = parseFloat(r[3]) || 0;
+        if(valor === 0) return;
+        if(valor > 0) valor = -valor;
+
+        // Atribui dia padrão da categoria
+        var dia = FC_V2_DATAS_CUSTO_FIXO[categoria] || FC_V2_DATAS_CUSTO_FIXO['default'];
+
+        // Extrai mês/ano do nome da aba
+        var infoMes = _fcv2EhAbaMensal(mesAba);
+        if(!infoMes) return;
+        var dataStr = infoMes.ano + '-' +
+                      String(infoMes.mesNum).padStart(2,'0') + '-' +
+                      String(dia).padStart(2,'0');
+
+        // Status: P se mês passado/atual; N se futuro
+        var status = (dataStr <= hojeStr) ? 'P' : 'N';
+
+        _fcDados.push({
+          aba: mesAba,
+          caixaInicial: caixaInicial,
+          data: dataStr,
+          custoFixo: valor,        // ⭐ vai pra coluna Custo Fixo (lógica antiga lê dessa col)
+          movimento: 0,
+          classif: categoria,
+          descricao: descricao,
+          status: status,
+          saldo: 0,
+          fonte: 'custofixo'
+        });
+        cfCount++;
+        if(_fcMeses.indexOf(mesAba) < 0) _fcMeses.push(mesAba);
+      });
+      console.log('[FC v2] Aba Custos Fixos: '+cfCount+' lançamentos sintéticos');
+    }
+  } catch(e) {
+    console.warn('[FC v2] Erro aba Custos Fixos:', e.message);
+  }
+
+  // ─── Finaliza: ordena por data dentro de cada aba ────────────────
+  _fcDados.sort(function(a,b){
+    if(a.aba !== b.aba) return 0; // preserva ordem das abas
+    return a.data < b.data ? -1 : (a.data > b.data ? 1 : 0);
+  });
+
+  console.log('[FC v2] ✅ TOTAL: '+_fcDados.length+' lançamentos · '+_fcMeses.length+' abas');
+
+  if(_fcDados.length === 0) {
+    if(statusEl){ statusEl.textContent='❌ Sem dados — verifique publicação'; statusEl.style.color='var(--red)'; }
+    return;
+  }
+
+  if(statusEl){ statusEl.textContent='✅ '+_fcDados.length+' lançamentos · '+_fcMeses.length+' aba(s)'; statusEl.style.color='var(--green)'; }
+
+  try{ document.getElementById('fc-config').style.display='none'; }catch(e){}
+
+  // Popular seletor de meses (mesma lógica da função antiga)
+  var mesesUnicos = _fcMeses.filter(function(m, i){ return _fcMeses.indexOf(m) === i; });
+  mesesUnicos.sort(function(a,b){
+    var ia = _fcv2EhAbaMensal(a), ib = _fcv2EhAbaMensal(b);
+    return (ia ? ia.ord : 0) - (ib ? ib.ord : 0);
+  });
+  var sel = document.getElementById('fc-mes-sel');
+  if(sel) {
+    sel.innerHTML = '<option value="todos">Todos os meses</option>' +
+      mesesUnicos.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
+  }
+
+  renderFluxoCaixa();
+}
+
+/* Helper: normaliza diferentes formatos de data pra YYYY-MM-DD */
+function _fcv2NormalizarData(dataVal) {
+  if(dataVal === null || dataVal === undefined || dataVal === '') return '';
+  if(typeof dataVal === 'string') {
+    var gvizM = dataVal.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})\)/);
+    if(gvizM) {
+      var yr = parseInt(gvizM[1]), mo = parseInt(gvizM[2])+1, dy = parseInt(gvizM[3]);
+      return yr+'-'+String(mo).padStart(2,'0')+'-'+String(dy).padStart(2,'0');
+    }
+    if(dataVal.includes('/')) {
+      var p = dataVal.split('/');
+      if(p.length === 3) {
+        var d=p[0].trim(), m2=p[1].trim(), y2=p[2].trim();
+        if(y2.length === 4) return y2+'-'+m2.padStart(2,'0')+'-'+d.padStart(2,'0');
+      }
+    }
+    if(dataVal.match(/^\d{4}-\d{2}-\d{2}/)) return dataVal.slice(0,10);
+  } else if(typeof dataVal === 'number') {
+    if(dataVal > 1000000000000) {
+      var td = new Date(dataVal);
+      return td.getFullYear()+'-'+String(td.getMonth()+1).padStart(2,'0')+'-'+String(td.getDate()).padStart(2,'0');
+    } else {
+      var base = new Date(1900,0,1);
+      base.setDate(base.getDate() + Math.floor(dataVal) - 2);
+      return base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
+    }
+  } else if(dataVal instanceof Date) {
+    return dataVal.getFullYear()+'-'+String(dataVal.getMonth()+1).padStart(2,'0')+'-'+String(dataVal.getDate()).padStart(2,'0');
+  }
+  return '';
+}
+
 async function loadFluxoCaixa() {
   var urlEl    = document.getElementById('fc-url-input');
   var statusEl = document.getElementById('fc-status');
@@ -9886,6 +10271,40 @@ async function loadFluxoCaixa() {
     if(statusEl){ statusEl.textContent='❌ URL inválida'; statusEl.style.color='var(--red)'; } return;
   }
 
+  // ⚡ DETECÇÃO V2: se a URL é a mesma do Fluxo V2, ou tem abas Mídia + Custos Fixos
+  // → usa o motor v2 (mais rico: agrega abas mensais + Mídia + Custos Fixos)
+  var fluxoV2Url = localStorage.getItem('fc_fluxo_v2_url') || '';
+  var v2SheetId = fluxoV2Url ? (fluxoV2Url.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)||[])[1] : null;
+  var ehV2 = (v2SheetId && v2SheetId === sheetId);
+
+  // Se não é v2 explícito, tenta detectar pela estrutura (aba "Mídia" presente)
+  if(!ehV2) {
+    try {
+      var probeUrl = 'https://docs.google.com/spreadsheets/d/'+sheetId+
+                     '/gviz/tq?tqx=out:json&sheet=M%C3%ADdia&range=A1:E2&nocache='+Date.now();
+      var probeRes = await fetch(probeUrl);
+      if(probeRes.ok) {
+        var probeTxt = await probeRes.text();
+        if(probeTxt && probeTxt.length > 100 && !probeTxt.includes('"status":"error"')) {
+          ehV2 = true;
+          console.log('[FC] 🎯 Detectado formato V2 (aba Mídia presente)');
+        }
+      }
+    } catch(e) {}
+  }
+
+  if(ehV2) {
+    if(statusEl) { statusEl.textContent = '⏳ Carregando v2 (mensais + Mídia + Custos Fixos)...'; statusEl.style.color='var(--muted)'; }
+    try {
+      await _fcLoadV2(sheetId, statusEl);
+    } catch(e) {
+      console.error('[FC v2] Erro:', e);
+      if(statusEl){ statusEl.textContent='❌ Erro v2: '+(e.message||e); statusEl.style.color='var(--red)'; }
+    }
+    return;
+  }
+
+  // ─── FLUXO ANTIGO (backward-compat) ──────────────────────────────
   var baseUrl = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json';
   var abas = null;
 
