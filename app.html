@@ -3451,7 +3451,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX23-RAIOX-MIDIA-REAL';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX24-RAIOX-AUTOLOAD';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9838,6 +9838,15 @@ async function loadFluxoV2(forceRefresh) {
       mktAutoPreencherInvestimento();
     }
   } catch(e) {}
+
+  // 🆕 Se Raio X está aberto, re-renderiza pra usar mídia real (em vez de simulação)
+  try {
+    var pgRaiox = document.getElementById('page-raiox');
+    if(pgRaiox && pgRaiox.classList.contains('active') && typeof raioxRender === 'function') {
+      console.log('[FluxoV2] Re-renderizando Raio X com mídia real');
+      raioxRender();
+    }
+  } catch(e2) {}
 
   return window._fluxoV2Data;
 }
@@ -19770,6 +19779,7 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
   // (aparece como anomalia no termômetro/diagnóstico).
   function _gerarSerieMidiaReal() {
     if(!window._fluxoV2Data || !window._fluxoV2Data.midia || !window._fluxoV2Data.midia.length) {
+      console.log('[Raio X · Mídia] ❌ _fluxoV2Data.midia vazio — usando simulação');
       return null; // sem dados, fallback pra simulação
     }
     // Indexa lançamentos por chave YYYY-MM-DD
@@ -19784,10 +19794,15 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
       porDia[key] = (porDia[key] || 0) + (m.valor || 0);
     });
     // Mapeia pra cada dia do dadosDiarios. Se não tem dado real pro dia,
-    // marca como null (será preenchido com média do mês pra não distorcer)
+    // marca como 0 (representa "sem mídia lançada nesse dia")
     var serie = keys.map(function(k){
       return porDia[k] !== undefined ? porDia[k] : 0;
     });
+    var totalReal = serie.reduce(function(s,v){return s+v;}, 0);
+    console.log('[Raio X · Mídia] ✅ Usando dados REAIS da planilha. ' +
+                window._fluxoV2Data.midia.length + ' lançamentos · ' +
+                Object.keys(porDia).length + ' dias com mídia · ' +
+                'total no período: R$ ' + totalReal.toLocaleString('pt-BR',{maximumFractionDigits:0}));
     return serie;
   }
 
@@ -20439,6 +20454,37 @@ function raioxRender() {
 
   var c = document.getElementById('raiox-conteudo');
   if(!c) return;
+
+  // 🆕 Se _fluxoV2Data está vazio mas o motor v2 do Fluxo já carregou (_fcDados),
+  // dispara loadFluxoV2 pra ter mídia real. Quando vier, re-renderiza.
+  // Bloqueio anti-loop: usa flag _raioxAutoLoadingV2.
+  try {
+    var temFluxo = window._fluxoV2Data && window._fluxoV2Data.midia && window._fluxoV2Data.midia.length > 0;
+    var temFcDados = typeof _fcDados !== 'undefined' && _fcDados && _fcDados.length > 0;
+
+    if(!temFluxo) {
+      if(temFcDados && typeof loadFluxoV2 === 'function' && !window._raioxAutoLoadingV2) {
+        // Tem dados do fluxo, só precisa derivar mídia
+        window._raioxAutoLoadingV2 = true;
+        console.log('[Raio X] _fcDados presente, derivando _fluxoV2Data...');
+        loadFluxoV2(true).then(function(){
+          window._raioxAutoLoadingV2 = false;
+        }).catch(function(){ window._raioxAutoLoadingV2 = false; });
+      } else if(!temFcDados && typeof loadFluxoCaixa === 'function' && !window._raioxAutoLoadingFC) {
+        // Não tem nem _fcDados — dispara load completo do fluxo
+        var savedFCUrl = localStorage.getItem('fc_fluxocaixa_url');
+        if(savedFCUrl) {
+          window._raioxAutoLoadingFC = true;
+          console.log('[Raio X] Disparando loadFluxoCaixa pra obter dados de mídia...');
+          loadFluxoCaixa().then(function(){
+            window._raioxAutoLoadingFC = false;
+            // loadFluxoCaixa popula _fcDados, que dispara _fluxoV2Data via callback
+            // No final, raioxRender re-roda automaticamente
+          }).catch(function(){ window._raioxAutoLoadingFC = false; });
+        }
+      }
+    }
+  } catch(eAuto) { console.warn('[Raio X] Erro no auto-load:', eAuto); }
 
   raioxAplicarConfigForm();
   var cfg = raioxGetConfig();
