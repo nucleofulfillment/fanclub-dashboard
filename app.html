@@ -728,8 +728,14 @@ body.light { filter: saturate(0.85); }
 .cftbl tr:last-child td { border-bottom:none; }
 .cftbl tr:hover td { background:rgba(255,255,255,.02); }
 .cchip {
+  /* 🆕 FIX30BC (v2) — Fonte clean (--fdisplay = Inter) sobrescrevendo a fonte mono
+     herdada das tabelas que setam font-family:var(--fmono) nas <td>. Sem !important
+     a regra inline da célula vencia. Com !important + fonte explícita, o chip
+     mantém aparência igual Tabela de Performance em qualquer contexto. */
   display:inline-flex; align-items:center; gap:5px;
-  font-size:11px; font-weight:600; padding:3px 8px; border-radius:6px;
+  font-family:var(--fdisplay) !important;
+  font-size:12px; font-weight:600; padding:3px 8px; border-radius:6px;
+  letter-spacing:.2px;
 }
 .cfval { font-family:var(--fdisplay); font-weight:600; font-variant-numeric:tabular-nums; }
 .cfdate { font-family:var(--fmono); font-size:12px; color:var(--muted2); }
@@ -3539,7 +3545,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BB-FONTES-PADRAO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BD-SCORE-PONDERADO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21209,29 +21215,40 @@ function raioxVendasPorDia(diasJanela) {
 
 /* Compara duas janelas (recente vs anterior) e calcula variação */
 function raioxComparaPeriodos(diasJanela) {
-  // 🆕 FIX30AG — Compara D-1 (último dia) vs D-N (primeiro dia da janela).
-  // Antes: pegava 2N dias e dividia em metades (média anterior vs média recente).
-  //   → diluía variação real do dia atual.
-  // Agora: pega N dias e compara só o ÚLTIMO vs o PRIMEIRO.
-  //   → "início vs fim" literal da janela visível.
-  // Exemplos:
-  //   - diasJanela=2:  D-2 vs D-1
-  //   - diasJanela=10: D-10 vs D-1
-  //   - diasJanela=30: D-30 vs D-1
-  var dados = raioxVendasPorDia(diasJanela);
+  // 🆕 FIX30BD — Compara MÉDIA de períodos, não dias pontuais.
+  // Histórico:
+  //   FIX30AG (versão antiga): D-1 vs D-N (só 2 dias) → resultado distorcido por outliers
+  //                            (ex: dia 30 ruim + dia 1 ruim = "queda 69%" mesmo que
+  //                             os 28 dias do meio fossem normais).
+  //   FIX30BD (versão atual):  N/2 últimos dias vs N/2 dias anteriores → suaviza ruído.
+  //
+  // Regras:
+  //   - 24h: período recente = D-1 (1 dia), anterior = D-2 (1 dia)
+  //   - 10d: recente = últimos 5 dias, anterior = 5 dias anteriores
+  //   - 30d: recente = últimos 15 dias, anterior = 15 dias anteriores
+  //
+  // Para janelas >= 4 dias, busca 2*N dias de dados (pra ter os 2 períodos completos).
+  // Métricas comparadas em MÉDIA POR DIA (não soma) — assim 24h e 30d ficam comparáveis.
+  var diasComparativo = (diasJanela < 4) ? 1 : Math.floor(diasJanela / 2);
+  var diasNecessarios = diasComparativo * 2;
+  var dados = raioxVendasPorDia(diasNecessarios);
   var keys = Object.keys(dados).sort();
   var anterior, recente;
   if(keys.length < 2) {
-    // Edge case: só tem 1 dia ou nenhum — retorna estado neutro
     anterior = [];
     recente = keys;
+  } else if(keys.length < diasNecessarios) {
+    // Não tem dados suficientes pra 2 períodos completos — divide ao meio
+    var meio = Math.floor(keys.length / 2);
+    anterior = keys.slice(0, meio);
+    recente  = keys.slice(meio);
   } else {
-    anterior = [keys[0]];                       // primeiro dia da janela (D-N)
-    recente  = [keys[keys.length - 1]];         // último dia (D-1)
+    anterior = keys.slice(0, diasComparativo);
+    recente  = keys.slice(diasComparativo, diasComparativo * 2);
   }
 
   function somaJanela(janela) {
-    var total = { gmv: 0, pedidos: 0, canais: {} };
+    var total = { gmv: 0, pedidos: 0, canais: {}, dias: janela.length };
     janela.forEach(function(k){
       var d = dados[k];
       total.gmv += d.gmv;
@@ -21241,6 +21258,12 @@ function raioxComparaPeriodos(diasJanela) {
         total.canais[c].gmv += d.canais[c].gmv;
         total.canais[c].pedidos += d.canais[c].pedidos;
       });
+    });
+    // 🆕 FIX30BD — Adiciona MÉDIAS por dia pra comparativo justo
+    total.gmvMedio = total.dias > 0 ? total.gmv / total.dias : 0;
+    total.pedidosMedio = total.dias > 0 ? total.pedidos / total.dias : 0;
+    Object.keys(total.canais).forEach(function(c){
+      total.canais[c].gmvMedio = total.dias > 0 ? total.canais[c].gmv / total.dias : 0;
     });
     return total;
   }
@@ -21253,30 +21276,35 @@ function raioxComparaPeriodos(diasJanela) {
     return Math.round(((novo - antigo) / antigo) * 100);
   }
 
-  // Variação geral
-  var varGmv = pct(totR.gmv, totA.gmv);
-  var varPedidos = pct(totR.pedidos, totA.pedidos);
+  // 🆕 FIX30BD — Variação geral usa MÉDIAS (não soma) — comparativo justo entre períodos
+  var varGmv = pct(totR.gmvMedio, totA.gmvMedio);
+  var varPedidos = pct(totR.pedidosMedio, totA.pedidosMedio);
 
-  // Variação por canal
+  // Variação por canal (também por média/dia)
   var canaisVariacao = [];
   var todosCanais = {};
   Object.keys(totA.canais).forEach(function(c){ todosCanais[c] = true; });
   Object.keys(totR.canais).forEach(function(c){ todosCanais[c] = true; });
   Object.keys(todosCanais).forEach(function(c){
+    var gaMedio = (totA.canais[c] || {gmvMedio:0}).gmvMedio;
+    var grMedio = (totR.canais[c] || {gmvMedio:0}).gmvMedio;
     var ga = (totA.canais[c] || {gmv:0}).gmv;
     var gr = (totR.canais[c] || {gmv:0}).gmv;
     if(ga + gr < 100) return; // canal muito pequeno, ignora
     canaisVariacao.push({
       canal: c,
-      gmvAnterior: ga,
-      gmvRecente: gr,
-      variacao: pct(gr, ga)
+      gmvAnterior: ga,         // soma do período anterior (pra exibir totais)
+      gmvRecente: gr,           // soma do período recente
+      gmvMedioAnterior: gaMedio,
+      gmvMedioRecente: grMedio,
+      variacao: pct(grMedio, gaMedio)
     });
   });
   canaisVariacao.sort(function(a,b){ return Math.abs(b.variacao) - Math.abs(a.variacao); });
 
   return {
     diasJanela: diasJanela,
+    diasComparativo: diasComparativo,    // 🆕 FIX30BD — quantos dias cada período cobriu
     totalAnterior: totA,
     totalRecente: totR,
     varGmv: varGmv,
@@ -21333,71 +21361,124 @@ function raioxAnaliseEstoque() {
 function raioxCalcularTermometro(analise) {
   var cfg = raioxGetConfig();
 
-  // 🆕 FIX30AV — Score simplificado: começa em 100 (saudável) e cai conforme variação.
-  // Antes: somava penalidades múltiplas (vendas + estoque + canais) com caps que
-  // colidiam → janelas diferentes batiam no mesmo "piso" coincidentemente.
-  // Agora: regra única clara baseada na variação real do GMV total.
+  // 🆕 FIX30BD — Score PONDERADO de 5 indicadores (cada um 0-100), depois média ponderada.
+  // Histórico:
+  //   FIX30AW (versão anterior): score baseado SÓ em varGmv (curva única) + modificadores
+  //                              fixos. Problema: outliers no D-1 dominavam o score.
+  //   FIX30BD (versão atual):    5 sub-scores (GMV, pedidos, mídia/ROAS, estoque, canais),
+  //                              cada um avaliado contra sua faixa de saúde, depois
+  //                              ponderados por importância de gestão.
   //
-  // Mapa: variação → score
-  //   +20% ou mais  → 100 (excelente)
-  //   +5%           → 95
-  //   0% (estável)  → 90
-  //   -5%           → 80
-  //   -10%          → 70
-  //   -25%          → 50
-  //   -50%          → 25
-  //   -75%+         → 0 (crítico)
+  // Pesos:
+  //   GMV         40% — resultado direto da operação
+  //   Pedidos     20% — volume independente de ticket
+  //   Mídia       15% — eficiência (ROAS estável = saudável)
+  //   Estoque     15% — saúde futura (% SKUs A em ruptura)
+  //   Canais      10% — concentração de risco (quantos canais em queda)
   //
-  // Modificadores secundários (cada um -5 pts no máx):
-  //   - Estoque em ruptura: até -10 pts
-  //   - Canais em queda forte (>2x cfg.varVendas): até -10 pts
+  // Cada sub-score começa em 100 e degrada conforme métrica piora.
+  // Score final = soma ponderada arredondada.
   var fatores = [];
-  var score;
 
+  // Helper: variação % → sub-score 0-100 usando curva sigmoide-like.
+  // Saudável (variação >= 0)    → 90-100
+  // Estável  (-5% a 0)          → 80-90
+  // Atenção  (-15% a -5%)       → 60-80
+  // Alerta   (-30% a -15%)      → 40-60
+  // Crítico  (-50% a -30%)      → 20-40
+  // Severo   (<-50%)            → 0-20
+  function _curva(variacao) {
+    if(variacao >= 20) return 100;
+    if(variacao >= 0)  return 90 + variacao * 0.5;          // 0% → 90, +20% → 100
+    if(variacao >= -5) return 80 + (variacao + 5) * 2;       // -5% → 80, 0% → 90
+    if(variacao >= -15) return 60 + (variacao + 15) * 2;     // -15% → 60, -5% → 80
+    if(variacao >= -30) return 40 + (variacao + 30) * 1.33;  // -30% → 40, -15% → 60
+    if(variacao >= -50) return 20 + (variacao + 50) * 1.0;   // -50% → 20, -30% → 40
+    if(variacao >= -80) return Math.max(0, 5 + (variacao + 80) * 0.5); // -80%→5, -50%→20
+    return 0;
+  }
+
+  // ─── Sub-score 1: GMV (peso 40%) ───────────────────────────────
   var varGmv = (analise.vendas && typeof analise.vendas.varGmv === 'number') ? analise.vendas.varGmv : 0;
-
-  // 🆕 FIX30AW — Curva REVISADA: mais sensível na faixa de queda forte (-30% a -80%).
-  // Antes (FIX30AV): -50%→25, -75%→12, -100%→0. Janelas com queda forte ficavam
-  // todas comprimidas no rodapé (12-25), parecendo iguais visualmente.
-  // Agora: distribui mais a faixa de quedas grandes:
-  //   -10% → 70 | -20% → 55 | -30% → 45 | -40% → 35 | -50% → 28 | -65% → 18 | -80% → 10 | -100% → 0
-  // Diferença entre -65% e -80% agora é 8 pts (era ~3) → janelas se diferenciam.
-  if(varGmv >= 20)        score = 100;
-  else if(varGmv >= 0)    score = 90 + varGmv * 0.5;                  // 0% → 90, +20% → 100
-  else if(varGmv >= -10)  score = 90 + varGmv * 2;                     // 0% → 90, -10% → 70
-  else if(varGmv >= -30)  score = 70 + (varGmv + 10) * 1.25;           // -10% → 70, -30% → 45
-  else if(varGmv >= -50)  score = 45 + (varGmv + 30) * 0.85;           // -30% → 45, -50% → 28
-  else if(varGmv >= -80)  score = 28 + (varGmv + 50) * 0.6;            // -50% → 28, -80% → 10
-  else                    score = Math.max(0, 10 + (varGmv + 80) * 0.5); // -80% → 10, -100% → 0
-
-  // Registra fator principal
+  var subGmv = _curva(varGmv);
   if(varGmv < -3) {
-    fatores.push({ tipo: 'vendas-queda', peso: 100 - score, descr: 'Vendas caíram ' + Math.abs(varGmv) + '%' });
+    fatores.push({ tipo: 'gmv-queda', peso: Math.round(100 - subGmv), descr: 'GMV caiu ' + Math.abs(varGmv) + '% (média/dia)' });
   } else if(varGmv > 3) {
-    fatores.push({ tipo: 'vendas-alta', peso: 0, descr: 'Vendas subiram ' + varGmv + '%' });
+    fatores.push({ tipo: 'gmv-alta', peso: 0, descr: 'GMV subiu ' + varGmv + '% (média/dia)' });
   } else {
-    fatores.push({ tipo: 'vendas-estavel', peso: 0, descr: 'Vendas estáveis (' + (varGmv >= 0 ? '+' : '') + varGmv + '%)' });
+    fatores.push({ tipo: 'gmv-estavel', peso: 0, descr: 'GMV estável (' + (varGmv >= 0 ? '+' : '') + varGmv + '%)' });
   }
 
-  // Modificador 1: estoque em ruptura (-10 pts máx)
-  if(analise.estoque && analise.estoque.percRuptura > 0) {
-    var penalEst = Math.min(10, analise.estoque.percRuptura * 0.2);
-    score -= penalEst;
-    fatores.push({ tipo: 'estoque-ruptura', peso: penalEst, descr: analise.estoque.skusRuptura + ' SKUs Curva A em ruptura' });
+  // ─── Sub-score 2: Pedidos (peso 20%) ───────────────────────────
+  var varPedidos = (analise.vendas && typeof analise.vendas.varPedidos === 'number') ? analise.vendas.varPedidos : 0;
+  var subPedidos = _curva(varPedidos);
+  if(varPedidos < -3) {
+    fatores.push({ tipo: 'pedidos-queda', peso: Math.round(100 - subPedidos), descr: 'Volume de pedidos caiu ' + Math.abs(varPedidos) + '%' });
+  } else if(varPedidos > 3) {
+    fatores.push({ tipo: 'pedidos-alta', peso: 0, descr: 'Volume de pedidos subiu ' + varPedidos + '%' });
   }
 
-  // Modificador 2: canais com queda muito forte (-10 pts máx, só conta o pior)
-  if(analise.vendas && analise.vendas.canais) {
-    var canaisCriticos = analise.vendas.canais.filter(function(c){ return c.variacao < -cfg.varVendas * 1.5; });
-    if(canaisCriticos.length > 0) {
-      // Max -10 pontos, escala por nº de canais
-      var penalCanal = Math.min(10, canaisCriticos.length * 2);
-      score -= penalCanal;
-      fatores.push({ tipo: 'canal-queda', peso: penalCanal, descr: canaisCriticos.length + ' canal(is) com queda forte' });
+  // ─── Sub-score 3: Mídia (peso 15%) ─────────────────────────────
+  // Compara % mídia/GMV. Subir % de mídia sem subir GMV proporcionalmente = ROAS caindo.
+  var subMidia = 90; // default neutro (sem dados de mídia = não penaliza nem premia)
+  if(analise.midia && typeof analise.midia.varRoas === 'number') {
+    subMidia = _curva(analise.midia.varRoas);
+    if(analise.midia.varRoas < -10) {
+      fatores.push({ tipo: 'roas-caindo', peso: Math.round(100 - subMidia), descr: 'ROAS caiu ' + Math.abs(analise.midia.varRoas) + '%' });
     }
   }
 
+  // ─── Sub-score 4: Estoque (peso 15%) ───────────────────────────
+  // Quanto % dos SKUs Curva A estão em ruptura.
+  // 0% ruptura = 100 | 10% = 80 | 25% = 50 | 50%+ = 0
+  var subEstoque = 100;
+  if(analise.estoque && typeof analise.estoque.percRuptura === 'number') {
+    var pctR = analise.estoque.percRuptura;
+    if(pctR === 0)       subEstoque = 100;
+    else if(pctR <= 10)  subEstoque = 100 - pctR * 2;       // 0%→100, 10%→80
+    else if(pctR <= 25)  subEstoque = 80 - (pctR - 10) * 2; // 10%→80, 25%→50
+    else if(pctR <= 50)  subEstoque = 50 - (pctR - 25) * 2; // 25%→50, 50%→0
+    else                 subEstoque = 0;
+    if(pctR > 0) {
+      fatores.push({ tipo: 'estoque-ruptura', peso: Math.round(100 - subEstoque), descr: analise.estoque.skusRuptura + '/' + analise.estoque.totalSkusA + ' SKUs A em ruptura (' + pctR + '%)' });
+    }
+  }
+
+  // ─── Sub-score 5: Concentração de canais em queda (peso 10%) ───
+  // Quantos canais (de quantos no total) estão em queda forte > -15%.
+  var subCanais = 100;
+  if(analise.vendas && analise.vendas.canais && analise.vendas.canais.length > 0) {
+    var totalCanais = analise.vendas.canais.length;
+    var canaisQueda = analise.vendas.canais.filter(function(c){ return c.variacao < -15; });
+    var canaisCriticos = analise.vendas.canais.filter(function(c){ return c.variacao < -30; });
+    var pctQueda = (canaisQueda.length / totalCanais) * 100;
+    // 0 canais em queda = 100 | 20% canais em queda = 80 | 50% = 50 | 100% = 0
+    subCanais = Math.max(0, 100 - pctQueda);
+    // Penalidade extra se tem canais em queda crítica
+    subCanais = Math.max(0, subCanais - canaisCriticos.length * 5);
+    if(canaisQueda.length > 0) {
+      fatores.push({ tipo: 'canais-queda', peso: Math.round(100 - subCanais), descr: canaisQueda.length + ' de ' + totalCanais + ' canais em queda (>15%)' });
+    }
+  }
+
+  // ─── Score final: média ponderada ──────────────────────────────
+  var score =
+    subGmv     * 0.40 +
+    subPedidos * 0.20 +
+    subMidia   * 0.15 +
+    subEstoque * 0.15 +
+    subCanais  * 0.10;
+
   score = Math.max(0, Math.min(100, Math.round(score)));
+
+  // Adiciona breakdown detalhado pra exibir no UI
+  var breakdown = [
+    { nome: 'GMV',      peso: 40, score: Math.round(subGmv),     variacao: varGmv },
+    { nome: 'Pedidos',  peso: 20, score: Math.round(subPedidos), variacao: varPedidos },
+    { nome: 'Mídia',    peso: 15, score: Math.round(subMidia),   variacao: (analise.midia && analise.midia.varRoas) || null },
+    { nome: 'Estoque',  peso: 15, score: Math.round(subEstoque), variacao: (analise.estoque && analise.estoque.percRuptura) || 0 },
+    { nome: 'Canais',   peso: 10, score: Math.round(subCanais),  variacao: null }
+  ];
 
   // 🆕 Cor DINÂMICA — interpolação rosa→verde conforme score
   // Score 0   → rosa quente (#EC4899)
@@ -21431,7 +21512,7 @@ function raioxCalcularTermometro(analise) {
 
   var cor = _interpolarCor(score);
 
-  return { score: score, status: status, cor: cor, icone: icone, label: label, fatores: fatores };
+  return { score: score, status: status, cor: cor, icone: icone, label: label, fatores: fatores, breakdown: breakdown };
 }
 
 /* Gera lista de diagnósticos baseados na análise */
@@ -22173,21 +22254,29 @@ function raioxRender() {
   //   - Fatores (1 única seção, da janela ativa)
   function _renderGaugeMini(janelaLabel, diasN, dadosJanela, instanciaId) {
     var trm = dadosJanela.termometro;
-    // 🆕 FIX30AT — Tooltip explicativo do score 0-100
-    var tooltipScore = 'Pontuação 0-100 do termômetro:\n' +
+    // 🆕 FIX30BD — Tooltip explica o NOVO sistema ponderado e o período comparado.
+    var diasMetade = (diasN < 4) ? 1 : Math.floor(diasN / 2);
+    var labelComp = diasMetade === 1
+      ? 'D-1 vs D-2 (1 dia cada)'
+      : 'Últimos ' + diasMetade + ' dias vs ' + diasMetade + ' dias anteriores';
+    var tooltipScore = 'Score 0-100 do Termômetro:\n' +
       '• 80-100: Saudável (verde)\n' +
-      '• 60-79: Atenção (amarelo)\n' +
-      '• 40-59: Alerta (laranja)\n' +
-      '• 0-39: Crítico (vermelho)\n\n' +
-      'Calculado com base em queda de vendas, estoque crítico e canais em queda.';
+      '• 60-79:  Atenção (amarelo)\n' +
+      '• 40-59:  Alerta (laranja)\n' +
+      '• 0-39:   Crítico (vermelho)\n\n' +
+      'Calculado por média ponderada de 5 indicadores:\n' +
+      '  GMV (40%) · Pedidos (20%) · Mídia (15%) · Estoque (15%) · Canais (10%)\n\n' +
+      'Comparativo: ' + labelComp;
     return '<div style="flex:1;text-align:center;min-width:120px" title="'+tooltipScore+'">'+
-      // 🆕 FIX30AV — Removido "Janela" do label (só "24H" / "10 DIAS" / "30 DIAS")
       '<div style="font-family:var(--fmono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:700">'+
         janelaLabel+
       '</div>'+
       _raioxRenderGauge(trm, instanciaId)+
       '<div style="font-family:var(--fhead);font-size:12px;font-weight:700;color:'+trm.cor+';margin-top:8px">'+trm.icone+' '+trm.label+'</div>'+
-      '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:3px">D-1 vs D-'+diasN+'</div>'+
+      // 🆕 FIX30BD — Label do comparativo agora reflete a regra real (médias)
+      '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:3px">'+
+        (diasMetade === 1 ? 'D-1 vs D-2' : 'média '+diasMetade+'d vs '+diasMetade+'d')+
+      '</div>'+
     '</div>';
   }
 
@@ -22218,22 +22307,53 @@ function raioxRender() {
           '</div>'
         : ''
       )+
-      // Fatores compactos — janela ativa
-      '<div style="border-top:1px solid var(--border);padding-top:12px">'+
-        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fatores · impacto no score (janela '+labelJanela+')</div>'+
-        (term.fatores.length > 0
-          ? term.fatores.map(function(f){
-            var corF = f.peso > 0 ? '#F43F5E' : '#10B981';
-            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-family:var(--fmono);font-size:10px">'+
-              '<span style="color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(f.descr)+'</span>'+
-              (f.peso > 0
-                ? '<span style="color:'+corF+';font-weight:700;flex-shrink:0;margin-left:6px">−'+Math.round(f.peso)+'</span>'
-                : '<span style="color:'+corF+';font-weight:700;flex-shrink:0;margin-left:6px">✓</span>')+
-            '</div>';
-          }).join('')
-          : '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:center;padding:8px 0">Operação saudável</div>'
-        ) +
-      '</div>'+
+      // 🆕 FIX30BD — BREAKDOWN PONDERADO (substitui "Fatores" antigo)
+      // Mostra cada um dos 5 sub-indicadores, sua nota individual, peso e contribuição.
+      // Mais didático: o user vê EXATAMENTE como o score 5/100 foi formado.
+      (term.breakdown && term.breakdown.length > 0
+        ? '<div style="border-top:1px solid var(--border);padding-top:12px">'+
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+              '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Composição do score · janela '+labelJanela+'</div>'+
+              '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted2)" title="Score = média ponderada dos 5 indicadores. Cada um avaliado vs período anterior.">ⓘ como funciona</span>'+
+            '</div>'+
+            term.breakdown.map(function(b){
+              var corB = b.score >= 80 ? '#10B981' : b.score >= 60 ? '#FCD34D' : b.score >= 40 ? '#FB923C' : '#F43F5E';
+              var contribuicao = Math.round(b.score * b.peso / 100);
+              // Tooltip por sub-indicador
+              var tipExplica = '';
+              if(b.nome === 'GMV')           tipExplica = 'Variação % do GMV médio/dia entre os 2 períodos';
+              else if(b.nome === 'Pedidos')  tipExplica = 'Variação % do volume médio de pedidos/dia';
+              else if(b.nome === 'Mídia')    tipExplica = 'Variação do ROAS (eficiência da mídia)';
+              else if(b.nome === 'Estoque')  tipExplica = '% de SKUs Curva A em ruptura (saúde futura)';
+              else if(b.nome === 'Canais')   tipExplica = '% de canais em queda forte (>15%)';
+              return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-family:var(--fmono);font-size:10px" title="'+tipExplica.replace(/"/g,'&quot;')+'">'+
+                // Nome
+                '<div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px">'+
+                  '<span style="color:var(--text);font-weight:600">'+b.nome+'</span>'+
+                  '<span style="color:var(--muted2);font-size:9px">'+b.peso+'%</span>'+
+                '</div>'+
+                // Barra de progresso
+                '<div style="flex:1.5;height:5px;background:var(--s3);border-radius:3px;overflow:hidden;min-width:60px">'+
+                  '<div style="width:'+b.score+'%;height:100%;background:'+corB+';border-radius:3px;transition:width .6s ease"></div>'+
+                '</div>'+
+                // Score individual + contribuição
+                '<div style="text-align:right;min-width:55px">'+
+                  '<span style="color:'+corB+';font-weight:700">'+b.score+'</span>'+
+                  '<span style="color:var(--muted2);font-size:9px">/100</span>'+
+                '</div>'+
+              '</div>';
+            }).join('')+
+            // Linha de total
+            '<div style="display:flex;align-items:center;gap:8px;padding:8px 0 0;margin-top:6px;border-top:1px dashed var(--border);font-family:var(--fmono);font-size:10px">'+
+              '<div style="flex:1;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-size:9px;font-weight:700">Score final (média ponderada)</div>'+
+              '<div style="text-align:right">'+
+                '<span style="color:'+term.cor+';font-weight:700;font-size:13px">'+term.score+'</span>'+
+                '<span style="color:var(--muted2);font-size:9px">/100</span>'+
+              '</div>'+
+            '</div>'+
+          '</div>'
+        : ''
+      )+
     '</div>';
 
   // 🆕 FIX30L — Card Brindes REMOVIDO do Raio X (movido pro módulo Financeiro
