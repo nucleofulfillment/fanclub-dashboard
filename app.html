@@ -3545,7 +3545,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BG-SHIFT-D1';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BI-ALERTAS-MAIS-SENSIVEIS';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21026,6 +21026,10 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
 function raioxDetectarAlertasGrafico(dadosDiarios, baseline) {
   var keys = Object.keys(dadosDiarios).sort();
   var alertas = [];
+  // 🆕 FIX30BI — Contador de dias consecutivos abaixo do baseline (>= -5%).
+  // Quando atinge 3 dias seguidos, marca o 3º como "tendência de queda" (laranja).
+  // Captura quedas progressivas que, isoladas, não acionariam o alerta de -20%.
+  var diasAbaixoBaseline = 0;
 
   keys.forEach(function(k, i){
     var valor = dadosDiarios[k].gmv || 0;
@@ -21036,7 +21040,15 @@ function raioxDetectarAlertasGrafico(dadosDiarios, baseline) {
     var data = new Date(k + 'T00:00:00');
     var dataLabel = String(data.getDate()).padStart(2,'0') + '/' + String(data.getMonth()+1).padStart(2,'0');
 
-    if(desvio < -0.30) {
+    // Atualiza contador de tendência (qualquer queda > 5% conta)
+    if(desvio < -0.05) {
+      diasAbaixoBaseline++;
+    } else {
+      diasAbaixoBaseline = 0;
+    }
+
+    // 🆕 FIX30BI — Threshold de queda: -20% (era -30%)
+    if(desvio < -0.20) {
       alertas.push({
         index: i,
         label: keys[i],
@@ -21061,6 +21073,23 @@ function raioxDetectarAlertasGrafico(dadosDiarios, baseline) {
         baseline: base,
         desvio: Math.round(desvio * 100),
         motivo: 'Pico atípico (+'+Math.round(desvio*100)+'% vs baseline)'
+      });
+    } else if(diasAbaixoBaseline >= 3) {
+      // 🆕 FIX30BI — TENDÊNCIA: 3+ dias consecutivos abaixo do baseline.
+      // Marca o dia atual (laranja) pra alertar tendência progressiva mesmo
+      // quando nenhum dia isolado passou de -20%.
+      alertas.push({
+        index: i,
+        label: keys[i],
+        dataLabel: dataLabel,
+        tipo: 'tendencia',
+        cor: '#FB923C',
+        icone: '🟠',
+        valor: valor,
+        baseline: base,
+        desvio: Math.round(desvio * 100),
+        diasConsec: diasAbaixoBaseline,
+        motivo: 'Tendência de queda — '+diasAbaixoBaseline+' dia(s) seguido(s) abaixo do equilíbrio'
       });
     } else if(i > 1 && Math.abs(valor - valores_array(dadosDiarios)[i-1]) / Math.max(1, valores_array(dadosDiarios)[i-1]) > 0.35) {
       // Mudança brusca dia-a-dia
@@ -22185,11 +22214,16 @@ function raioxRender() {
         '<canvas id="raiox-chart"></canvas>'+
       '</div>'+
       // Disclaimer compacto
+      // 🆕 FIX30BH/BI — Legenda dos pontos coloridos plotados na linha Vendas pelo
+      // detector de outliers (raioxDetectarAlertasGrafico).
       '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:10px;line-height:1.6;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
         '<span>🎯 <strong style="color:var(--accent)">Tempo atual</strong>: último dia em destaque</span> · '+
         '<span>⚖ <strong style="color:#9CA3AF">Equilíbrio</strong>: média móvel 7d</span> · '+
-        '<span>💡 <strong style="color:var(--accent)">Hover</strong> em qualquer ponto pra ver detalhes</span> · '+
-        '<span>🔬 <strong style="color:#A78BFA">Indicadores aux</strong>: Marketplace/Mídia/Estoque/Mercado simulados</span>'+
+        '<span title="Dia caiu mais de 20% abaixo da média móvel"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#F43F5E;border:2px solid #0A0C10;vertical-align:middle"></span> <strong style="color:#F43F5E">Queda</strong> (-20%)</span> · '+
+        '<span title="3+ dias seguidos abaixo do equilíbrio (tendência progressiva)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#FB923C;border:2px solid #0A0C10;vertical-align:middle"></span> <strong style="color:#FB923C">Tendência</strong> (3d↓)</span> · '+
+        '<span title="Dia ficou mais de 40% acima da média móvel"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#FCD34D;border:2px solid #0A0C10;vertical-align:middle"></span> <strong style="color:#FCD34D">Pico</strong> (+40%)</span> · '+
+        '<span title="Variação dia-a-dia maior que 35%"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#60A5FA;border:2px solid #0A0C10;vertical-align:middle"></span> <strong style="color:#60A5FA">Mudança</strong> (±35% d-a-d)</span> · '+
+        '<span>💡 <strong style="color:var(--accent)">Hover</strong> em qualquer ponto pra ver detalhes</span>'+
       '</div>'+
     '</div>';
 
