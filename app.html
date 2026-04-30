@@ -3504,7 +3504,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30V-MIDIA-HOOK';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30W-MIDIA-FORCE-RECALC';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -5794,6 +5794,18 @@ function applyFilter(){
 
   if(filtered.length===0){ renderEmpty(); return; }
   renderAll(processarDados(filtered));
+
+  // 🆕 FIX30W — SEMPRE recalcula _fluxoV2_midia_auto antes de chamar syncFinanceiroKPIs.
+  // Antes: se o usuário mudasse o filtro global (ex: de Tudo pra Abril), a mídia
+  // ficava desatualizada porque _fluxoV2_midia_auto só era populado em loadFluxoV2.
+  // Agora: a cada filtro, recalcula com o período novo.
+  try {
+    if(window._fluxoV2Data && window._fluxoV2Data.midia && window._fluxoV2Data.midia.length > 0
+       && typeof fluxoV2TotalMidia === 'function') {
+      window._fluxoV2_midia_auto = fluxoV2TotalMidia(from, to);
+      console.log('[FIX30W applyFilter] _fluxoV2_midia_auto: R$ '+(window._fluxoV2_midia_auto||0).toFixed(0));
+    }
+  } catch(eW2) { console.warn('[FIX30W] recálculo no applyFilter falhou:', eW2); }
 
   // Após renderAll atualizar Financeiro e Marketing também (usam o mesmo dataset filtrado)
   // Não dispara se a página atual é Pedidos/Estoque/Precificação/etc — eles não dependem.
@@ -10029,6 +10041,20 @@ async function loadFluxoV2(forceRefresh) {
   console.log('[FluxoV2] ✅ Derivado: '+
     midia.length + ' lançamentos de mídia, ' +
     custosFixos.length + ' itens de custo fixo');
+
+  // 🆕 FIX30W — Pré-popula _fluxoV2_midia_auto SEMPRE que loadFluxoV2 termina,
+  // independente de qual página o usuário está. Antes: só populava no Financeiro
+  // ativo, deixando undefined até o usuário ENTRAR no Financeiro pela 1ª vez.
+  // Resultado: ao abrir Financeiro, a variável já está pronta.
+  try {
+    var fGlobalFrom = (document.getElementById('f-from')||{}).value || '';
+    var fGlobalTo   = (document.getElementById('f-to')||{}).value   || '';
+    if(typeof fluxoV2TotalMidia === 'function') {
+      window._fluxoV2_midia_auto = fluxoV2TotalMidia(fGlobalFrom, fGlobalTo);
+      console.log('[FIX30W] _fluxoV2_midia_auto pré-populado: R$ '+(window._fluxoV2_midia_auto||0).toFixed(0)+
+                  ' (período '+(fGlobalFrom||'sem filtro')+'→'+(fGlobalTo||'sem filtro')+')');
+    }
+  } catch(eW) { console.warn('[FIX30W] pré-população falhou:', eW); }
 
   // Se Marketing está aberto, repopula auto
   try {
@@ -15389,6 +15415,19 @@ function applyFilterFin() {
   } catch(e) {}
 
   if(filtered.length === 0) { syncFinanceiroKPIs(null); return; }
+
+  // 🆕 FIX30W — Recalcula _fluxoV2_midia_auto SEMPRE antes de syncFinanceiroKPIs.
+  // Garante que mesmo entrando no Financeiro pela 1ª vez, a mídia esteja correta.
+  try {
+    if(window._fluxoV2Data && window._fluxoV2Data.midia && window._fluxoV2Data.midia.length > 0
+       && typeof fluxoV2TotalMidia === 'function') {
+      window._fluxoV2_midia_auto = fluxoV2TotalMidia(from, to);
+      console.log('[FIX30W applyFilterFin] _fluxoV2_midia_auto: R$ '+(window._fluxoV2_midia_auto||0).toFixed(0)+
+                  ' (período '+(from||'sem filtro')+'→'+(to||'sem filtro')+')');
+    } else {
+      console.log('[FIX30W applyFilterFin] _fluxoV2Data ainda não carregado, aguardando...');
+    }
+  } catch(eW) { console.warn('[FIX30W applyFilterFin] erro:', eW); }
 
   // Reprocessar e atualizar KPIs + gráfico cashflow
   var d = processarDados(filtered);
