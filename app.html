@@ -3480,30 +3480,26 @@ body.light body::before { opacity: 0; }
            🔬 ANÁLISE DE MÍDIA — alimentado por Fluxo V2
            Painel adicional sem alterar o motor do Raio X.
            Dados vêm da aba "Mídia" da planilha v2 + GMV de pedidos.
+           🆕 FIX30AH — Substituído card antigo (4 KPIs + tabela ROAS/CPA por canal) por
+           tabela única "Performance por Canal" com tendência D-1 vs D-N (janela ativa).
            ═══════════════════════════════════════════════════════════ -->
       <div id="raiox-midia-bloco" style="margin-top:30px;display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
           <div>
             <h3 style="font-family:var(--fhead);font-size:16px;font-weight:600;color:var(--text);margin:0;display:flex;align-items:center;gap:10px">
-              🔬 Análise de Mídia
+              📊 Performance por Canal
               <span style="font-family:var(--fmono);font-size:9px;color:#818CF8;background:rgba(129,140,248,.15);padding:2px 8px;border-radius:4px;font-weight:500;letter-spacing:.5px">FLUXO V2</span>
             </h3>
             <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:3px">
-              ROAS, CPA e eficiência de mídia por canal — período do filtro global
+              GMV, mídia e tendência por canal — janela ativa do Raio X
             </div>
           </div>
           <span id="raiox-midia-periodo" style="font-family:var(--fmono);font-size:10px;color:var(--muted2)"></span>
         </div>
 
-        <!-- KPIs gerais de mídia -->
-        <div id="raiox-midia-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px"></div>
-
-        <!-- Tabela ROAS por canal -->
-        <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:16px">
-          <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">📊 ROAS e CPA por canal</div>
-          <div style="overflow-x:auto">
-            <table id="raiox-midia-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:600px"></table>
-          </div>
+        <!-- 🆕 FIX30AH — Tabela Performance por Canal -->
+        <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:16px;overflow-x:auto">
+          <table id="raiox-canal-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:680px"></table>
         </div>
       </div>
 
@@ -3529,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AD-CMV-RESET';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AG-DIAG-INICIO-FIM';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -14150,7 +14146,15 @@ async function loadProdutosVendidos(filtroFrom, filtroTo) {
       .replace(/2026$/, '26')    // normalizar ano
       .replace(/2025$/, '25');
     // Extrair só as 3 primeiras letras do mês
-    var mesKey = abaNorm.replace(/\d+/,'').substring(0,3) + (abaNorm.match(/\d+/)||[''])[0].slice(-2);
+    var anoNum = (abaNorm.match(/\d+/)||[''])[0].slice(-2);
+    var mesPart = abaNorm.replace(/\d+/,'').substring(0,3);
+    // 🆕 FIX30AE — Se a aba não tem ano (ex: "abril" puro), assume o ano corrente.
+    // Antes: aba "abril" gerava chave "abr" e "abril-26" gerava "abr26" — NÃO eram
+    // detectadas como duplicatas, dobrando a contagem no painel. Agora: ambas viram "abr26".
+    if(!anoNum) {
+      anoNum = String(new Date().getFullYear()).slice(-2);  // "26" em 2026
+    }
+    var mesKey = mesPart + anoNum;
     
     if(mesesJaCarregados.has(mesKey)) {
       console.log('[Produtos] ⏭️ Pulando "'+aba+'" — mês já carregado ('+mesKey+')');
@@ -21105,11 +21109,26 @@ function raioxVendasPorDia(diasJanela) {
 
 /* Compara duas janelas (recente vs anterior) e calcula variação */
 function raioxComparaPeriodos(diasJanela) {
-  var dados = raioxVendasPorDia(diasJanela * 2); // pega o dobro pra ter recente + anterior
+  // 🆕 FIX30AG — Compara D-1 (último dia) vs D-N (primeiro dia da janela).
+  // Antes: pegava 2N dias e dividia em metades (média anterior vs média recente).
+  //   → diluía variação real do dia atual.
+  // Agora: pega N dias e compara só o ÚLTIMO vs o PRIMEIRO.
+  //   → "início vs fim" literal da janela visível.
+  // Exemplos:
+  //   - diasJanela=2:  D-2 vs D-1
+  //   - diasJanela=10: D-10 vs D-1
+  //   - diasJanela=30: D-30 vs D-1
+  var dados = raioxVendasPorDia(diasJanela);
   var keys = Object.keys(dados).sort();
-  var meio = Math.floor(keys.length / 2);
-  var anterior = keys.slice(0, meio);
-  var recente = keys.slice(meio);
+  var anterior, recente;
+  if(keys.length < 2) {
+    // Edge case: só tem 1 dia ou nenhum — retorna estado neutro
+    anterior = [];
+    recente = keys;
+  } else {
+    anterior = [keys[0]];                       // primeiro dia da janela (D-N)
+    recente  = [keys[keys.length - 1]];         // último dia (D-1)
+  }
 
   function somaJanela(janela) {
     var total = { gmv: 0, pedidos: 0, canais: {} };
@@ -21592,21 +21611,26 @@ function raioxRender() {
   raioxAplicarConfigForm();
   var cfg = raioxGetConfig();
 
-  // 🆕 Janela ativa do gráfico (afeta TODA a página)
-  // 24h literal seria 1d, mas pra termômetro/diagnóstico usamos mínimo 3d (estatístico)
+  // 🆕 Janela ativa do gráfico (afeta zoom do gráfico)
   var janelaAtual = window._raioxJanela || '24h';
-  var diasAnaliseInterpretacao; // pra termômetro/diagnóstico
   var diasAnaliseLiteral;        // pra tooltip/resumo (literal)
   if(janelaAtual === '24h') {
     diasAnaliseLiteral = 1;
-    diasAnaliseInterpretacao = 3; // mínimo estatístico (era 7, encurtado pra 3)
   } else if(janelaAtual === '10d') {
     diasAnaliseLiteral = 10;
-    diasAnaliseInterpretacao = 10;
   } else {
     diasAnaliseLiteral = 30;
-    diasAnaliseInterpretacao = 30;
   }
+  // 🆕 FIX30AG — Tooltip E diagnóstico (Crítico/Alerta/Atenção/Estável) ambos
+  // comparam INÍCIO vs FIM da janela visível. Regra unificada e simples.
+  // - Janela 24h: D-1 vs D-2  (último dia vs anterior)
+  // - Janela 10d: D-1 vs D-10 (último dia vs 10 dias atrás)
+  // - Janela 30d: D-1 vs D-30 (último dia vs 30 dias atrás)
+  // Quem escolher a janela escolhe junto a "lente" de comparação.
+  var diasAnaliseInterpretacao;
+  if(janelaAtual === '24h') diasAnaliseInterpretacao = 2;
+  else if(janelaAtual === '10d') diasAnaliseInterpretacao = 10;
+  else diasAnaliseInterpretacao = 30;
   // Guarda na window pra outras funções consultarem
   window._raioxDiasInterpretacao = diasAnaliseInterpretacao;
   window._raioxDiasLiteral = diasAnaliseLiteral;
@@ -21933,140 +21957,145 @@ function _raioxRenderAnaliseMidia() {
 
   bloco.style.display = '';
 
-  // Período: usa filtro global se ativo, senão últimos 90 dias
-  var fAtual = window._filtroAtual || {};
-  var from = fAtual.from || '';
-  var to   = fAtual.to   || '';
-  if(!from || !to) {
-    // fallback: pega range completo do que tem na planilha
-    var datas = v2.midia.map(function(m){ return m.data; }).filter(Boolean).sort(function(a,b){return a-b;});
-    if(datas.length) {
-      from = datas[0].toISOString().slice(0,10);
-      to   = datas[datas.length-1].toISOString().slice(0,10);
-    }
+  // 🆕 FIX30AH — Janela ativa (24h/10d/30d) define os 2 períodos pra comparar
+  // tendência: período RECENTE = últimos N dias / período ANTERIOR = N dias antes.
+  // - 24h: D-1 vs D-2     (1d vs 1d)
+  // - 10d: últimos 10d vs 10d anteriores
+  // - 30d: últimos 30d vs 30d anteriores
+  var janela = window._raioxJanela || '24h';
+  var diasJanela = janela === '24h' ? 1 : (janela === '10d' ? 10 : 30);
+
+  // Pega todas as datas únicas dos pedidos (ordenadas) pra ancorar D-1
+  var pedidos = (typeof getPedidos === 'function') ? getPedidos() : [];
+  var datasUnicas = {};
+  pedidos.forEach(function(p){ if(p && p.data) datasUnicas[p.data.slice(0,10)] = true; });
+  var todasDatas = Object.keys(datasUnicas).sort();
+  if(!todasDatas.length) { bloco.style.display = 'none'; return; }
+
+  var dataD1 = todasDatas[todasDatas.length - 1]; // último dia real
+  // Calcula range "recente" e "anterior"
+  function _addDias(dataStr, n) {
+    var dt = new Date(dataStr + 'T00:00:00');
+    dt.setDate(dt.getDate() + n);
+    return dt.toISOString().slice(0,10);
   }
+  var fimRecente   = dataD1;
+  var inicioRecente = _addDias(dataD1, -(diasJanela - 1));
+  var fimAnterior   = _addDias(inicioRecente, -1);
+  var inicioAnterior = _addDias(fimAnterior, -(diasJanela - 1));
 
   var labelEl = document.getElementById('raiox-midia-periodo');
   if(labelEl) {
-    labelEl.textContent = (from && to) ? (fD(from) + ' → ' + fD(to)) : 'Período completo';
+    var fmtData = (typeof fD === 'function') ? fD : function(s){return s;};
+    var rotuloJanela = janela === '24h' ? 'D-1 vs D-2' : (janela === '10d' ? 'últimos 10d vs 10d anteriores' : 'últimos 30d vs 30d anteriores');
+    labelEl.textContent = rotuloJanela + ' · ref: ' + fmtData(dataD1);
   }
 
-  // ─── Soma mídia por canal ───────────────────────────────────
-  var midiaPorCanal = fluxoV2SomaMidiaPorCanal(from, to);
-  var totalMidia    = fluxoV2TotalMidia(from, to);
-
-  // ─── GMV e pedidos por canal (de pedidos reais) ─────────────
-  var gmvPorCanal    = {};
-  var pedidosPorCanal= {};
-  var totalGmv       = 0;
-  var totalPedidos   = 0;
-
-  try {
-    var pedidos = (typeof getPedidos === 'function') ? getPedidos() : (window.allRows || []);
+  // ─── GMV e Mídia por canal — período RECENTE ────────────────
+  function _agregarPeriodo(deStr, ateStr) {
+    var gmv = {}, midia = {};
     pedidos.forEach(function(p){
       if(!p || !p.data || p.data.length < 10) return;
       var d = p.data.slice(0,10);
-      if(from && d < from) return;
-      if(to   && d > to)   return;
+      if(d < deStr || d > ateStr) return;
       var canal = p.canal || 'Outros';
-      gmvPorCanal[canal]     = (gmvPorCanal[canal] || 0) + (p.gmv || 0);
-      pedidosPorCanal[canal] = (pedidosPorCanal[canal] || 0) + 1;
-      totalGmv     += (p.gmv || 0);
-      totalPedidos += 1;
+      // 🆕 Filtra brindes pra não inflar GMV
+      var pagStr = String(p.pag || '').trim();
+      if(/brinde/i.test(pagStr)) return;
+      gmv[canal] = (gmv[canal] || 0) + (p.valor || 0);
     });
-  } catch(e) { console.warn('[Raio X mídia] erro lendo pedidos:', e); }
+    // Mídia por canal vem do fluxo v2
+    var midiaCanal = (typeof fluxoV2SomaMidiaPorCanal === 'function')
+      ? fluxoV2SomaMidiaPorCanal(deStr, ateStr) : {};
+    Object.keys(midiaCanal).forEach(function(c){
+      midia[c] = midiaCanal[c] || 0;
+    });
+    return { gmv: gmv, midia: midia };
+  }
 
-  // ─── KPIs gerais ────────────────────────────────────────────
-  var roasGlobal  = (totalMidia > 0) ? (totalGmv / totalMidia) : 0;
-  var pctMidia    = (totalGmv  > 0) ? (totalMidia / totalGmv * 100) : 0;
-  var cpaGlobal   = (totalPedidos > 0) ? (totalMidia / totalPedidos) : 0;
+  var recente   = _agregarPeriodo(inicioRecente, fimRecente);
+  var anterior  = _agregarPeriodo(inicioAnterior, fimAnterior);
+
+  // União de canais
+  var todosCanais = {};
+  Object.keys(recente.gmv).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(recente.midia).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(anterior.gmv).forEach(function(c){ todosCanais[c] = true; });
+  Object.keys(anterior.midia).forEach(function(c){ todosCanais[c] = true; });
+  var canaisExibir = Object.keys(todosCanais);
+
+  // Ordena por GMV recente decrescente
+  canaisExibir.sort(function(a,b){
+    return (recente.gmv[b]||0) - (recente.gmv[a]||0);
+  });
 
   var fR = function(n){ return 'R$ ' + Math.round(n).toLocaleString('pt-BR'); };
 
-  var kpiHtml = '';
-  function kpi(ico, label, val, sub, cor) {
-    return '<div class="kpi" style="--cc:'+(cor||'#818CF8')+';padding:12px">'+
-      '<div class="ico" style="font-size:18px">'+ico+'</div>'+
-      '<div class="lbl" style="font-size:9px">'+label+'</div>'+
-      '<div class="val" style="font-size:18px;font-weight:700">'+val+'</div>'+
-      '<div class="sub" style="font-size:9px;color:var(--muted2)">'+sub+'</div>'+
-      '</div>';
-  }
-  kpiHtml += kpi('💸', 'Mídia Total',  fR(totalMidia), 'no período',                            '#F472B6');
-  kpiHtml += kpi('📈', 'ROAS Global', roasGlobal>0?roasGlobal.toFixed(2)+'x':'—', 'GMV / mídia', '#FB923C');
-  kpiHtml += kpi('📊', '% Mídia/GMV', pctMidia>0?pctMidia.toFixed(1)+'%':'—',     'investimento', '#A78BFA');
-  kpiHtml += kpi('🎯', 'CPA Médio',    cpaGlobal>0?fR(cpaGlobal):'—',              'mídia / pedido', '#34D399');
-
-  document.getElementById('raiox-midia-kpis').innerHTML = kpiHtml;
-
-  // ─── Tabela ROAS por canal ──────────────────────────────────
-  // Usa CCORES global pros chips coloridos (consistente com Performance)
-  var canaisExibir = Object.keys(midiaPorCanal).filter(function(c){ return midiaPorCanal[c] > 0; });
-  // Adiciona canais que tem GMV mas não tem mídia (mostra como "—")
-  Object.keys(gmvPorCanal).forEach(function(c){
-    if(canaisExibir.indexOf(c) === -1 && gmvPorCanal[c] > 0) canaisExibir.push(c);
-  });
-
-  // Ordena por mídia decrescente, depois por GMV
-  canaisExibir.sort(function(a,b){
-    var ma = midiaPorCanal[a]||0, mb = midiaPorCanal[b]||0;
-    if(mb !== ma) return mb - ma;
-    return (gmvPorCanal[b]||0) - (gmvPorCanal[a]||0);
-  });
-
-  // Função auxiliar pro semáforo de saúde
-  function _statusROAS(roas, pctMidiaCanal) {
-    // Crit: ROAS < 2 OU mídia > 25% do GMV
-    if(roas > 0 && roas < 2) return {emoji:'🔴', cor:'var(--red)',  label:'crítico'};
-    if(pctMidiaCanal > 25)   return {emoji:'🔴', cor:'var(--red)',  label:'crítico'};
-    if(roas > 0 && roas < 4) return {emoji:'🟡', cor:'#F59E0B',     label:'atenção'};
-    if(pctMidiaCanal > 18)   return {emoji:'🟡', cor:'#F59E0B',     label:'atenção'};
-    if(roas >= 6)            return {emoji:'🟢', cor:'var(--green)',label:'ótimo'};
-    if(roas >= 4)            return {emoji:'🟢', cor:'var(--green)',label:'saudável'};
-    return {emoji:'⚪', cor:'var(--muted)', label:'sem mídia'};
+  // ─── Status de tendência (variação GMV) ─────────────────────
+  // Regra do FIX30AG/AH:
+  //   > +5%       → 🟢 Em alta
+  //   -3% a +5%   → ⚪ Estável
+  //   -3% a -10%  → 🟡 Atenção
+  //   < -10%      → 🔴 Crítico
+  function _statusTendencia(novo, antigo) {
+    if(antigo === 0 && novo === 0) return {emoji:'⚪', cor:'var(--muted)', label:'sem dados', pct:null};
+    if(antigo === 0) return {emoji:'🟢', cor:'#10B981', label:'novo canal', pct:null};
+    var pct = ((novo - antigo) / antigo) * 100;
+    var pctTxt = (pct >= 0 ? '+' : '') + Math.round(pct) + '%';
+    if(pct > 5)        return {emoji:'🟢', cor:'#10B981', label:'em alta',  pct:pctTxt};
+    if(pct >= -3)      return {emoji:'⚪', cor:'var(--muted)', label:'estável', pct:pctTxt};
+    if(pct >= -10)     return {emoji:'🟡', cor:'#FCD34D', label:'atenção', pct:pctTxt};
+    return                    {emoji:'🔴', cor:'#F43F5E', label:'crítico', pct:pctTxt};
   }
 
   var rows = canaisExibir.map(function(canal){
-    var midia    = midiaPorCanal[canal]    || 0;
-    var gmv      = gmvPorCanal[canal]      || 0;
-    var pedidos  = pedidosPorCanal[canal]  || 0;
-    var roas     = (midia > 0) ? (gmv / midia)        : 0;
-    var cpa      = (pedidos > 0 && midia > 0) ? (midia / pedidos) : 0;
-    var pctMidia = (gmv > 0)   ? (midia / gmv * 100)  : 0;
-    var st       = _statusROAS(roas, pctMidia);
+    var gmvR    = recente.gmv[canal]    || 0;
+    var gmvA    = anterior.gmv[canal]   || 0;
+    var midiaR  = recente.midia[canal]  || 0;
+    var midiaA  = anterior.midia[canal] || 0;
+    var st      = _statusTendencia(gmvR, gmvA);
 
     var canalCor = (typeof CCORES !== 'undefined' && CCORES[canal]) ? CCORES[canal] : '#94A3B8';
     var chip = '<span class="cchip" style="background:'+canalCor+'18;color:'+canalCor+';border:1px solid '+canalCor+'33">'+canal+'</span>';
 
+    // Variação mídia (informativo)
+    var pctMidia = (midiaA > 0) ? ((midiaR - midiaA) / midiaA * 100) : null;
+    var pctMidiaTxt = (pctMidia !== null) ? ((pctMidia >= 0 ? '+' : '') + Math.round(pctMidia) + '%') : '—';
+    var corMidia = (pctMidia === null) ? 'var(--muted)' : (pctMidia > 5 ? '#FB923C' : (pctMidia < -5 ? '#10B981' : 'var(--muted2)'));
+
     return '<tr style="border-bottom:1px solid var(--s3)">'+
       '<td style="padding:10px 8px">'+chip+'</td>'+
-      '<td style="padding:10px 8px;text-align:right;color:var(--text)">'+fR(gmv)+'</td>'+
-      '<td style="padding:10px 8px;text-align:right;color:#F472B6">'+fR(midia)+'</td>'+
-      '<td style="padding:10px 8px;text-align:right;color:'+(pctMidia>20?'#F59E0B':'var(--muted)')+'">'+
-        (gmv>0?pctMidia.toFixed(1)+'%':'—')+'</td>'+
-      '<td style="padding:10px 8px;text-align:right;color:'+st.cor+';font-weight:600">'+
-        (roas>0?roas.toFixed(2)+'x':'—')+'</td>'+
-      '<td style="padding:10px 8px;text-align:right;color:var(--muted)">'+
-        (cpa>0?fR(cpa):'—')+'</td>'+
-      '<td style="padding:10px 8px;text-align:center"><span style="font-size:10px;padding:3px 8px;border-radius:4px;background:'+st.cor+'22;color:'+st.cor+';font-weight:600">'+st.emoji+' '+st.label+'</span></td>'+
+      '<td style="padding:10px 8px;text-align:right;color:var(--text)">'+fR(gmvR)+'</td>'+
+      '<td style="padding:10px 8px;text-align:right;color:#F472B6">'+fR(midiaR)+'</td>'+
+      '<td style="padding:10px 8px;text-align:right;color:'+corMidia+';font-size:11px">'+pctMidiaTxt+'</td>'+
+      '<td style="padding:10px 8px;text-align:center">'+
+        '<span style="font-size:11px;padding:4px 10px;border-radius:5px;background:'+st.cor+'22;color:'+st.cor+';font-weight:600;letter-spacing:.3px">'+
+        st.emoji+' '+st.label+(st.pct?' '+st.pct:'')+'</span>'+
+      '</td>'+
     '</tr>';
   }).join('');
 
-  // Linha de total
-  var roasGlobalFmt = (roasGlobal > 0) ? roasGlobal.toFixed(2)+'x' : '—';
-  var cpaGlobalFmt  = (cpaGlobal  > 0) ? fR(cpaGlobal) : '—';
+  // ─── Linha de TOTAL ─────────────────────────────────────────
+  var totGmvR    = canaisExibir.reduce(function(s,c){return s+(recente.gmv[c]||0);}, 0);
+  var totGmvA    = canaisExibir.reduce(function(s,c){return s+(anterior.gmv[c]||0);}, 0);
+  var totMidiaR  = canaisExibir.reduce(function(s,c){return s+(recente.midia[c]||0);}, 0);
+  var totMidiaA  = canaisExibir.reduce(function(s,c){return s+(anterior.midia[c]||0);}, 0);
+  var stTotal    = _statusTendencia(totGmvR, totGmvA);
+  var pctMidiaTotal = (totMidiaA > 0) ? ((totMidiaR - totMidiaA) / totMidiaA * 100) : null;
+  var pctMidiaTotalTxt = (pctMidiaTotal !== null) ? ((pctMidiaTotal >= 0 ? '+' : '') + Math.round(pctMidiaTotal) + '%') : '—';
 
   var totalRow = '<tr style="border-top:2px solid var(--s3);font-weight:700">'+
     '<td style="padding:12px 8px;color:var(--muted);font-size:11px">TOTAL</td>'+
-    '<td style="padding:12px 8px;text-align:right;color:var(--text)">'+fR(totalGmv)+'</td>'+
-    '<td style="padding:12px 8px;text-align:right;color:#F472B6">'+fR(totalMidia)+'</td>'+
-    '<td style="padding:12px 8px;text-align:right;color:#A78BFA">'+(pctMidia>0?pctMidia.toFixed(1)+'%':'—')+'</td>'+
-    '<td style="padding:12px 8px;text-align:right;color:var(--amber)">'+roasGlobalFmt+'</td>'+
-    '<td style="padding:12px 8px;text-align:right;color:var(--muted)">'+cpaGlobalFmt+'</td>'+
-    '<td></td>'+
+    '<td style="padding:12px 8px;text-align:right;color:var(--text)">'+fR(totGmvR)+'</td>'+
+    '<td style="padding:12px 8px;text-align:right;color:#F472B6">'+fR(totMidiaR)+'</td>'+
+    '<td style="padding:12px 8px;text-align:right;color:var(--muted2);font-size:11px">'+pctMidiaTotalTxt+'</td>'+
+    '<td style="padding:12px 8px;text-align:center">'+
+      '<span style="font-size:11px;padding:4px 10px;border-radius:5px;background:'+stTotal.cor+'22;color:'+stTotal.cor+';font-weight:600;letter-spacing:.3px">'+
+      stTotal.emoji+' '+stTotal.label+(stTotal.pct?' '+stTotal.pct:'')+'</span>'+
+    '</td>'+
   '</tr>';
 
-  var tabela = document.getElementById('raiox-midia-tabela');
+  var tabela = document.getElementById('raiox-canal-tabela');
   if(tabela) {
     tabela.innerHTML =
       '<thead>'+
@@ -22074,10 +22103,8 @@ function _raioxRenderAnaliseMidia() {
           '<th style="text-align:left;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500;letter-spacing:.5px">Canal</th>'+
           '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">GMV</th>'+
           '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Mídia</th>'+
-          '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">% Mídia/GMV</th>'+
-          '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">ROAS</th>'+
-          '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">CPA</th>'+
-          '<th style="text-align:center;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Status</th>'+
+          '<th style="text-align:right;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500" title="Variação da mídia vs período anterior">Δ Mídia</th>'+
+          '<th style="text-align:center;padding:10px 8px;color:var(--muted2);font-size:10px;text-transform:uppercase;font-weight:500">Tendência GMV</th>'+
         '</tr>'+
       '</thead>'+
       '<tbody>'+rows+'</tbody>'+
@@ -22208,18 +22235,21 @@ function _raioxDesenharChart(dadosDiarios) {
   var janela = window._raioxJanela || '24h'; // '24h' | '10d' | '30d'
   var keys30 = Object.keys(dadosDiarios).sort();
 
-  // 🆕 Quantos dias EXIBIR (zoom)
+  // 🆕 FIX30AF — Quantos dias EXIBIR (zoom).
+  // Janela 24h = D-2 e D-1 (último dia + dia anterior pra ver variação).
+  // Antes era 3 dias, mas o diagnóstico Crítico/Alerta sempre compara D-1 vs D-2,
+  // então faz mais sentido mostrar exatamente os 2 dias que entram na decisão.
   var nExibir;
-  if(janela === '24h') nExibir = 3;
+  if(janela === '24h') nExibir = 2;
   else if(janela === '10d') nExibir = 10;
   else nExibir = keys30.length; // 30d
 
   // Slice: pega só os últimos N dias da janela
   var keys = keys30.slice(-nExibir);
 
-  // 🆕 Destaque = sempre o ÚLTIMO dia (momento atual)
-  // 24h: destaque no índice 2 (3º dia, dias 0 e 1 ficam em fade)
-  // 10d e 30d: destaque no último dia (índice nExibir-1)
+  // 🆕 Destaque = sempre o ÚLTIMO dia (D-1, momento atual)
+  // 24h: destaque no índice 1 (2º dia visível). D-2 fica em fade.
+  // 10d/30d: destaque no último dia (índice nExibir-1)
   var idxInicioDestaque = keys.length - 1;
 
   // Labels (sempre formato dd/mm)
@@ -22595,8 +22625,21 @@ function _raioxDesenharChart(dadosDiarios) {
             var marketplaceV = _getValor('Marketplace');
             var lojaPropriaV = _getValor('Loja Própria');  // 🆕 FIX30F
 
-            // 🆕 Valores do DIA ANTERIOR (pra comparação 1d vs 1d na tooltip)
-            var idxAnterior = idx - 1;
+            // 🆕 FIX30AG — Valores do INÍCIO da janela (pra comparação D-1 vs D-N na tooltip):
+            //   - Janela 24h (2 dias): idxAnterior = idx-1 → compara D-1 vs D-2
+            //   - Janela 10d:          idxAnterior = 0     → compara D-1 vs D-10
+            //   - Janela 30d:          idxAnterior = 0     → compara D-1 vs D-30
+            // Lógica: quando o tooltip está sobre o último ponto (D-1), comparar com o
+            // primeiro ponto visível pra mostrar variação ao longo da janela inteira.
+            // Outros pontos: comparam com o dia imediatamente anterior (variação local).
+            var idxAnterior;
+            var ehUltimoDaJanela = (idx === keys.length - 1);
+            var janelaAtual = window._raioxJanela || '24h';
+            if(ehUltimoDaJanela && (janelaAtual === '10d' || janelaAtual === '30d')) {
+              idxAnterior = 0; // primeiro dia da janela visível
+            } else {
+              idxAnterior = idx - 1; // dia imediatamente anterior
+            }
             var vendasAnt      = _getValor('Vendas',      idxAnterior);
             var midiaAnt       = _getValor('Mídia',       idxAnterior);
             var estoqueAnt     = _getValor('Estoque',     idxAnterior);
@@ -22672,23 +22715,98 @@ function _raioxDesenharChart(dadosDiarios) {
 
               var pctMkt = _pctSeguro(mktV, mktAnt, mktJanela);
               var pctLp  = _pctSeguro(lpV,  lpAnt,  lpJanela);
+              // 🆕 FIX30AH — Mídia também entra na análise pra detectar piora "ADS caro"
+              var midiaJanela = [];
+              for(var iiM = Math.max(0, idx - 14); iiM <= idx; iiM++) {
+                var mm = _getValor('Mídia', iiM);
+                if(mm !== null) midiaJanela.push(mm);
+              }
+              var pctMidiaDiag = _pctSeguro(midiaV, midiaAnt, midiaJanela);
 
-              // Diagnóstico baseado nos sinais
-              var subiuMkt = pctMkt !== null && pctMkt > 2;
-              var subiuLp  = pctLp !== null && pctLp > 2;
-              var caiuMkt  = pctMkt !== null && pctMkt < -2;
-              var caiuLp   = pctLp !== null && pctLp < -2;
+              // 🆕 FIX30AH — 7 regras de diagnóstico do Mercado:
+              //
+              //   1. (vendas LP) sobe   + (mídia) mantém      → mercado melhorou
+              //   2. (vendas LP) mantém + (mídia) sobe         → ADS precisa atenção
+              //   3. (vendas MKT) sobe  + (vendas LP) sobe     → mercado melhorou
+              //   4. (vendas MKT) cai   + (vendas LP) mantém   → marketplace precisa atenção
+              //   5. MKT cai + LP cai + estoque diminui        → atenção no estoque
+              //   6. MKT estável (±3%) + LP estável (±3%) + mídia diminui  → mercado melhorou
+              //   7. MKT estável (±3%) + LP estável (±3%) + mídia subiu    → mercado piorou + ADS caiu
+              //
+              // Usa thresholds: ±3% pra "estável", >3% pra "subiu", <-3% pra "caiu".
+              function _zona(pct){
+                if(pct === null) return 'desconhecido';
+                if(pct > 3)  return 'subiu';
+                if(pct < -3) return 'caiu';
+                return 'estavel';
+              }
+              var zMkt    = _zona(pctMkt);
+              var zLp     = _zona(pctLp);
+              var zMidia  = _zona(pctMidiaDiag);
+
+              // Estoque: usar variação simples (ainda não tem regra de cobertura aqui)
+              var estoqueDiag = _getValor('Estoque', idx);
+              var estoqueAntDiag = _getValor('Estoque', idxAnterior);
+              var pctEstoque = (estoqueDiag !== null && estoqueAntDiag !== null && estoqueAntDiag > 0)
+                ? Math.round(((estoqueDiag - estoqueAntDiag) / estoqueAntDiag) * 100) : null;
+              var zEstoque = _zona(pctEstoque);
+
               var label, cor;
-              if(subiuMkt && subiuLp)        { label = '🔼 Em alta';            cor = '#10B981'; }
-              else if(caiuMkt && caiuLp)     { label = '🔽 Em baixa';           cor = '#F43F5E'; }
-              else if(caiuMkt && subiuLp)    { label = '↗ Migração pra LP';     cor = '#FCD34D'; }
-              else if(subiuMkt && caiuLp)    { label = '↘ Migração pra MKT';    cor = '#FCD34D'; }
-              else if(pctMkt === null && pctLp === null) { label = '─ Sem dados confiáveis'; cor = 'var(--muted)'; }
-              else                            { label = '─ Estável';             cor = 'var(--muted)'; }
+              // Regra 5 (mais grave) — MKT cai + LP cai + estoque diminui
+              if(zMkt === 'caiu' && zLp === 'caiu' && zEstoque === 'caiu') {
+                label = '⚠️ Atenção no estoque';
+                cor = '#F43F5E';
+              }
+              // Regra 7 — MKT estável + LP estável + mídia subiu = mercado piorou + ADS caiu
+              else if(zMkt === 'estavel' && zLp === 'estavel' && zMidia === 'subiu') {
+                label = '🔽 Mercado piorou + ADS caiu';
+                cor = '#F43F5E';
+              }
+              // Regra 4 — MKT cai + LP mantém = marketplace precisa atenção
+              else if(zMkt === 'caiu' && zLp === 'estavel') {
+                label = '⚠️ Marketplace precisa atenção';
+                cor = '#FCD34D';
+              }
+              // Regra 2 — LP mantém + mídia sobe = ADS precisa atenção
+              else if(zLp === 'estavel' && zMidia === 'subiu') {
+                label = '⚠️ ADS precisa atenção';
+                cor = '#FCD34D';
+              }
+              // Regra 3 — MKT sobe + LP sobe = mercado melhorou
+              else if(zMkt === 'subiu' && zLp === 'subiu') {
+                label = '🔼 Mercado melhorou';
+                cor = '#10B981';
+              }
+              // Regra 1 — LP sobe + mídia mantém = mercado melhorou
+              else if(zLp === 'subiu' && zMidia === 'estavel') {
+                label = '🔼 Mercado melhorou';
+                cor = '#10B981';
+              }
+              // Regra 6 — MKT estável + LP estável + mídia diminui = mercado melhorou
+              else if(zMkt === 'estavel' && zLp === 'estavel' && zMidia === 'caiu') {
+                label = '🔼 Mercado melhorou (mídia ↓)';
+                cor = '#10B981';
+              }
+              // Casos restantes
+              else if(zMkt === 'caiu' && zLp === 'caiu') {
+                label = '🔽 Em baixa';
+                cor = '#F43F5E';
+              }
+              else if(pctMkt === null && pctLp === null) {
+                label = '─ Sem dados confiáveis';
+                cor = 'var(--muted)';
+              }
+              else {
+                label = '─ Estável';
+                cor = 'var(--muted)';
+              }
               var detalhe = '';
-              if(pctMkt !== null || pctLp !== null) {
-                detalhe = 'MKT ' + (pctMkt !== null ? (pctMkt >= 0 ? '+' : '') + pctMkt + '%' : '—') +
-                          ' · LP ' + (pctLp !== null ? (pctLp >= 0 ? '+' : '') + pctLp + '%' : '—');
+              if(pctMkt !== null || pctLp !== null || pctMidiaDiag !== null) {
+                var partes = [];
+                partes.push('MKT ' + (pctMkt !== null ? (pctMkt >= 0 ? '+' : '') + pctMkt + '%' : '—'));
+                partes.push('LP ' + (pctLp !== null ? (pctLp >= 0 ? '+' : '') + pctLp + '%' : '—'));
+                if(pctMidiaDiag !== null) partes.push('Mídia ' + (pctMidiaDiag >= 0 ? '+' : '') + pctMidiaDiag + '%');
+                detalhe = partes.join(' · ');
               }
               return { label: label, cor: cor, detalhe: detalhe };
             }
@@ -22747,23 +22865,33 @@ function _raioxDesenharChart(dadosDiarios) {
               '</div>';
             }
 
-            // 🆕 Pílula da linha principal: vs DIA ANTERIOR
+            // 🆕 FIX30AG — Pílula e comentários dinâmicos:
+            // - Último dia + janela 10d/30d: compara contra início da janela (D-10/D-30)
+            // - Outros casos: compara dia anterior
             var pctVendas = _pct(vendasV, vendasAnt);
             var pilulaPrincipal = pctVendas !== null ? _pilula(pctVendas) : '';
+            var rotuloComparacao;
+            if(ehUltimoDaJanela && janelaAtual === '10d') {
+              rotuloComparacao = 'vs início da janela (10d)';
+            } else if(ehUltimoDaJanela && janelaAtual === '30d') {
+              rotuloComparacao = 'vs início da janela (30d)';
+            } else {
+              rotuloComparacao = 'vs dia anterior';
+            }
 
             // Mini-comentário inteligente
             var comentario = '';
             if(pctVendas !== null) {
               if(pctVendas >= 30) {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FCD34D;line-height:1.5">💡 Pico atípico — vendas '+Math.abs(pctVendas)+'% acima do dia anterior. Investigue causa.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FCD34D;line-height:1.5">💡 Pico atípico — vendas '+Math.abs(pctVendas)+'% acima ('+rotuloComparacao+').</div>';
               } else if(pctVendas <= -25) {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#F87171;line-height:1.5">🚨 Queda relevante — vendas '+Math.abs(pctVendas)+'% abaixo do dia anterior.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#F87171;line-height:1.5">🚨 Queda relevante — vendas '+Math.abs(pctVendas)+'% abaixo ('+rotuloComparacao+').</div>';
               } else if(pctVendas >= 10) {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#10B981;line-height:1.5">✅ Alta vs dia anterior.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#10B981;line-height:1.5">✅ Alta '+rotuloComparacao+'.</div>';
               } else if(pctVendas <= -10) {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FB923C;line-height:1.5">⚠️ Atenção — queda vs dia anterior.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#FB923C;line-height:1.5">⚠️ Atenção — queda '+rotuloComparacao+'.</div>';
               } else {
-                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted);line-height:1.5">─ Variação dentro da margem normal vs dia anterior.</div>';
+                comentario = '<div style="margin-top:10px;padding-top:9px;border-top:1px solid rgba(110,231,183,.15);font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted);line-height:1.5">─ Variação dentro da margem normal '+rotuloComparacao+'.</div>';
               }
             }
 
@@ -22774,7 +22902,7 @@ function _raioxDesenharChart(dadosDiarios) {
                 pilulaPrincipal+
               '</div>'+
               // Sub-header: indica comparação
-              '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(110,231,183,.20)">Variação vs dia anterior</div>'+
+              '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(110,231,183,.20)">Variação '+rotuloComparacao+'</div>'+
               // Linha principal: Vendas (compara com dia anterior)
               _linha('📊', 'Vendas', vendasV, vendasAnt, true, '#6EE7B7')+
               // Baseline (referência apenas, sem pílula)
