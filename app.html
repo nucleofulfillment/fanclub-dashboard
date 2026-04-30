@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30F-LOJA-PROPRIA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30G-FILTRO-BRINDES';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -20371,6 +20371,85 @@ function _raioxParseDataPedido(s) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/* 🆕 FIX30G — Helper: detecta se um pedido é "Brinde" (forma de pagamento "14 - Brinde").
+   Brinde = troca/cortesia, NÃO é venda real. Filtra de:
+   - GMV/Vendas (Raio X)
+   - Marketplace e Loja Própria (séries do gráfico)
+   - Cálculo de mídia/percentuais
+   Aparece SEPARADAMENTE no card Brindes (com breakdown produto/frete).
+   Ver discussão em FIX30G — coluna T da planilha de pedidos = forma_pagamento.
+*/
+function _raioxEhBrinde(row) {
+  if(!row) return false;
+  var pagIdx = (typeof _colIdx !== 'undefined' && _colIdx.pag !== undefined) ? _colIdx.pag : 19;
+  var forma = String(row[pagIdx] || '').trim();
+  // Match exato pra "14 - Brinde" (com tolerância a variações de espaço/case)
+  return /^14\s*-\s*Brinde$/i.test(forma);
+}
+
+/* 🆕 FIX30G — Agrega dados de BRINDES no período (mesma janela do Raio X).
+   Retorna: { qtd, valorProduto, valorFrete, valorTotal, gmvRealPeriodo, pctGmv, porDia }
+*/
+function raioxAgregarBrindes(diasJanela) {
+  diasJanela = diasJanela || 30;
+  var resultado = {
+    qtd: 0,
+    valorProduto: 0,
+    valorFrete: 0,
+    valorTotal: 0,
+    gmvRealPeriodo: 0,
+    pctGmv: 0,
+    porDia: {}  // { 'YYYY-MM-DD': valor }
+  };
+
+  if(typeof allRows === 'undefined' || !Array.isArray(allRows)) return resultado;
+
+  // Mesma lógica de janela do raioxVendasPorDia (ancora no último dia real)
+  var dataIdx = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
+  var valorIdx = (typeof _colIdx !== 'undefined' && _colIdx.valor !== undefined) ? _colIdx.valor : 30;
+  var freteIdx = (typeof _colIdx !== 'undefined' && _colIdx.frete !== undefined) ? _colIdx.frete : 28;
+
+  var maxData = null;
+  for(var ri = 0; ri < allRows.length; ri++) {
+    var r = allRows[ri];
+    if(!r || !r[dataIdx]) continue;
+    var d = _raioxParseDataPedido(r[dataIdx]);
+    if(d && (!maxData || d > maxData)) maxData = d;
+  }
+  var hoje = maxData || new Date();
+  hoje.setHours(0,0,0,0);
+  var limite = new Date(hoje);
+  limite.setDate(limite.getDate() - diasJanela + 1);
+
+  allRows.forEach(function(r){
+    if(!r || !r[dataIdx]) return;
+    var d = _raioxParseDataPedido(r[dataIdx]);
+    if(!d || d < limite || d > hoje) return;
+
+    var valorTotal = parseFloat(String(r[valorIdx]||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+
+    if(_raioxEhBrinde(r)) {
+      // É brinde — agrega na soma
+      var valorFrete = parseFloat(String(r[freteIdx]||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+      var valorProduto = valorTotal - valorFrete;
+      resultado.qtd += 1;
+      resultado.valorProduto += valorProduto;
+      resultado.valorFrete += valorFrete;
+      resultado.valorTotal += valorTotal;
+      var key = d.toISOString().slice(0, 10);
+      resultado.porDia[key] = (resultado.porDia[key] || 0) + valorTotal;
+    } else {
+      // Não é brinde — soma no GMV real do período (pra calcular % depois)
+      resultado.gmvRealPeriodo += valorTotal;
+    }
+  });
+
+  if(resultado.gmvRealPeriodo > 0) {
+    resultado.pctGmv = (resultado.valorTotal / resultado.gmvRealPeriodo) * 100;
+  }
+  return resultado;
+}
+
 /* Agrega vendas por dia (últimos N dias) */
 function raioxVendasPorDia(diasJanela) {
   diasJanela = diasJanela || 30;
@@ -20409,6 +20488,8 @@ function raioxVendasPorDia(diasJanela) {
 
   allRows.forEach(function(r){
     if(!r || !r[dataIdx]) return;
+    // 🆕 FIX30G — Filtra pedidos "14 - Brinde" (não é venda, é troca/cortesia)
+    if(_raioxEhBrinde(r)) return;
     var d = _raioxParseDataPedido(r[dataIdx]);
     if(!d) return;
     if(d < limite || d > hoje) return;
@@ -21164,6 +21245,52 @@ function raioxRender() {
         ) +
       '</div>'+
     '</div>';
+
+  // 🆕 FIX30G — CARD BRINDES (mostra brindes do período + breakdown)
+  // Brindes são trocas/cortesias, NÃO são vendas. Aparecem aqui pra Laluna
+  // acompanhar o volume e impacto. Filtrados de Vendas/Marketplace/LP.
+  try {
+    var brindes = raioxAgregarBrindes(diasAnaliseInterpretacao);
+    if(brindes.qtd > 0) {
+      var pctTexto = brindes.pctGmv.toFixed(1).replace('.', ',') + '%';
+      var corPct = brindes.pctGmv > 10 ? '#F43F5E' : brindes.pctGmv > 5 ? '#FCD34D' : '#10B981';
+      html += '<div class="card fu" style="margin-bottom:14px;border-left:3px solid #A78BFA">'+
+        '<div class="ch" style="margin-bottom:14px">'+
+          '<div>'+
+            '<div class="ct">🎁 Brindes & Cortesias</div>'+
+            '<div class="cs">Trocas e brindes · janela <strong style="color:var(--accent)">'+(diasAnaliseInterpretacao === 3 ? '3 dias' : diasAnaliseInterpretacao+' dias')+'</strong> · NÃO entram no GMV</div>'+
+          '</div>'+
+          '<div style="text-align:right">'+
+            '<div style="font-family:var(--fdisplay);font-size:24px;font-weight:700;color:#A78BFA;line-height:1">'+(typeof fMF === 'function' ? fMF(-brindes.valorTotal) : 'R$ '+brindes.valorTotal.toFixed(2))+'</div>'+
+            '<div style="font-family:var(--fmono);font-size:10px;color:'+corPct+';margin-top:4px;font-weight:700">'+pctTexto+' do GMV real</div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding-top:10px;border-top:1px solid var(--border)">'+
+          // Quantidade de pedidos
+          '<div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Pedidos</div>'+
+            '<div style="font-family:var(--fdisplay);font-size:18px;font-weight:600;color:var(--text)">'+brindes.qtd.toLocaleString('pt-BR')+'</div>'+
+          '</div>'+
+          // Valor produto
+          '<div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Produto</div>'+
+            '<div style="font-family:var(--fdisplay);font-size:16px;font-weight:600;color:var(--text)">'+(typeof fMF === 'function' ? fMF(brindes.valorProduto) : 'R$ '+brindes.valorProduto.toFixed(2))+'</div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:2px">'+(brindes.valorTotal > 0 ? Math.round(brindes.valorProduto/brindes.valorTotal*100)+'% do total' : '—')+'</div>'+
+          '</div>'+
+          // Valor frete
+          '<div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Frete</div>'+
+            '<div style="font-family:var(--fdisplay);font-size:16px;font-weight:600;color:var(--text)">'+(typeof fMF === 'function' ? fMF(brindes.valorFrete) : 'R$ '+brindes.valorFrete.toFixed(2))+'</div>'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:2px">'+(brindes.valorTotal > 0 ? Math.round(brindes.valorFrete/brindes.valorTotal*100)+'% do total' : '—')+'</div>'+
+          '</div>'+
+        '</div>'+
+        // Aviso pedagógico se % alto
+        (brindes.pctGmv > 10
+          ? '<div style="margin-top:10px;padding:8px 10px;background:rgba(244,63,94,.08);border-left:3px solid #F43F5E;border-radius:4px;font-family:var(--fmono);font-size:10px;color:#F87171;line-height:1.5">⚠️ <strong>Alerta:</strong> brindes representam '+pctTexto+' do seu GMV real. Volume alto pode indicar campanha de troca em massa ou problema de qualidade. Investigue causa.</div>'
+          : '')+
+      '</div>';
+    }
+  } catch(e) { console.warn('[Raio X · Brindes]', e); }
 
   // 📋 CARDS DE DIAGNÓSTICO (lado direito)
   var realCount = diags.filter(function(d){return !d.simulado && !d.placeholder;}).length;
