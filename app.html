@@ -3525,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AP-RAIOX-DEFENSIVE';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AQ-RAIOX-MKT-FIX';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -8018,9 +8018,12 @@ function calcMarketing() {
     });
   }
   // Lista vertical GMV por canal com total — passar GMV e pedidos
+  // 🆕 FIX30AQ — Bug raiz: linha usava d.canais (variável `d` não existe nesse escopo,
+  // resíduo de refatoração antiga). Correto é canalEntries que tem formato
+  // [['Loja Própria', {gmv, qtd, ped}], ...] vindo do agregado de Object.entries(porCanal).
   var _qtdMap = window._byQtdCanal || {};
-  var canaisComQtd = d.canais.map(function(c){
-    return [c[0], {gmv: c[1], qtd: (_qtdMap[c[0]] || 0)}];
+  var canaisComQtd = canalEntries.map(function(c){
+    return [c[0], {gmv: c[1].gmv, qtd: (_qtdMap[c[0]] || c[1].qtd || c[1].ped || 0)}];
   });
   renderGMVCanalLista(canaisComQtd);
 
@@ -21979,6 +21982,10 @@ function raioxRender() {
   var diagsExibir = filtroAtivo === 'todos'
     ? diags
     : diags.filter(function(d){ return d.severidade === filtroAtivo; });
+
+  // 🆕 FIX30AQ — Define labelJanela baseado na janela ativa (era removido no FIX30AK
+  // mas continuava referenciado no card de Diagnósticos, derrubando todo o render).
+  var labelJanela = (janelaAtual === '24h') ? '24h' : (janelaAtual === '10d') ? '10 dias' : '30 dias';
 
   html +=
     '<div class="card fu">'+
