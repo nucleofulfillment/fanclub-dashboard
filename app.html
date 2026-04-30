@@ -2713,6 +2713,27 @@ body.light body::before { opacity: 0; }
               style="flex:1;background:transparent;border:none;border-bottom:2px solid var(--amber);outline:none;font-family:var(--fdisplay);font-size:32px;font-weight:700;color:var(--amber);padding:4px 0;color-scheme:dark">
           </div>
           <div id="prec-custo-sub" style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:6px">Custo unitário do produto</div>
+          <!-- 🆕 FIX30S — Botões de Kit movidos pra cá (antes ficavam num card sozinho).
+               Visual mais consolidado: custo + tipo de venda no mesmo card amarelo. -->
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(251,146,60,.15)">
+            <label style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Tipo de Venda</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap" id="prec-kit-btns">
+              <button class="prec-kit-btn active" data-kit="1" onclick="selecionarKit(1)"
+                style="padding:5px 12px;border-radius:6px;border:1px solid var(--accent);background:rgba(110,231,183,.15);color:var(--accent);font-family:var(--fhead);font-size:11px;font-weight:600;cursor:pointer">Avulso</button>
+              <button class="prec-kit-btn" data-kit="2" onclick="selecionarKit(2)"
+                style="padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:11px;cursor:pointer">Kit 2</button>
+              <button class="prec-kit-btn" data-kit="3" onclick="selecionarKit(3)"
+                style="padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:11px;cursor:pointer">Kit 3</button>
+              <button class="prec-kit-btn" data-kit="4" onclick="selecionarKit(4)"
+                style="padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:11px;cursor:pointer">Kit 4</button>
+              <button class="prec-kit-btn" data-kit="5" onclick="selecionarKit(5)"
+                style="padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:11px;cursor:pointer">Kit 5</button>
+              <button class="prec-kit-btn" data-kit="7" onclick="selecionarKit(7)"
+                style="padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:11px;cursor:pointer">Kit 7</button>
+              <button class="prec-kit-btn" data-kit="10" onclick="selecionarKit(10)"
+                style="padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:11px;cursor:pointer">Kit 10</button>
+            </div>
+          </div>
         </div>
         <div class="card" style="background:linear-gradient(135deg,var(--s1),rgba(110,231,183,.08));border-color:rgba(110,231,183,.3);padding:20px">
           <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">💰 Preço de Venda</div>
@@ -2878,26 +2899,7 @@ body.light body::before { opacity: 0; }
                   style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:var(--fdisplay);font-size:18px;font-weight:700;color:var(--text);outline:none;color-scheme:dark">
               </div>
             </div>
-            <!-- KIT -->
-            <div style="margin-top:10px">
-              <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:6px">Tipo de Venda</label>
-              <div style="display:flex;gap:6px;flex-wrap:wrap" id="prec-kit-btns">
-                <button class="prec-kit-btn active" data-kit="1" onclick="selecionarKit(1)"
-                  style="padding:5px 14px;border-radius:6px;border:1px solid var(--accent);background:rgba(110,231,183,.15);color:var(--accent);font-family:var(--fhead);font-size:12px;font-weight:600;cursor:pointer">Avulso</button>
-                <button class="prec-kit-btn" data-kit="2" onclick="selecionarKit(2)"
-                  style="padding:5px 14px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:12px;cursor:pointer">Kit 2</button>
-                <button class="prec-kit-btn" data-kit="3" onclick="selecionarKit(3)"
-                  style="padding:5px 14px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:12px;cursor:pointer">Kit 3</button>
-                <button class="prec-kit-btn" data-kit="4" onclick="selecionarKit(4)"
-                  style="padding:5px 14px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:12px;cursor:pointer">Kit 4</button>
-                <button class="prec-kit-btn" data-kit="5" onclick="selecionarKit(5)"
-                  style="padding:5px 14px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:12px;cursor:pointer">Kit 5</button>
-                <button class="prec-kit-btn" data-kit="7" onclick="selecionarKit(7)"
-                  style="padding:5px 14px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:12px;cursor:pointer">Kit 7</button>
-                <button class="prec-kit-btn" data-kit="10" onclick="selecionarKit(10)"
-                  style="padding:5px 14px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fhead);font-size:12px;cursor:pointer">Kit 10</button>
-              </div>
-            </div>
+            <!-- 🆕 FIX30S — Botões de Kit removidos daqui (movidos pro card amarelo Custo do Produto no topo) -->
           </div>
 
           <!-- ETAPA 2: Canal -->
@@ -3493,7 +3495,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30R-MARKETING-AUTO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30S-PREC-KIT-MERGE';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
