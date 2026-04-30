@@ -3046,7 +3046,7 @@ body.light body::before { opacity: 0; }
       <div id="proj-banner-entregas" style="display:none;background:rgba(252,211,77,.06);border:1px solid rgba(252,211,77,.30);border-radius:10px;margin-bottom:14px;overflow:hidden"></div>
 
       <!-- Configurações (oculto por padrão) -->
-      <div id="proj-config-panel" style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+      <div id="proj-config-panel" style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
           <div style="font-family:var(--fmono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">⚙️ Configurações</div>
           <div style="font-family:var(--fmono);font-size:9px;color:var(--muted2)">Salva automaticamente</div>
@@ -3089,13 +3089,13 @@ body.light body::before { opacity: 0; }
       </div>
 
       <!-- Mini-info: fórmula em uso (atualizada em tempo real) -->
-      <div id="proj-formula-info" style="font-family:var(--fmono);font-size:11px;color:var(--muted);background:var(--s2);border:1px solid var(--s3);border-radius:8px;padding:10px 14px;margin-bottom:12px;line-height:1.6"></div>
+      <div id="proj-formula-info" style="font-family:var(--fmono);font-size:11px;color:var(--muted);background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;line-height:1.6"></div>
 
       <!-- KPIs -->
       <div id="proj-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px"></div>
 
       <!-- Filtros -->
-      <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
         <div style="display:flex;gap:6px">
           <button class="proj-fbtn proj-fstatus on" data-status="todos" onclick="projFiltroStatus(this,'todos')">Todos</button>
           <button class="proj-fbtn proj-fstatus" data-status="urgente" onclick="projFiltroStatus(this,'urgente')">🚨 Urgente</button>
@@ -3109,7 +3109,7 @@ body.light body::before { opacity: 0; }
       </div>
 
       <!-- Lista priorizada -->
-      <div id="proj-lista-container" style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;overflow:hidden">
+      <div id="proj-lista-container" style="background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow:hidden">
         <div id="proj-lista" style="max-height:65vh;overflow-y:auto"></div>
       </div>
 
@@ -3353,7 +3353,7 @@ body.light body::before { opacity: 0; }
            SEÇÃO 3: DETALHAMENTO POR MARKETPLACE (tabela)
            Movido pra ficar acima dos gráficos, abaixo dos cards.
            ───────────────────────────────────────────────────────── -->
-      <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:18px">
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px">
         <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">📊 Detalhamento por marketplace</div>
         <div style="overflow-x:auto">
           <table id="conc-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:760px"></table>
@@ -3367,7 +3367,7 @@ body.light body::before { opacity: 0; }
            ───────────────────────────────────────────────────────── -->
       <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;margin-bottom:20px" class="conc-charts-row">
 
-        <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px">
           <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">📅 Previsão de recebimento (próximas 4 semanas)</div>
           <div id="conc-calendario"></div>
         </div>
@@ -3383,7 +3383,7 @@ body.light body::before { opacity: 0; }
       <!-- ─────────────────────────────────────────────────────────
            SEÇÃO 5: DIFERENÇAS E ALERTAS
            ───────────────────────────────────────────────────────── -->
-      <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:18px;margin-bottom:14px">
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px">
         <div style="font-family:var(--fhead);font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">⚠️ Diferenças e alertas</div>
         <div id="conc-alertas"></div>
       </div>
@@ -3498,7 +3498,7 @@ body.light body::before { opacity: 0; }
         </div>
 
         <!-- 🆕 FIX30AH — Tabela Performance por Canal -->
-        <div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:16px;overflow-x:auto">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px;overflow-x:auto">
           <table id="raiox-canal-tabela" style="width:100%;border-collapse:collapse;font-family:var(--fmono);font-size:12px;min-width:680px"></table>
         </div>
       </div>
@@ -3525,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AR-3GAUGES-1CARD';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AU-DIAG-TEXTO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -12249,17 +12249,17 @@ function conciliacaoRenderKPIs(t) {
   var difCor = t.totDif >= -t.totEsp*0.05 ? 'var(--green)' : (t.totDif >= -t.totEsp*0.15 ? '#F59E0B' : 'var(--red)');
   var difIcon = t.totDif >= -t.totEsp*0.05 ? '🟢' : (t.totDif >= -t.totEsp*0.15 ? '🟡' : '🔴');
   el.innerHTML =
-    '<div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 18px">'+
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px 18px">'+
       '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">📦 Vendido</div>'+
       '<div style="font-family:var(--fhead);font-size:20px;font-weight:600;color:var(--text);margin-top:4px">'+fR(t.totVend)+'</div>'+
       '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">total bruto</div>'+
     '</div>'+
-    '<div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 18px">'+
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px 18px">'+
       '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">🎯 Esperado</div>'+
       '<div style="font-family:var(--fhead);font-size:20px;font-weight:600;color:var(--accent);margin-top:4px">'+fR(t.totEsp)+'</div>'+
       '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">após taxas dos marketplaces</div>'+
     '</div>'+
-    '<div style="background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:14px 18px">'+
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px 18px">'+
       '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-transform:uppercase">💵 Recebido</div>'+
       '<div style="font-family:var(--fhead);font-size:20px;font-weight:600;color:var(--text);margin-top:4px">'+fR(t.totRec)+'</div>'+
       '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">lançado no fluxo</div>'+
@@ -12850,7 +12850,7 @@ function projRenderKPIs(dados) {
   if(!el) return;
 
   if(!dados || dados.erro === 'sem-dados') {
-    el.innerHTML = '<div style="grid-column:1/-1;background:var(--s2);border:1px solid var(--s3);border-radius:12px;padding:40px;text-align:center">'+
+    el.innerHTML = '<div style="grid-column:1/-1;background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center">'+
       '<div style="font-size:32px;margin-bottom:12px">📋</div>'+
       '<div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">Aguardando dados</div>'+
       '<div style="font-family:var(--fmono);font-size:11px;color:var(--muted);line-height:1.6">Configure planilhas de Estoque e Produtos Vendidos<br>na engrenagem ⚙️ pra começar a usar a Projeção</div>'+
@@ -21093,13 +21093,15 @@ function raioxVendasPorDia(diasJanela) {
     // 🆕 FIX30H — Padronização: canais marketplace vêm com prefixo "NN - Nome"
     // (ex: "41 - Shopee", "70 - Shein"). Quando vazio/nulo = Loja Própria.
     // Antes: virava "Outros", quebrando a separação MKT vs LP no gráfico.
+    // 🆕 FIX30AT — REMOVE o prefixo numérico do nome final (era "Queda em 41 - Shopee",
+    // agora vira "Queda em Shopee"). O número é só ID do canal Magazord, não info pro user.
     var canalRaw = String(r[canalIdx] || '').trim();
     var canal;
     if(!canalRaw) {
       canal = 'Loja Própria';
     } else if(/^\d+\s*-\s*/.test(canalRaw)) {
-      // Tem prefixo numérico tipo "41 - Shopee" → marketplace
-      canal = canalRaw;
+      // Tem prefixo numérico tipo "41 - Shopee" → remove o "41 - "
+      canal = canalRaw.replace(/^\d+\s*-\s*/, '').trim() || canalRaw;
     } else {
       // Texto sem prefixo numérico = Loja Própria também (variações)
       canal = 'Loja Própria';
@@ -21246,27 +21248,41 @@ function raioxCalcularTermometro(analise) {
   var score = 100;
   var fatores = [];
 
-  // Vendas: penalidade se variação negativa significativa
+  // 🆕 FIX30AT — Penalidades escalam proporcionalmente sem cap baixo.
+  // Antes: cap de 40/35/20 fazia janelas com queda forte (>-67%) baterem todas no
+  // mesmo limite, gerando scores idênticos (todos 40). Agora: cap mais alto e
+  // escala mais sensível pra diferenciar variações grandes.
+  // Vendas: penalidade escala 0..70 conforme magnitude da queda
   if(analise.vendas && analise.vendas.varGmv < -cfg.varVendas) {
-    var penal = Math.min(40, Math.abs(analise.vendas.varGmv) * sens * 0.6);
+    var queda = Math.abs(analise.vendas.varGmv);
+    // 0-10% queda → penal 0-15 | 10-30% → 15-35 | 30-50% → 35-50 | 50+% → 50-70
+    var penal;
+    if(queda <= 10)      penal = queda * 1.5;                  // 0-15
+    else if(queda <= 30) penal = 15 + (queda - 10);            // 15-35
+    else if(queda <= 50) penal = 35 + (queda - 30) * 0.75;     // 35-50
+    else                 penal = 50 + Math.min(20, (queda - 50) * 0.4); // 50-70
+    penal = penal * (sens / 3); // sensibilidade modula (default sens=3 → factor 1.0)
+    penal = Math.min(70, penal);
     score -= penal;
-    fatores.push({ tipo: 'vendas-queda', peso: penal, descr: 'Vendas caíram ' + Math.abs(analise.vendas.varGmv) + '%' });
+    fatores.push({ tipo: 'vendas-queda', peso: penal, descr: 'Vendas caíram ' + queda + '%' });
   } else if(analise.vendas && analise.vendas.varGmv > cfg.varVendas) {
     fatores.push({ tipo: 'vendas-alta', peso: 0, descr: 'Vendas subiram ' + analise.vendas.varGmv + '%' });
   }
 
-  // Estoque: penalidade se muitos SKUs A em ruptura
+  // Estoque: penalidade escalada (cap 35)
   if(analise.estoque && analise.estoque.percRuptura > 0) {
     var penalEst = Math.min(35, analise.estoque.percRuptura * sens * 0.5);
     score -= penalEst;
     fatores.push({ tipo: 'estoque-ruptura', peso: penalEst, descr: analise.estoque.skusRuptura + ' de ' + analise.estoque.totalSkusA + ' SKUs Curva A em ruptura' });
   }
 
-  // Canais com queda forte
+  // Canais com queda forte: cap mais alto (era 20, agora 30)
   if(analise.vendas && analise.vendas.canais) {
     var canaisCriticos = analise.vendas.canais.filter(function(c){ return c.variacao < -cfg.varVendas * 1.5; });
     if(canaisCriticos.length > 0) {
-      var penalCanal = Math.min(20, canaisCriticos.length * sens * 3);
+      // Penalidade soma a magnitude das quedas individuais (não só conta canais)
+      var totalMagnitude = canaisCriticos.reduce(function(s,c){ return s + Math.abs(c.variacao); }, 0);
+      var penalCanal = Math.min(30, canaisCriticos.length * 3 + totalMagnitude * 0.05);
       score -= penalCanal;
       fatores.push({ tipo: 'canal-queda', peso: penalCanal, descr: canaisCriticos.length + ' canal(is) com queda forte' });
     }
@@ -21329,39 +21345,48 @@ function raioxGerarDiagnosticos(analise) {
   // Vendas em queda (geral)
   if(analise.vendas.varGmv < -cfg.varVendas) {
     var conf = Math.min(95, 60 + Math.abs(analise.vendas.varGmv) * 2);
+    // 🆕 FIX30AU — Texto mais objetivo: "Vendas saíram de R$ X pra R$ Y"
+    var fR = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+    var vIni = analise.vendas.totalAnterior.gmv;
+    var vFim = analise.vendas.totalRecente.gmv;
     diags.push({
       tipo: 'vendas-queda',
       severidade: analise.vendas.varGmv < -cfg.varVendas * 2 ? 'critico' : 'alerta',
       titulo: 'Queda nas vendas',
-      desc: 'GMV caiu ' + Math.abs(analise.vendas.varGmv) + '% ' + labelComparacao + '.',
-      detalhe: 'GMV recente (D-1): R$ ' + analise.vendas.totalRecente.gmv.toLocaleString('pt-BR',{maximumFractionDigits:0}) +
-               ' · Início da janela: R$ ' + analise.vendas.totalAnterior.gmv.toLocaleString('pt-BR',{maximumFractionDigits:0}),
+      desc: 'Vendas saíram de ' + fR(vIni) + ' pra ' + fR(vFim) + ' (' + labelComparacao + ').',
+      detalhe: 'Variação: ' + analise.vendas.varGmv + '% no GMV.',
       confianca: Math.round(conf),
+      variacao: analise.vendas.varGmv,
       simulado: false
     });
   } else if(analise.vendas.varGmv > cfg.varVendas) {
+    var fR2 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+    var vIni2 = analise.vendas.totalAnterior.gmv;
+    var vFim2 = analise.vendas.totalRecente.gmv;
     diags.push({
       tipo: 'vendas-alta',
       severidade: 'positivo',
       titulo: 'Vendas em crescimento',
-      desc: 'GMV subiu ' + analise.vendas.varGmv + '% ' + labelComparacao + '.',
-      detalhe: 'Continue monitorando estoque e mídia pra sustentar o ritmo.',
+      desc: 'Vendas saíram de ' + fR2(vIni2) + ' pra ' + fR2(vFim2) + ' (' + labelComparacao + ').',
+      detalhe: 'Variação: +' + analise.vendas.varGmv + '%. Continue monitorando estoque e mídia pra sustentar o ritmo.',
       confianca: 85,
+      variacao: analise.vendas.varGmv,
       simulado: false
     });
   }
 
   // Canais em queda forte
   (analise.vendas.canais || []).forEach(function(c){
+    var fR3 = function(n){ return 'R$ ' + (n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); };
     if(c.variacao < -cfg.varVendas) {
       diags.push({
         tipo: 'canal-queda',
         severidade: c.variacao < -cfg.varVendas * 2 ? 'critico' : 'alerta',
         titulo: 'Queda em ' + c.canal,
-        desc: c.canal + ' caiu ' + Math.abs(c.variacao) + '% no GMV.',
-        detalhe: 'Recente: R$ ' + c.gmvRecente.toLocaleString('pt-BR',{maximumFractionDigits:0}) +
-                 ' · Anterior: R$ ' + c.gmvAnterior.toLocaleString('pt-BR',{maximumFractionDigits:0}),
+        desc: c.canal + ' saiu de ' + fR3(c.gmvAnterior) + ' pra ' + fR3(c.gmvRecente) + '.',
+        detalhe: 'Variação: ' + c.variacao + '% no GMV do canal.',
         confianca: Math.min(90, 65 + Math.abs(c.variacao) * 1.5),
+        variacao: c.variacao,
         simulado: false
       });
     } else if(c.variacao > cfg.varVendas) {
@@ -21369,9 +21394,10 @@ function raioxGerarDiagnosticos(analise) {
         tipo: 'canal-alta',
         severidade: 'positivo',
         titulo: c.canal + ' em alta',
-        desc: c.canal + ' subiu ' + c.variacao + '% no GMV.',
-        detalhe: 'Recente: R$ ' + c.gmvRecente.toLocaleString('pt-BR',{maximumFractionDigits:0}),
+        desc: c.canal + ' saiu de ' + fR3(c.gmvAnterior) + ' pra ' + fR3(c.gmvRecente) + '.',
+        detalhe: 'Variação: +' + c.variacao + '% no GMV do canal.',
         confianca: 80,
+        variacao: c.variacao,
         simulado: false
       });
     }
@@ -21905,7 +21931,14 @@ function raioxRender() {
   //   - Fatores (1 única seção, da janela ativa)
   function _renderGaugeMini(janelaLabel, diasN, dadosJanela, instanciaId) {
     var trm = dadosJanela.termometro;
-    return '<div style="flex:1;text-align:center;min-width:140px">'+
+    // 🆕 FIX30AT — Tooltip explicativo do score 0-100
+    var tooltipScore = 'Pontuação 0-100 do termômetro:\n' +
+      '• 80-100: Saudável (verde)\n' +
+      '• 60-79: Atenção (amarelo)\n' +
+      '• 40-59: Alerta (laranja)\n' +
+      '• 0-39: Crítico (vermelho)\n\n' +
+      'Calculado com base em queda de vendas, estoque crítico e canais em queda.';
+    return '<div style="flex:1;text-align:center;min-width:120px" title="'+tooltipScore+'">'+
       '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+
         'Janela <span style="color:var(--accent);font-weight:700">'+janelaLabel+'</span>'+
       '</div>'+
@@ -22226,8 +22259,8 @@ function _raioxRenderAnaliseMidia() {
 
 /* SVG Gauge do termômetro — versão menor pra split */
 function _raioxRenderGauge(term, instanciaId) {
-  var size = 140;
-  var stroke = 12;
+  var size = 110;
+  var stroke = 10;
   var radius = (size - stroke) / 2;
   var circ = 2 * Math.PI * radius;
   var pct = term.score / 100;
@@ -22292,8 +22325,8 @@ function _raioxRenderGauge(term, instanciaId) {
     // Inicia com cor cinza neutra; animação muda pra term.cor
     '<circle id="'+arcId+'" cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="rgb(100,100,100)" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" filter="url(#'+glowId+')" style="transition:stroke-dashoffset .8s ease, stroke .9s ease"/>'+
     // Texto começa em 0; animação contadora atualiza
-    '<text id="'+textId+'" x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="38" font-weight="700" fill="rgb(100,100,100)">0</text>'+
-    '<text x="50%" y="50%" text-anchor="middle" dy="20" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--muted)">/ 100</text>'+
+    '<text id="'+textId+'" x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="30" font-weight="700" fill="rgb(100,100,100)">0</text>'+
+    '<text x="50%" y="50%" text-anchor="middle" dy="16" font-family="JetBrains Mono,monospace" font-size="8" fill="var(--muted)">/ 100</text>'+
   '</svg>';
 }
 
@@ -22328,6 +22361,22 @@ function _raioxRenderCardDiag(d, idx) {
     ? '<span id="'+cardId+'-chev" style="font-family:var(--fmono);font-size:11px;color:'+c.txt+';opacity:.6;transition:transform .2s">▼</span>'
     : '';
 
+  // 🆕 FIX30AT — Mostra a variação REAL (queda ou alta) em vez da confiança.
+  // Antes: mostrava sempre o mesmo valor (90%, 95%, 100%) que era abstrato.
+  // Agora: -41% (queda real do canal) ou +12% (alta real). Cor segue sinal.
+  var pillVariacao = '';
+  if(d.variacao !== undefined && d.variacao !== null) {
+    var v = d.variacao;
+    var corVar, setaVar;
+    if(v > 0) { corVar = '#10B981'; setaVar = '▲ +'; }
+    else if(v < 0) { corVar = '#F43F5E'; setaVar = '▼ '; }
+    else { corVar = 'var(--muted)'; setaVar = '→ '; }
+    pillVariacao = '<span style="font-family:var(--fmono);font-size:10px;font-weight:700;color:'+corVar+';flex-shrink:0;letter-spacing:.3px" title="Variação real (D-1 vs início da janela)">'+setaVar+v+'%</span>';
+  } else {
+    // Sem variação: mostra confiança (legacy, fallback pra placeholders)
+    pillVariacao = '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted2);background:var(--s2);padding:2px 6px;border-radius:5px;flex-shrink:0">'+d.confianca+'%</span>';
+  }
+
   return '<div class="raiox-diag-card" '+headerOnClick+' style="background:'+c.bg+';border:1px solid '+c.borda+'30;border-left:3px solid '+c.borda+';border-radius:10px;padding:10px 12px;'+cursor+'transition:all .2s;opacity:'+(d.placeholder?0.7:1)+'" '+
     (temDetalhe ? 'onmouseover="this.style.background=\''+c.borda+'15\'" onmouseout="this.style.background=\''+c.bg+'\'"' : '') +
     '>'+
@@ -22337,7 +22386,7 @@ function _raioxRenderCardDiag(d, idx) {
         '<span style="font-family:var(--fmono);font-size:9px;font-weight:700;color:'+c.txt+';letter-spacing:.5px;flex-shrink:0">'+c.label+'</span>'+
         '<span style="font-family:var(--fhead);font-size:12px;font-weight:600;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(d.titulo)+'</span>'+
         tagSimulado + tagPlaceholder +
-        '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted2);background:var(--s2);padding:2px 6px;border-radius:5px;flex-shrink:0">'+d.confianca+'%</span>'+
+        pillVariacao +
         chevron +
       '</div>'+
       // Detalhe (oculto, expande no click)
