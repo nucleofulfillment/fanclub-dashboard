@@ -3525,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AO-MKP-PROJ-PADRAO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AP-RAIOX-DEFENSIVE';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21646,53 +21646,73 @@ function raioxRender() {
   // O seletor 24h/10d/30d agora controla SÓ o gráfico — os 3 termômetros sempre
   // aparecem lado a lado pra dar visão completa em todas as janelas de uma vez.
   function _calcularJanela(diasN) {
-    var anal;
-    if(modoDemo !== 'real') {
-      // Demo: clona os dadosDiarios e recalcula com janela específica
-      var demoBase = raioxGerarDadosDemo(modoDemo);
-      if(demoBase.vendas && demoBase.vendas.dadosDiarios) {
-        anal = { vendas: _raioxRecalcularJanela(demoBase.vendas.dadosDiarios, diasN), estoque: demoBase.estoque };
-      } else {
-        anal = demoBase;
-      }
-    } else {
-      anal = { vendas: raioxComparaPeriodos(diasN), estoque: raioxAnaliseEstoque() };
-    }
-    var trm = raioxCalcularTermometro(anal);
-    // Resumo dos indicadores pra essa janela específica
-    var resm = null;
+    // 🆕 FIX30AP — Wrapper try/catch pra evitar que erro em uma janela
+    // (ex: poucos dias de dados) derrube o render TODO do Raio X.
     try {
-      var aux = raioxGerarLinhasAuxiliares(anal.vendas.dadosDiarios, modoDemo || 'real');
-      var keysAux = Object.keys(anal.vendas.dadosDiarios).sort();
-      function _calc(arr) {
-        if(!arr || arr.length < 2) return null;
-        var jan = arr.slice(-diasN);
-        if(jan.length < 2) return null;
-        var ini = jan[0], fim = jan[jan.length - 1];
-        if(!ini || ini === 0) {
-          for(var i = 1; i < jan.length - 1; i++) { if(jan[i]) { ini = jan[i]; break; } }
-          if(!ini) return fim > 0 ? 100 : null;
+      var anal;
+      if(modoDemo !== 'real') {
+        // Demo: clona os dadosDiarios e recalcula com janela específica
+        var demoBase = raioxGerarDadosDemo(modoDemo);
+        if(demoBase.vendas && demoBase.vendas.dadosDiarios) {
+          anal = { vendas: _raioxRecalcularJanela(demoBase.vendas.dadosDiarios, diasN), estoque: demoBase.estoque };
+        } else {
+          anal = demoBase;
         }
-        return Math.round(((fim - ini) / ini) * 100);
+      } else {
+        anal = { vendas: raioxComparaPeriodos(diasN), estoque: raioxAnaliseEstoque() };
       }
-      function _scoreM(arr) {
-        if(!arr || arr.length < 1) return null;
-        var jan = arr.slice(-diasN);
-        var s = 0, n = 0;
-        jan.forEach(function(v){ if(v !== undefined && v !== null){ s += v; n++; } });
-        return n === 0 ? null : Math.round(s / n);
+      // Garante estrutura mínima
+      if(!anal.vendas) anal.vendas = { varGmv: 0, varPedidos: 0, canais: [], totalAnterior:{gmv:0,pedidos:0,canais:{}}, totalRecente:{gmv:0,pedidos:0,canais:{}}, dadosDiarios: {} };
+      if(!anal.vendas.canais) anal.vendas.canais = [];
+      if(!anal.vendas.dadosDiarios) anal.vendas.dadosDiarios = {};
+      if(!anal.estoque) anal.estoque = { skusRuptura:0, totalSkusA:0, percRuptura:0, criticos:[] };
+
+      var trm = raioxCalcularTermometro(anal);
+      // Resumo dos indicadores pra essa janela específica
+      var resm = null;
+      try {
+        var aux = raioxGerarLinhasAuxiliares(anal.vendas.dadosDiarios, modoDemo || 'real');
+        var keysAux = Object.keys(anal.vendas.dadosDiarios).sort();
+        function _calc(arr) {
+          if(!arr || arr.length < 2) return null;
+          var jan = arr.slice(-diasN);
+          if(jan.length < 2) return null;
+          var ini = jan[0], fim = jan[jan.length - 1];
+          if(!ini || ini === 0) {
+            for(var i = 1; i < jan.length - 1; i++) { if(jan[i]) { ini = jan[i]; break; } }
+            if(!ini) return fim > 0 ? 100 : null;
+          }
+          return Math.round(((fim - ini) / ini) * 100);
+        }
+        function _scoreM(arr) {
+          if(!arr || arr.length < 1) return null;
+          var jan = arr.slice(-diasN);
+          var s = 0, n = 0;
+          jan.forEach(function(v){ if(v !== undefined && v !== null){ s += v; n++; } });
+          return n === 0 ? null : Math.round(s / n);
+        }
+        var vArr = keysAux.map(function(k){ return anal.vendas.dadosDiarios[k].gmv || 0; });
+        resm = {
+          marketplace: _calc(aux.marketplace),
+          lojaPropria: _calc(aux.lojaPropria),
+          mercado:     _scoreM(aux.mercado),
+          midia:       _calc(aux.midia),
+          estoque:     _calc(aux.estoque),
+          vendas:      _calc(vArr)
+        };
+      } catch(eR) {
+        console.warn('[Raio X] Erro calculando resumo janela '+diasN+'d:', eR);
       }
-      var vArr = keysAux.map(function(k){ return anal.vendas.dadosDiarios[k].gmv || 0; });
-      resm = {
-        marketplace: _calc(aux.marketplace),
-        lojaPropria: _calc(aux.lojaPropria),
-        mercado:     _scoreM(aux.mercado),
-        midia:       _calc(aux.midia),
-        estoque:     _calc(aux.estoque),
-        vendas:      _calc(vArr)
+      return { analise: anal, termometro: trm, resumo: resm };
+    } catch(eOuter) {
+      console.error('[Raio X] FALHA TOTAL em _calcularJanela('+diasN+'d):', eOuter);
+      // Retorna estrutura vazia pra não quebrar o render
+      return {
+        analise: { vendas: { varGmv:0, varPedidos:0, canais:[], totalAnterior:{gmv:0,pedidos:0,canais:{}}, totalRecente:{gmv:0,pedidos:0,canais:{}}, dadosDiarios:{} }, estoque: { skusRuptura:0, totalSkusA:0, percRuptura:0, criticos:[] } },
+        termometro: { score: 0, status: 'sem-dados', cor: 'rgb(100,100,100)', icone: '⚪', label: 'Sem dados', fatores: [] },
+        resumo: null
       };
-    } catch(e) {}
-    return { analise: anal, termometro: trm, resumo: resm };
+    }
   }
 
   var jan24h = _calcularJanela(2);
@@ -21919,9 +21939,9 @@ function raioxRender() {
 
   html +=
     '<div style="display:flex;gap:14px;flex-wrap:wrap">'+
-      _renderTermometroJanela('24h', 2, jan24h, 't24')+
-      _renderTermometroJanela('10 dias', 10, jan10d, 't10')+
-      _renderTermometroJanela('30 dias', 30, jan30d, 't30')+
+      (function(){ try { return _renderTermometroJanela('24h', 2, jan24h, 't24'); } catch(e){ console.error('[Raio X] erro render 24h:', e); return ''; } })()+
+      (function(){ try { return _renderTermometroJanela('10 dias', 10, jan10d, 't10'); } catch(e){ console.error('[Raio X] erro render 10d:', e); return ''; } })()+
+      (function(){ try { return _renderTermometroJanela('30 dias', 30, jan30d, 't30'); } catch(e){ console.error('[Raio X] erro render 30d:', e); return ''; } })()+
     '</div>';
 
   // 🆕 FIX30L — Card Brindes REMOVIDO do Raio X (movido pro módulo Financeiro
