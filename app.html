@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30B-ESTOQUE-MERCADO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30E-MARKETPLACE-REAL';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -11540,7 +11540,16 @@ function renderFluxoTabela() {
     return;
   }
 
-  tbody.innerHTML = dados.slice(0,200).map(function(d) {
+  // 🆕 FIX30D — Limite aumentado de 200 → 5000 linhas
+  // Motivo: planilha v3.7+ tem ~280 linhas/mês com mídia diária por canal.
+  // Antes cortava em 200 → últimos dias do mês não apareciam.
+  // 5000 cobre 1 ano de operação. Acima disso, Veltro avisa.
+  var LIMITE_LINHAS = 5000;
+  var dadosExibir = dados.slice(0, LIMITE_LINHAS);
+  if(dados.length > LIMITE_LINHAS) {
+    console.warn('[FC] '+dados.length+' linhas no filtro — exibindo primeiras '+LIMITE_LINHAS+'. Refine o filtro pra ver tudo.');
+  }
+  tbody.innerHTML = dadosExibir.map(function(d) {
     var mov = d.movimento;
     var fix = d.custoFixo;
     var total = mov + fix;
@@ -20066,7 +20075,36 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
 
   var midiaReal = (cenario === 'real') ? _gerarSerieMidiaReal() : null;
   var midia       = midiaReal || _gerarSerie(p.midia,       0.85, 41);
-  var marketplace = _gerarSerie(p.marketplace, 0.78, 29);
+
+  // 🆕 FIX30E — Marketplace REAL: lê GMV dos canais marketplace por dia
+  // direto de dadosDiarios.canais (que vem de allRows / planilha de pedidos).
+  // Soma TODOS os canais que NÃO são "Loja Própria".
+  // Dia sem pedido = R$ 0 (sem invenção, sem extrapolação).
+  function _gerarSerieMarketplaceReal() {
+    if(!dadosDiarios || Object.keys(dadosDiarios).length === 0) return null;
+    var temAlgumDado = false;
+    var serie = keys.map(function(k){
+      var d = dadosDiarios[k];
+      if(!d || !d.canais) return 0;
+      var soma = 0;
+      Object.keys(d.canais).forEach(function(c){
+        // Tudo que não é Loja Própria conta como Marketplace
+        if(c !== 'Loja Própria') {
+          soma += d.canais[c].gmv || 0;
+          if(d.canais[c].gmv > 0) temAlgumDado = true;
+        }
+      });
+      return soma;
+    });
+    if(!temAlgumDado) return null; // sem dados reais, fallback pra simulação
+    var total = serie.reduce(function(s,v){return s+v;}, 0);
+    console.log('[Raio X · Marketplace] ✅ Usando dados REAIS da planilha. ' +
+                'total no período: R$ ' + total.toLocaleString('pt-BR',{maximumFractionDigits:0}));
+    return serie;
+  }
+
+  var marketplaceReal = (cenario === 'real') ? _gerarSerieMarketplaceReal() : null;
+  var marketplace = marketplaceReal || _gerarSerie(p.marketplace, 0.78, 29);
 
   // 🆕 FIX30B — Estoque em UNIDADES (não R$)
   // Conceito: estoque inicial estimado = 2 meses de giro (GMV mês ÷ ticket médio × 2)
@@ -20122,7 +20160,7 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
   var estoque = _gerarSerieEstoqueUnidades();
   var mercado = _gerarSerieMercadoDiagnostico();
 
-  return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace, midiaEhReal: !!midiaReal };
+  return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace, midiaEhReal: !!midiaReal, marketplaceEhReal: !!marketplaceReal };
 }
 
 /* Detecta pontos de alerta (outliers) na linha de vendas */
@@ -20317,7 +20355,19 @@ function raioxVendasPorDia(diasJanela) {
 
   if(typeof allRows === 'undefined' || !Array.isArray(allRows)) return resultado;
 
-  var hoje = new Date();
+  // 🆕 FIX30E — Ancora a janela no ÚLTIMO DIA COM DADOS REAIS, não no "hoje" do navegador.
+  // Antes: gerava dias zerados ao fim quando planilha estava desatualizada.
+  // Agora: encontra a data máxima do allRows e usa como ponto final da janela.
+  var dataIdx = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
+  var maxData = null;
+  for(var ri = 0; ri < allRows.length; ri++) {
+    var r = allRows[ri];
+    if(!r || !r[dataIdx]) continue;
+    var d = _raioxParseDataPedido(r[dataIdx]);
+    if(d && (!maxData || d > maxData)) maxData = d;
+  }
+  // Fallback: se não achou nenhuma data válida, usa hoje (comportamento antigo)
+  var hoje = maxData || new Date();
   hoje.setHours(0,0,0,0);
   var limite = new Date(hoje);
   limite.setDate(limite.getDate() - diasJanela + 1);
@@ -21840,22 +21890,50 @@ function _raioxDesenharChart(dadosDiarios) {
               return Math.round(v).toLocaleString('pt-BR') + ' un';
             }
             // 🆕 FIX30B — Mercado: score (-100..+100) → texto qualitativo + detalhe
+            // 🆕 FIX30C — Clamp em ±100% pra evitar variações absurdas quando o
+            // valor de ontem é quase zero (ex: LP-3595%).
             function _diagnosticoMercado(scoreHoje, idxHoje) {
               if(scoreHoje === null || scoreHoje === undefined) return { label: '—', cor: 'var(--muted)', detalhe: '' };
               if(idxHoje <= 0) return { label: 'Sem comparação', cor: 'var(--muted)', detalhe: '' };
               // Recalcula MKT% e LP% pra exibir no detalhe
-              var hoje = context.chart.data.labels && context.chart.data.labels[idxHoje]
-                ? (window._raioxDadosDiariosCache && window._raioxDadosDiariosCache[idxHoje])
-                : null;
-              // Como não temos cache direto, usamos as séries já calculadas
               var mktV = _getValor('Marketplace', idxHoje);
               var mktAnt = _getValor('Marketplace', idxHoje - 1);
               var vendasV = _getValor('Vendas', idxHoje);
               var vendasAnt = _getValor('Vendas', idxHoje - 1);
               var lpV = (vendasV !== null && mktV !== null) ? (vendasV - mktV) : null;
               var lpAnt = (vendasAnt !== null && mktAnt !== null) ? (vendasAnt - mktAnt) : null;
-              var pctMkt = (mktV !== null && mktAnt) ? Math.round(((mktV - mktAnt) / mktAnt) * 100) : null;
-              var pctLp  = (lpV !== null && lpAnt) ? Math.round(((lpV - lpAnt) / lpAnt) * 100) : null;
+
+              // 🆕 FIX30C — Helper: variação % com proteção contra base muito pequena
+              // Threshold: se base < 1% da média da janela, considera "sem dados confiáveis"
+              function _pctSeguro(atual, base, valoresJanela) {
+                if(atual === null || atual === undefined) return null;
+                if(base === null || base === undefined || base === 0) return null;
+                // Se base é minúscula comparada à média da janela, retorna null
+                if(valoresJanela && valoresJanela.length > 0) {
+                  var soma = 0, n = 0;
+                  valoresJanela.forEach(function(v){ if(v) { soma += Math.abs(v); n++; } });
+                  var media = n > 0 ? soma / n : 0;
+                  if(media > 0 && Math.abs(base) < media * 0.01) return null; // base < 1% da média
+                }
+                var pct = ((atual - base) / base) * 100;
+                // Clamp em ±100% — variações maiores são interpretadas como ruído/inconsistência
+                pct = Math.max(-100, Math.min(100, pct));
+                return Math.round(pct);
+              }
+
+              // Coleta valores da janela pra detectar bases minúsculas
+              var mktJanela = [], lpJanela = [];
+              var inicio = Math.max(0, idxHoje - 30);
+              for(var ii = inicio; ii <= idxHoje; ii++) {
+                var m = _getValor('Marketplace', ii);
+                var v = _getValor('Vendas', ii);
+                if(m !== null) mktJanela.push(m);
+                if(v !== null && m !== null) lpJanela.push(v - m);
+              }
+
+              var pctMkt = _pctSeguro(mktV, mktAnt, mktJanela);
+              var pctLp  = _pctSeguro(lpV,  lpAnt,  lpJanela);
+
               // Diagnóstico baseado nos sinais
               var subiuMkt = pctMkt !== null && pctMkt > 2;
               var subiuLp  = pctLp !== null && pctLp > 2;
@@ -21866,6 +21944,7 @@ function _raioxDesenharChart(dadosDiarios) {
               else if(caiuMkt && caiuLp)     { label = '🔽 Em baixa';           cor = '#F43F5E'; }
               else if(caiuMkt && subiuLp)    { label = '↗ Migração pra LP';     cor = '#FCD34D'; }
               else if(subiuMkt && caiuLp)    { label = '↘ Migração pra MKT';    cor = '#FCD34D'; }
+              else if(pctMkt === null && pctLp === null) { label = '─ Sem dados confiáveis'; cor = 'var(--muted)'; }
               else                            { label = '─ Estável';             cor = 'var(--muted)'; }
               var detalhe = '';
               if(pctMkt !== null || pctLp !== null) {
