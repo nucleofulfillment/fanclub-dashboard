@@ -3523,7 +3523,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30Y-DROPDOWN-CUSTOM';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30Z-COMISSAO-PCT-MKT';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -16248,7 +16248,11 @@ function syncFinanceiroKPIs(d) {
     }
   });
 
-  var pctComissaoMedio = d.total > 0 ? (totalComissao / d.total * 100) : 0;
+  // 🆕 FIX30Z — % de comissão calculado sobre GMV de MARKETPLACE (não GMV total).
+  // Antes: dividia por d.total (incluindo LP) → diluía o % real.
+  // Comissão só incide sobre marketplace, então o % correto é total comissão / GMV MKT.
+  var gmvMarketplace = d.total - gmvLojaPropria;
+  var pctComissaoMedio = gmvMarketplace > 0 ? (totalComissao / gmvMarketplace * 100) : 0;
   var taxaFixaMediaPedido = cnt > 0 ? (totalTaxaFixa / cnt) : 0;
 
   // ═══════════════════════════════════════════════════════════════════
@@ -16464,7 +16468,7 @@ function syncFinanceiroKPIs(d) {
 
   // Fileira 2 — calculados
   setT('fin-com', fMKPI(totalComissao));
-  setT('fin-com-sub', '% médio: '+pctComissaoMedio.toFixed(2)+'% (ponderado)');
+  setT('fin-com-sub', '% médio: '+pctComissaoMedio.toFixed(2)+'% sobre GMV MKT');
   setT('fin-taxafix', fMKPI(totalTaxaFixa));
   setT('fin-taxafix-sub', 'R$ '+taxaFixaMediaPedido.toFixed(2).replace('.',',')+'/pedido médio');
 
