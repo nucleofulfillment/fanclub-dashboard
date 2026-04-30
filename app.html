@@ -454,39 +454,46 @@ body::before {
 }
 
 /* ══════════════════════════════════════════════════════
-   LIGHT MODE
+   LIGHT MODE — 🆕 FIX30AY: paleta mais monocromática
+   Cores fortes do tema noite (verde neon, rosa pink, etc)
+   se perdiam no fundo branco. Versão clara: tudo mais sutil
+   e baseado em cinzas + cor de destaque única (verde-petróleo).
 ══════════════════════════════════════════════════════ */
 body.light {
-  --bg:      #F1F5F9;
-  --s1:      #FFFFFF;
-  --s2:      #F8FAFC;
-  --s3:      #EEF2F7;
-  --border:  rgba(0,0,0,0.07);
-  --border2: rgba(0,0,0,0.12);
-  --text:    #0F172A;
-  --muted:   #64748B;
-  --muted2:  #475569;
-  --accent:  #059669;
-  --green:   #059669;
-  --amber:   #D97706;
-  --red:     #DC2626;
-  --blue:    #2563EB;
-  --a2:      #4F46E5;
-  --a3:      #EA580C;
-  --a4:      #DB2777;
-  --a5:      #10B981;
+  --bg:      #F4F5F7;       /* cinza muito claro (era #F1F5F9, levemente mais frio) */
+  --s1:      #FFFFFF;       /* branco puro pros cards */
+  --s2:      #F8FAFC;       /* cinza ultra claro pra inputs/sub-elementos */
+  --s3:      #EEF2F7;       /* cinza claro pra hovers */
+  --border:  rgba(15,23,42,0.08);    /* borda mais discreta */
+  --border2: rgba(15,23,42,0.14);    /* borda um pouco mais visível pra inputs */
+  --text:    #1E293B;       /* não totalmente preto, mais elegante */
+  --muted:   #64748B;       /* cinza médio (mantido) */
+  --muted2:  #475569;       /* cinza escuro pra secundário */
+  --accent:  #047857;       /* verde-petróleo mais sóbrio (era #059669) */
+  --green:   #047857;       /* mesmo do accent — coerência */
+  --amber:   #B45309;       /* âmbar mais terra (era #D97706) */
+  --red:     #B91C1C;       /* vermelho mais sóbrio (era #DC2626) */
+  --blue:    #1D4ED8;       /* azul mais profundo (era #2563EB) */
+  --a2:      #4338CA;       /* índigo mais profundo (era #4F46E5) */
+  --a3:      #C2410C;       /* laranja mais terra (era #EA580C) */
+  --a4:      #BE185D;       /* magenta mais sóbrio (era #DB2777) */
+  --a5:      #047857;       /* mesmo do accent */
 }
 body.light { background: var(--bg); color: var(--text); }
-body.light .header { background: rgba(241,245,249,.92); }
+body.light .header { background: rgba(244,245,247,.92); }
 body.light .sidebar { background: #FFFFFF; border-right: 1px solid var(--border); }
-body.light .card { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
-body.light .kpi { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
-body.light .nav-item.active { background: rgba(5,150,105,.08); }
-body.light .nav-item:hover { background: rgba(5,150,105,.05); }
+body.light .card { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+body.light .kpi { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+body.light .nav-item.active { background: rgba(4,120,87,.08); }
+body.light .nav-item:hover { background: rgba(4,120,87,.05); }
 body.light select, body.light input { background: var(--s2) !important; color: var(--text) !important; color-scheme: light !important; }
 body.light .fbar { background: #FFFFFF; }
 body.light .dtbl thead tr { background: var(--s2); }
 body.light body::before { opacity: 0; }
+/* 🆕 FIX30AY — Suaviza glows/sombras que ficam fortes no fundo branco */
+body.light .card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+/* Atenuação geral de saturação: aplica filter de leve dessaturação no body */
+body.light { filter: saturate(0.85); }
 
 /* ══════════════════════════════════════════════════════
    SIDEBAR COLAPSÁVEL
@@ -3532,7 +3539,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AX-FASE1-MULTI';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AY-FASE2-MERCADO-EST-DIA';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21784,9 +21791,9 @@ function raioxRender() {
   // com o card de diagnósticos lateral e título.
   var term = (janelaAtual === '24h') ? jan24h.termometro : (janelaAtual === '10d') ? jan10d.termometro : jan30d.termometro;
   var resumo = (janelaAtual === '24h') ? jan24h.resumo    : (janelaAtual === '10d') ? jan10d.resumo    : jan30d.resumo;
-  var diags = raioxGerarDiagnosticos(
-    (janelaAtual === '24h') ? jan24h.analise : (janelaAtual === '10d') ? jan10d.analise : jan30d.analise
-  );
+  // 🆕 FIX30AY — Análise da janela ativa (pra mostrar SKUs em ruptura no estoque)
+  var analiseAtiva = (janelaAtual === '24h') ? jan24h.analise : (janelaAtual === '10d') ? jan10d.analise : jan30d.analise;
+  var diags = raioxGerarDiagnosticos(analiseAtiva);
 
   // ─── HTML ──
 
@@ -21923,14 +21930,122 @@ function raioxRender() {
     '</div>';
   }
   // 🆕 FIX30B — Linha especializada pra Mercado (mostra diagnóstico textual)
-  function _raioxLinhaMercado(scoreM) {
-    var label, corBadge;
-    if(scoreM === null || scoreM === undefined) {
+  // 🆕 FIX30AY — Diagnóstico do Mercado baseado em 7 regras combinatórias.
+  // Recebe variações: mkt, lp, midia, estoque (em %, ou null se sem dado).
+  // Aplica as regras na ordem (primeira que bater ganha):
+  //
+  //   R1. LP↑ + Mídia mantém           → mercado melhorou (orgânico cresceu)
+  //   R2. LP mantém + Mídia↑           → ADS atenção (gastou mais sem retorno)
+  //   R3. MKT↑ + LP↑                    → mercado melhorou (alta geral)
+  //   R4. MKT↓ + LP mantém              → marketplace atenção (problema isolado MKT)
+  //   R5. MKT↓ + LP↓ + Estoque↓         → estoque atenção (rupturas)
+  //   R6. MKT/LP ±3% + Mídia↓           → mercado melhorou (orgânico sustentou queda mídia)
+  //   R7. MKT/LP ±3% + Mídia↑           → mercado piorou + ADS caiu (gastou mais e não cresceu)
+  //
+  // Limites de classificação:
+  //   ↑ (subiu)   = > +5%
+  //   ↓ (caiu)    = < -5%
+  //   mantém      = -5% a +5%
+  //   estável ±3% = -3% a +3% (mais restritivo, pra regras 6/7)
+  function _raioxAnaliseMercado(resumo) {
+    if(!resumo) return { label: '—', cor: 'var(--muted)', regra: null, detalhe: 'Sem dados' };
+    var mkt = resumo.marketplace, lp = resumo.lojaPropria, mid = resumo.midia, est = resumo.estoque;
+    // Helpers de classificação
+    var subiu = function(v){ return v !== null && v !== undefined && v > 5; };
+    var caiu  = function(v){ return v !== null && v !== undefined && v < -5; };
+    var mantem = function(v){ return v !== null && v !== undefined && v >= -5 && v <= 5; };
+    var estavel3 = function(v){ return v !== null && v !== undefined && v >= -3 && v <= 3; };
+
+    // R3 (mais forte): MKT↑ + LP↑ → mercado melhorou
+    if(subiu(mkt) && subiu(lp)) {
+      return {
+        label: '🔼 Mercado melhorou',
+        cor: '#10B981',
+        regra: 'R3',
+        detalhe: 'Marketplace e Loja Própria subiram juntos · alta geral'
+      };
+    }
+    // R5: MKT↓ + LP↓ + Estoque↓ → estoque atenção
+    if(caiu(mkt) && caiu(lp) && caiu(est)) {
+      return {
+        label: '⚠ Estoque atenção',
+        cor: '#FCD34D',
+        regra: 'R5',
+        detalhe: 'MKT, LP e Estoque caíram · possível ruptura'
+      };
+    }
+    // R1: LP↑ + Mídia mantém → mercado melhorou (orgânico)
+    if(subiu(lp) && mantem(mid)) {
+      return {
+        label: '🔼 Mercado melhorou',
+        cor: '#10B981',
+        regra: 'R1',
+        detalhe: 'LP cresceu sem aumento de mídia · orgânico forte'
+      };
+    }
+    // R2: LP mantém + Mídia↑ → ADS atenção
+    if(mantem(lp) && subiu(mid)) {
+      return {
+        label: '⚠ ADS atenção',
+        cor: '#FCD34D',
+        regra: 'R2',
+        detalhe: 'Mídia subiu mas LP não acompanhou · ROAS caindo'
+      };
+    }
+    // R4: MKT↓ + LP mantém → marketplace atenção
+    if(caiu(mkt) && mantem(lp)) {
+      return {
+        label: '⚠ Marketplace atenção',
+        cor: '#FCD34D',
+        regra: 'R4',
+        detalhe: 'Marketplace caiu mas LP estável · problema isolado MKT'
+      };
+    }
+    // R6: MKT/LP ±3% + Mídia↓ → mercado melhorou
+    if(estavel3(mkt) && estavel3(lp) && caiu(mid)) {
+      return {
+        label: '🔼 Mercado melhorou',
+        cor: '#10B981',
+        regra: 'R6',
+        detalhe: 'Vendas estáveis com menos mídia · eficiência subindo'
+      };
+    }
+    // R7: MKT/LP ±3% + Mídia↑ → mercado piorou + ADS caiu
+    if(estavel3(mkt) && estavel3(lp) && subiu(mid)) {
+      return {
+        label: '🔽 Mercado piorou',
+        cor: '#F43F5E',
+        regra: 'R7',
+        detalhe: 'Mídia subiu sem efeito em vendas · ADS perdeu eficiência'
+      };
+    }
+    // Fallback: se nada bateu, usa a tendência média geral
+    var soma = 0, n = 0;
+    if(mkt !== null && mkt !== undefined) { soma += mkt; n++; }
+    if(lp  !== null && lp  !== undefined) { soma += lp;  n++; }
+    if(n === 0) return { label: '—', cor: 'var(--muted)', regra: null, detalhe: 'Sem dados suficientes' };
+    var media = soma / n;
+    if(media > 5)      return { label: '🔼 Em alta',  cor: '#10B981', regra: null, detalhe: 'Tendência geral positiva' };
+    if(media < -5)     return { label: '🔽 Em baixa', cor: '#F43F5E', regra: null, detalhe: 'Tendência geral negativa' };
+    return                    { label: '─ Estável',  cor: 'var(--muted)', regra: null, detalhe: 'Vendas dentro da margem normal' };
+  }
+
+  function _raioxLinhaMercado(scoreM, resumoCompleto) {
+    // 🆕 FIX30AY — Aplica diagnóstico de mercado por regras (se resumoCompleto disponível).
+    // Fallback pro comportamento antigo (scoreM apenas) se não tiver dados de mkt/lp/mid.
+    var label, corBadge, tooltip = '';
+    if(resumoCompleto) {
+      var d = _raioxAnaliseMercado(resumoCompleto);
+      label = d.label;
+      corBadge = d.cor;
+      tooltip = d.detalhe + (d.regra ? ' · regra ' + d.regra : '');
+    } else if(scoreM === null || scoreM === undefined) {
       label = '—'; corBadge = 'var(--muted)';
     } else if(scoreM >= 5)        { label = '🔼 Em alta';     corBadge = '#10B981'; }
     else if(scoreM <= -5)         { label = '🔽 Em baixa';    corBadge = '#F43F5E'; }
     else                           { label = '─ Estável';      corBadge = 'var(--muted)'; }
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-family:var(--fmono);font-size:11px">'+
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-family:var(--fmono);font-size:11px"'+
+      (tooltip ? ' title="'+tooltip.replace(/"/g,'&quot;')+'"' : '')+'>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
         '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#A78BFA;flex-shrink:0"></span>'+
         '<span style="color:var(--text);font-weight:500">🌐 Mercado</span>'+
@@ -21939,13 +22054,38 @@ function raioxRender() {
     '</div>';
   }
   // 🆕 FIX30B — Linha especializada pra Estoque (sufixo "un" se positivo, sem prefixo R$)
-  function _raioxLinhaEstoque(pct) {
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-family:var(--fmono);font-size:11px">'+
+  function _raioxLinhaEstoque(pct, analiseEstoque) {
+    // 🆕 FIX30AY — Nova abordagem: mostra SKUs em ruptura em vez de % variação de unidades.
+    // Variação de unidades é confusa (cai quando vende = bom).
+    // Pra gestão, o que importa é quantos SKUs Curva A estão em ruptura.
+    var conteudo, tooltip = '';
+    if(analiseEstoque && typeof analiseEstoque.skusRuptura === 'number' && analiseEstoque.totalSkusA > 0) {
+      var n  = analiseEstoque.skusRuptura;
+      var tA = analiseEstoque.totalSkusA;
+      var pctR = analiseEstoque.percRuptura || 0;
+      var cor;
+      if(pctR === 0)      cor = '#10B981';   // saudável
+      else if(pctR <= 10) cor = '#FCD34D';   // atenção
+      else if(pctR <= 25) cor = '#FB923C';   // alerta
+      else                cor = '#F43F5E';   // crítico
+      var seta = pctR === 0 ? '✓' : '▼';
+      conteudo = '<span style="color:'+cor+';font-weight:700;font-family:var(--fmono);font-size:10px">'+
+        seta+' '+n+'/'+tA+' SKUs A'+(pctR>0?' ('+Math.round(pctR)+'%)':'')+
+      '</span>';
+      tooltip = n + ' de ' + tA + ' SKUs Curva A em ruptura · ' + pctR.toFixed(1) + '% do top vendedores';
+    } else if(pct !== null && pct !== undefined) {
+      // Fallback: se não tem análise de estoque, usa variação de unidades antiga
+      conteudo = _raioxPilula(pct);
+    } else {
+      conteudo = '<span style="color:var(--muted2);font-family:var(--fmono);font-size:9px">—</span>';
+    }
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-family:var(--fmono);font-size:11px"'+
+      (tooltip ? ' title="'+tooltip.replace(/"/g,'&quot;')+'"' : '')+'>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
         '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#EC4899;flex-shrink:0"></span>'+
-        '<span style="color:var(--text);font-weight:500">📦 Estoque <span style="color:var(--muted2);font-size:9px">(un)</span></span>'+
+        '<span style="color:var(--text);font-weight:500">📦 Estoque</span>'+
       '</div>'+
-      _raioxPilula(pct)+
+      conteudo+
     '</div>';
   }
 
@@ -22001,9 +22141,9 @@ function raioxRender() {
             _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resumo.vendas)+
             _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
             _raioxLinhaIndicador('🏪', 'Loja Própria', '#CBD5E1', resumo.lojaPropria)+
-            _raioxLinhaMercado(resumo.mercado)+
+            _raioxLinhaMercado(resumo.mercado, resumo)+
             _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resumo.midia)+
-            _raioxLinhaEstoque(resumo.estoque)+
+            _raioxLinhaEstoque(resumo.estoque, analiseAtiva.estoque)+
           '</div>'
         : ''
       )+
