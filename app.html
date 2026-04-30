@@ -3493,7 +3493,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30P-PCT-MIDIA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30Q-MIDIA-RECALC';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -15772,8 +15772,15 @@ function finAutoPreencherDoFluxo() {
   }
 
   // ─── Período ─────────────────────────────────────────────────
-  var fFrom = (document.getElementById('fin-from')||{}).value || '';
-  var fTo   = (document.getElementById('fin-to')||{}).value   || '';
+  // 🆕 FIX30Q — Lê filtro local primeiro, depois global (fallback).
+  // Resolve bug onde fin-from/fin-to estava vazio mas o usuário tinha filtrado
+  // pelo header global (f-from/f-to), causando totalMidia ser somado errado.
+  var fFrom = (document.getElementById('fin-from')||{}).value
+           || (document.getElementById('f-from')||{}).value
+           || '';
+  var fTo   = (document.getElementById('fin-to')||{}).value
+           || (document.getElementById('f-to')||{}).value
+           || '';
 
   // ─── 1. MÍDIA (% override > total fluxo) ─────────────────────
   // Como o card hoje só tem input "% override", o auto vai preencher
@@ -16105,6 +16112,33 @@ function syncFinanceiroKPIs(d) {
   var mktManual = mktPctInput && mktPctInput.dataset.edited === '1' && mktPct > 0;
   var custoMkt = 0;
   var mktFonte = '';
+
+  // 🆕 FIX30Q — Se _fluxoV2_midia_auto estiver zerado/indefinido mas a planilha
+  // do Fluxo está carregada (_fluxoV2Data populado), recalcula on-demand.
+  // Resolve bug onde Mídia voltava a R$ 0,00 após hard reload mesmo com Fluxo
+  // disponível (ordem de inicialização ou cache dessincronizado).
+  if(!window._fluxoV2_midia_auto || window._fluxoV2_midia_auto === 0) {
+    if(window._fluxoV2Data && window._fluxoV2Data.midia && window._fluxoV2Data.midia.length > 0) {
+      try {
+        // Lê período do filtro global (f-from/f-to) ou local (fin-from/fin-to)
+        var fGlobalFrom = (document.getElementById('f-from')||{}).value || '';
+        var fGlobalTo   = (document.getElementById('f-to')||{}).value   || '';
+        var fLocalFrom  = (document.getElementById('fin-from')||{}).value || '';
+        var fLocalTo    = (document.getElementById('fin-to')||{}).value   || '';
+        var fFrom = fGlobalFrom || fLocalFrom;
+        var fTo   = fGlobalTo   || fLocalTo;
+        if(typeof fluxoV2TotalMidia === 'function') {
+          var recalc = fluxoV2TotalMidia(fFrom, fTo);
+          if(recalc > 0) {
+            window._fluxoV2_midia_auto = recalc;
+            console.log('[FIX30Q] Mídia recalculada on-demand: R$ '+recalc.toFixed(0)+
+                        ' (período '+(fFrom||'?')+'→'+(fTo||'?')+')');
+          }
+        }
+      } catch(e) { console.warn('[FIX30Q] recálculo de mídia falhou:', e); }
+    }
+  }
+
   if(mktManual) {
     custoMkt = d.total * (mktPct/100);
     mktFonte = 'manual: '+mktPct.toFixed(1)+'% do GMV';
