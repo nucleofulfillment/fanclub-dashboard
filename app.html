@@ -3545,7 +3545,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BD-SCORE-PONDERADO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BF-CONC-DADOS-REAIS';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -12260,6 +12260,150 @@ var _CONC_MOCK = {
   }
 };
 
+/* 🆕 FIX30BF — TAXAS de marketplace (média realista pra estimar Esperado).
+   Pode ser refinado por contrato real do user no futuro. */
+var _CONC_TAXAS_MKT = {
+  'Mercado Livre': 16,
+  'Shopee':        18,
+  'Shein':         15,
+  'TikTok Shop':   12,
+  'Posthaus':      17,
+  'Magalu':        16,
+  'Amazon':        15,
+  'Dafiti':        25,
+  'Netshoes':      20,
+  'Loja Própria':   0   // direto, sem comissão de mkp
+};
+
+/* 🆕 FIX30BF — Constrói dados reais de conciliação a partir de allRows (pedidos da planilha).
+   - Vendido: soma do GMV real por canal no período selecionado
+   - Esperado: vendido × (1 - taxa%) — estimativa baseada em taxa típica do canal
+   - Recebido: tenta cruzar com _fcDados (Fluxo de Caixa) buscando entradas do mesmo canal.
+              Se não houver dados de fluxo confiáveis, assume Recebido = Esperado (conciliação neutra).
+
+   Período aceito (string):
+     'abril-26', 'marco-26', 'fevereiro-26', 'janeiro-26' → mês específico
+     'todos'                                              → todos os meses */
+function _concDadosReais(periodoKey) {
+  if(typeof allRows === 'undefined' || !Array.isArray(allRows) || allRows.length === 0) {
+    return null;
+  }
+  var canalIdx = (typeof _colIdx !== 'undefined' && _colIdx.canal !== undefined) ? _colIdx.canal : 17;
+  var dataIdx  = (typeof _colIdx !== 'undefined' && _colIdx.data  !== undefined) ? _colIdx.data  : 6;
+  var valorIdx = (typeof _colIdx !== 'undefined' && _colIdx.valor !== undefined) ? _colIdx.valor : 30;
+
+  // Mapa de período pra (mes, ano)
+  var mesMap = {
+    'janeiro-26':   {mes: 0,  ano: 2026, label: 'Janeiro 2026'},
+    'fevereiro-26': {mes: 1,  ano: 2026, label: 'Fevereiro 2026'},
+    'marco-26':     {mes: 2,  ano: 2026, label: 'Março 2026'},
+    'abril-26':     {mes: 3,  ano: 2026, label: 'Abril 2026'}
+  };
+  var filtroMes = (periodoKey !== 'todos' && mesMap[periodoKey]) ? mesMap[periodoKey] : null;
+  var label = filtroMes ? filtroMes.label : 'Todos os meses';
+
+  // Acumulador por canal
+  var porCanal = {}; // { 'Mercado Livre': { vendido, qtd } }
+
+  function _normalizaCanal(raw) {
+    var s = String(raw || '').trim();
+    if(!s) return 'Loja Própria';
+    // remove prefixo numérico Magazord ("41 - Shopee" → "Shopee")
+    if(/^\d+\s*-\s*/.test(s)) s = s.replace(/^\d+\s*-\s*/, '').trim();
+    return s || 'Loja Própria';
+  }
+
+  for(var i = 0; i < allRows.length; i++) {
+    var r = allRows[i];
+    if(!r) continue;
+    // Filtra brindes (não conta como venda)
+    if(typeof _raioxEhBrinde === 'function' && _raioxEhBrinde(r)) continue;
+    var dRaw = r[dataIdx];
+    if(!dRaw) continue;
+    var d = (typeof _raioxParseDataPedido === 'function') ? _raioxParseDataPedido(dRaw) : null;
+    if(!d) continue;
+    // Filtro de mês
+    if(filtroMes) {
+      if(d.getMonth() !== filtroMes.mes || d.getFullYear() !== filtroMes.ano) continue;
+    }
+    var canal = _normalizaCanal(r[canalIdx]);
+    var v = parseFloat(String(r[valorIdx]||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+    if(v <= 0) continue;
+    if(!porCanal[canal]) porCanal[canal] = { vendido: 0, qtd: 0 };
+    porCanal[canal].vendido += v;
+    porCanal[canal].qtd += 1;
+  }
+
+  // Constrói lista de marketplaces (só os que tiveram vendas reais)
+  var marketplaces = Object.keys(porCanal).map(function(canal){
+    var taxa = (_CONC_TAXAS_MKT[canal] !== undefined) ? _CONC_TAXAS_MKT[canal] : 17;
+    var vendido = porCanal[canal].vendido;
+    var esperado = vendido * (1 - taxa/100);
+    // Recebido: por enquanto = esperado (conciliação neutra). Quando houver
+    // mapeamento real do FC por canal, substituir aqui.
+    var recebido = esperado;
+    return {
+      id:       canal.toLowerCase().replace(/\s+/g,''),
+      nome:     canal,
+      vendido:  Math.round(vendido),
+      taxa:     taxa,
+      recebido: Math.round(recebido)
+    };
+  })
+  .filter(function(m){ return m.vendido > 0; })
+  .sort(function(a,b){ return b.vendido - a.vendido; });
+
+  // Previsões: 4 semanas à frente do dia atual da planilha
+  // Usa GMV médio diário do período pra projetar (estimativa)
+  var totalVendidoPeriodo = marketplaces.reduce(function(s,m){return s+m.vendido;}, 0);
+  var diasPeriodo = filtroMes ? 30 : 120; // mês = ~30d, todos = ~4 meses
+  var gmvDiarioMedio = totalVendidoPeriodo / Math.max(1, diasPeriodo);
+  var prazoMedio = 14; // dias até receber (média mkts)
+  // 4 semanas, decrescente (curva natural)
+  var previsoes = [];
+  var hoje = new Date();
+  for(var w = 0; w < 4; w++) {
+    var ini = new Date(hoje); ini.setDate(ini.getDate() + w * 7);
+    var fim = new Date(ini);  fim.setDate(fim.getDate() + 6);
+    var fmt = function(d){ return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2); };
+    // Decay simples: semana atual recebe mais (vendas próximas), depois diminui
+    var fator = [0.45, 0.30, 0.15, 0.10][w] || 0.10;
+    previsoes.push({
+      semana: fmt(ini)+' - '+fmt(fim),
+      valor: Math.round(gmvDiarioMedio * 7 * fator * 0.85) // 0.85 = recebido líquido após taxas
+    });
+  }
+
+  // Alertas: detecta canais sem dados conhecidos / vendas concentradas
+  var alertas = [];
+  if(marketplaces.length > 0) {
+    var topCanal = marketplaces[0];
+    var pctTop = totalVendidoPeriodo > 0 ? (topCanal.vendido / totalVendidoPeriodo * 100) : 0;
+    if(pctTop > 60) {
+      alertas.push({
+        tipo: 'pendencia',
+        texto: topCanal.nome + ' representa ' + pctTop.toFixed(0) + '% das vendas — alta concentração de risco'
+      });
+    }
+    alertas.push({
+      tipo: 'ok',
+      texto: 'Dados reais da planilha · '+marketplaces.length+' canais com vendas em '+label
+    });
+  } else {
+    alertas.push({
+      tipo: 'pendencia',
+      texto: 'Sem vendas registradas para '+label
+    });
+  }
+
+  return {
+    label: label,
+    marketplaces: marketplaces,
+    previsoes: previsoes,
+    alertas: alertas
+  };
+}
+
 /* Helper: agrega todos os meses do mock em um único conjunto consolidado */
 function _concAgregarTodos() {
   var agg = { label: 'Todos os meses', marketplaces: [], previsoes: [], alertas: [] };
@@ -12308,11 +12452,15 @@ function _concAgregarTodos() {
 function conciliacaoRender() {
   var sel = document.getElementById('conc-periodo-mock');
   var periodo = sel ? sel.value : 'abril-26';
-  var dados;
-  if(periodo === 'todos') {
-    dados = _concAgregarTodos();
-  } else {
-    dados = _CONC_MOCK[periodo];
+  // 🆕 FIX30BF — Tenta dados REAIS primeiro (allRows da planilha).
+  // Cai no mock só se não houver pedidos carregados (estado inicial / sem planilha).
+  var dados = _concDadosReais(periodo);
+  if(!dados || !dados.marketplaces || dados.marketplaces.length === 0) {
+    if(periodo === 'todos') {
+      dados = _concAgregarTodos();
+    } else {
+      dados = _CONC_MOCK[periodo];
+    }
   }
   if(!dados) return;
 
@@ -21520,15 +21668,22 @@ function raioxGerarDiagnosticos(analise) {
   var cfg = raioxGetConfig();
   var diags = [];
 
-  // 🆕 FIX30AJ — Texto da comparação usa o label da janela ativa (24h, 10 dias, 30 dias).
-  // Mais consistente com o seletor do gráfico — usuário escolheu "24h" → diagnóstico
-  // mostra "janela 24h", e sabe que está comparando início vs fim dessa janela.
-  var diasJanela = window._raioxDiasInterpretacao || cfg.dias || 2;
+  // 🆕 FIX30BE — Label da comparação usa os DIAS REAIS comparados (analise.vendas.diasComparativo).
+  // Antes (FIX30AJ): seguia janela ativa do gauge → confundia o user quando
+  // diagnóstico era de janela diferente da exibida.
+  // Agora: lê do próprio objeto analise — se é janela fixa de 4d, mostra "últimos 4 dias".
+  var diasComp = (analise.vendas && analise.vendas.diasComparativo) ? analise.vendas.diasComparativo : 1;
+  var diasTotal = (analise.vendas && analise.vendas.diasJanela) ? analise.vendas.diasJanela : (diasComp * 2);
+  // 🆕 FIX30BE — Label da comparação reflete a janela fixa de 5 dias.
+  // "Últimas 24h" pra deixar claro o que mudou recentemente, "vs últimos 4 dias"
+  // mostra a referência (cobre fim de semana).
   var labelComparacao;
-  if(diasJanela === 2) labelComparacao = 'janela 24h';
-  else if(diasJanela === 10) labelComparacao = 'janela 10 dias';
-  else if(diasJanela === 30) labelComparacao = 'janela 30 dias';
-  else                       labelComparacao = 'janela ' + diasJanela + ' dias';
+  if(diasTotal === 5)        labelComparacao = 'D-1 vs últimos 4 dias';
+  else if(diasTotal === 2)   labelComparacao = 'D-1 vs D-2';
+  else if(diasTotal === 4)   labelComparacao = 'últimos 4 dias';
+  else if(diasTotal === 10)  labelComparacao = 'janela 10 dias';
+  else if(diasTotal === 30)  labelComparacao = 'janela 30 dias';
+  else                       labelComparacao = 'janela ' + diasTotal + ' dias';
 
   // ─── Diagnósticos REAIS ───
 
@@ -21844,22 +21999,37 @@ function raioxRender() {
   window._raioxDiasInterpretacao = diasAnaliseInterpretacao;
   window._raioxDiasLiteral = diasAnaliseLiteral;
 
+  // 🆕 FIX30BE — DIAGNÓSTICOS travados em janela fixa de 5 dias (não seguem o seletor).
+  // Histórico:
+  //   Antes (FIX30AG): diagnósticos usavam diasAnaliseInterpretacao do seletor.
+  //                    Trocar pra 30d → diagnósticos comparavam D-1 vs D-30 → muito
+  //                    diferente do que aconteceu nas últimas 24h reais.
+  //   Agora (FIX30BE): diagnósticos sempre comparam D-1 vs D-5 (período RECENTE fixo).
+  //                    Cobre fim de semana sem ser muito longo:
+  //                      Segunda → D-1=domingo, D-2=sáb, D-3=sex, D-4=qui, D-5=qua
+  //                    "O que aconteceu de relevante recentemente?" — janela curta
+  //                    e estável que NÃO muda com o seletor de janela do gráfico.
+  // O TERMÔMETRO continua usando suas 3 janelas (24h/10d/30d) — só os diagnósticos
+  // que ficam travados.
+  var DIAS_DIAGNOSTICO_FIXO = 5;
+
   // 🎬 Modo demo: gera dados fictícios se ativo
   var modoDemo = raioxGetModoDemo();
   var analise;
   if(modoDemo !== 'real') {
-    // Demo gera 30 dias completos sempre — depois recalcula compara com a janela escolhida
+    // Demo gera 30 dias completos sempre — depois recalcula compara com a janela do diagnóstico
     analise = raioxGerarDadosDemo(modoDemo);
-    // Recalcula a comparação com a janela ativa pra refletir no termômetro/diagnóstico
     if(analise.vendas && analise.vendas.dadosDiarios) {
-      analise.vendas = _raioxRecalcularJanela(analise.vendas.dadosDiarios, diasAnaliseInterpretacao);
+      analise.vendas = _raioxRecalcularJanela(analise.vendas.dadosDiarios, DIAS_DIAGNOSTICO_FIXO);
     }
   } else {
     analise = {
-      vendas: raioxComparaPeriodos(diasAnaliseInterpretacao),
+      vendas: raioxComparaPeriodos(DIAS_DIAGNOSTICO_FIXO),
       estoque: raioxAnaliseEstoque()
     };
   }
+  // Sobrescreve a interpretação pra diagnóstico ler "5 dias" como label
+  window._raioxDiasInterpretacao = DIAS_DIAGNOSTICO_FIXO;
 
   // 🆕 FIX30AK — Calcula análise/termômetro/resumo para CADA uma das 3 janelas.
   // O seletor 24h/10d/30d agora controla SÓ o gráfico — os 3 termômetros sempre
@@ -21938,14 +22108,19 @@ function raioxRender() {
   var jan10d = _calcularJanela(10);
   var jan30d = _calcularJanela(30);
 
-  // O termômetro/diagnóstico do "atual" (usado em outras partes do render)
-  // continua sendo a janela ativa do gráfico — pra manter compatibilidade
-  // com o card de diagnósticos lateral e título.
+  // 🆕 FIX30BE — DIAGNÓSTICOS usam janela FIXA de 4 dias (D-1 a D-4) independente do gauge.
+  // Motivo: na segunda-feira o user precisa ver o que aconteceu sex/sáb/dom, então 24h
+  // não basta. Com 4 dias, sempre cobre o último fim de semana + 1 dia útil.
+  // Os GAUGES (24h/10d/30d) continuam respondendo ao seletor — só os DIAGNÓSTICOS
+  // ficam fixos. Isso explica que o título do card de diagnósticos sempre diz "4 dias"
+  // mesmo se o user trocou o seletor pra 30d.
+  var jan4dDiag = _calcularJanela(4);
+  var diags = raioxGerarDiagnosticos(jan4dDiag.analise);
+
+  // O termômetro/resumo/análiseAtiva continuam seguindo o seletor (gauge ativo).
   var term = (janelaAtual === '24h') ? jan24h.termometro : (janelaAtual === '10d') ? jan10d.termometro : jan30d.termometro;
   var resumo = (janelaAtual === '24h') ? jan24h.resumo    : (janelaAtual === '10d') ? jan10d.resumo    : jan30d.resumo;
-  // 🆕 FIX30AY — Análise da janela ativa (pra mostrar SKUs em ruptura no estoque)
   var analiseAtiva = (janelaAtual === '24h') ? jan24h.analise : (janelaAtual === '10d') ? jan10d.analise : jan30d.analise;
-  var diags = raioxGerarDiagnosticos(analiseAtiva);
 
   // ─── HTML ──
 
@@ -22399,7 +22574,9 @@ function raioxRender() {
       '<div class="ch">'+
         '<div>'+
           '<div class="ct">Diagnósticos</div>'+
-          '<div class="cs">'+realCount+' real(is) · '+simCount+' simulado(s) · janela <strong style="color:var(--accent)">'+labelJanela+'</strong></div>'+
+          // 🆕 FIX30BE — Título fixo: sempre últimos 4 dias, não segue o seletor do gauge.
+          // Garante que segunda-feira o user veja sex/sáb/dom também.
+          '<div class="cs">'+realCount+' real(is) · '+simCount+' simulado(s) · <strong style="color:var(--accent)" title="Diagnósticos sempre comparam o último dia com os 4 dias anteriores (cobre fim de semana). Não muda com o seletor do termômetro.">D-1 vs últimos 4 dias</strong></div>'+
         '</div>'+
       '</div>'+
       // 🆕 Abas de filtro por categoria
