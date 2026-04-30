@@ -3539,7 +3539,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AY-FASE2-MERCADO-EST-DIA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BA-CHIPS-PADRAO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -8462,7 +8462,7 @@ function _agregadosPorCanal(arr) {
   return m;
 }
 
-async function salvarResumo() {
+async function salvarResumo(silencioso) {
   var d = window._lastProcessedData;
   if(!d) { alert('Carregue os dados do dashboard primeiro (botão ↻ ou aguarde o refresh)'); return; }
   // Não permitir salvar enquanto está vendo um snapshot (evita "snapshot de snapshot")
@@ -8487,8 +8487,15 @@ async function salvarResumo() {
     defaultName = 'Resumo '+new Date().toLocaleDateString('pt-BR');
   }
 
-  var nome = window.prompt('Nome do resumo:', defaultName);
-  if(!nome) return;
+  // 🆕 FIX30AZ — Modo silencioso: usado por atualizarResumo() pra não pedir nome novamente.
+  // Quando window._resumoUpdateContext está setado, herda nome do antigo e pula o prompt.
+  var nome;
+  if(silencioso === true && window._resumoUpdateContext && window._resumoUpdateContext.nome) {
+    nome = window._resumoUpdateContext.nome;
+  } else {
+    nome = window.prompt('Nome do resumo:', defaultName);
+    if(!nome) return;
+  }
 
   // Garantir que produtosVendidosMap reflete o filtro de data atual antes de capturar.
   // Sem isso, o snapshot pega dados de outras abas/períodos carregados anteriormente.
@@ -8802,6 +8809,7 @@ function renderResumos() {
         '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
           btnVisualizar+
           (i < lista.length-1 ? '<button onclick="compararResumos('+i+','+(i+1)+')" style="padding:4px 12px;background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.2);border-radius:6px;color:#818CF8;font-size:11px;cursor:pointer">⚖️ Comparar com anterior</button>' : '')+
+          '<button onclick="atualizarResumo('+r.id+')" title="Recalcula KPIs e marcas com os dados atuais (corrige snapshots antigos com marcas/dados de outra empresa)" style="padding:4px 12px;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.25);border-radius:6px;color:#A78BFA;font-size:11px;cursor:pointer">🔄 Atualizar dados</button>'+
           '<button onclick="gerarLinkResumo('+i+')" style="padding:4px 12px;background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--muted2);font-size:11px;cursor:pointer">🔗 Gerar Link</button>'+
           '<button onclick="excluirResumo('+r.id+')" title="Excluir este resumo" style="padding:4px 12px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);border-radius:6px;color:var(--red);font-size:11px;cursor:pointer">🗑️ Excluir</button>'+
         '</div>'+
@@ -8871,6 +8879,69 @@ function excluirResumo(id) {
   // Se o resumo excluído estava ativo no dashboard, voltar ao tempo real
   if(_snapshotAtivo && _snapshotAtivo.id === id) voltarTempoReal();
   renderResumos();
+}
+
+/* 🆕 FIX30AZ — Atualiza dados de um snapshot existente.
+   Recalcula KPIs e marcas usando o produtosVendidosMap atual (Laluna),
+   mantendo o NOME e o PERÍODO originais. Útil pra corrigir snapshots
+   antigos que foram salvos com cache de outra empresa (Fanclub2019). */
+async function atualizarResumo(id) {
+  var key = _resumosKey();
+  var lista = JSON.parse(localStorage.getItem(key)||'[]');
+  var idx = lista.findIndex(function(r){return r.id === id;});
+  if(idx < 0) { alert('Resumo não encontrado.'); return; }
+  var antigo = lista[idx];
+  if(!confirm('Atualizar "' + antigo.nome + '"?\n\nIsso recalcula KPIs e marcas com os dados atuais.\nO nome e o período originais serão mantidos.')) return;
+
+  // Aplicar o filtro do período antigo TEMPORARIAMENTE pra recalcular
+  var fromAntes = (document.getElementById('f-from')||{}).value || '';
+  var toAntes   = (document.getElementById('f-to')||{}).value   || '';
+  try {
+    if(antigo.periodo) {
+      if(antigo.periodo.from) document.getElementById('f-from').value = antigo.periodo.from;
+      if(antigo.periodo.to)   document.getElementById('f-to').value   = antigo.periodo.to;
+      if(typeof applyFilter === 'function') applyFilter();
+    }
+    // Aguarda 200ms pro filtro processar
+    await new Promise(function(r){ setTimeout(r, 200); });
+
+    // Salvar resumo SEM exibir o modal (chamando a função base)
+    if(typeof salvarResumo === 'function') {
+      // Hack: marca "modo update" pra não pedir nome novamente
+      window._resumoUpdateContext = { id: id, nome: antigo.nome, periodo: antigo.periodo };
+      await salvarResumo(true /*silencioso*/);
+      delete window._resumoUpdateContext;
+    }
+
+    // Após salvar (que adicionou novo no topo), substitui o antigo pelo novo
+    lista = JSON.parse(localStorage.getItem(key)||'[]');
+    var novo = lista[0]; // o último salvo é o primeiro da lista
+    if(novo) {
+      novo.id = antigo.id;
+      novo.nome = antigo.nome;
+      novo.periodo = antigo.periodo;
+      novo.dataAtualizacao = new Date().toLocaleString('pt-BR');
+      // Remove o registro antigo + o novo da posição 0
+      lista = lista.filter(function(r){ return r.id !== antigo.id; });
+      lista.unshift(novo);
+      // Reordena por data de criação preservando ordem cronológica
+      lista.sort(function(a,b){ return (b.timestamp||0) - (a.timestamp||0); });
+      localStorage.setItem(key, JSON.stringify(lista));
+    }
+
+    alert('✅ Resumo "' + antigo.nome + '" atualizado com os dados atuais.');
+  } catch(e) {
+    console.error('[Resumos] Erro atualizando:', e);
+    alert('Erro ao atualizar: ' + e.message);
+  } finally {
+    // Restaurar filtro anterior
+    try {
+      document.getElementById('f-from').value = fromAntes;
+      document.getElementById('f-to').value = toAntes;
+      if(typeof applyFilter === 'function') applyFilter();
+    } catch(eR){}
+    renderResumos();
+  }
 }
 
 function compararResumos(i1, i2) {
@@ -12309,11 +12380,9 @@ function conciliacaoRenderTabela(marketplaces) {
     } else {
       status = 'Falta muito'; cor = '#F43F5E'; seta = '▼';
     }
-    // 🆕 FIX30AN — Padrão clean igual Tabela de Performance e Performance por Canal.
-    // Antes: chip com background colorido + badge de status com fundo.
-    // Agora: nome do marketplace só com cor da identidade, status só texto colorido + setinha.
+    // 🆕 FIX30BA — Padrão visual unificado: chip colorido (igual Tabela de Performance).
     var canalCor = (typeof CCORES !== 'undefined' && CCORES[m.nome]) ? CCORES[m.nome] : '#94A3B8';
-    var nomeCanal = '<span style="color:'+canalCor+';font-weight:600">'+m.nome+'</span>';
+    var nomeCanal = '<span class="cchip" style="background:'+canalCor+'18;color:'+canalCor+'">'+m.nome+'</span>';
     return '<tr style="border-bottom:1px solid var(--border)">'+
       '<td style="padding:10px 8px">'+nomeCanal+'</td>'+
       '<td style="padding:10px 8px;text-align:right">'+fR(m.vendido)+'</td>'+
@@ -13326,10 +13395,11 @@ function renderGMVCanalLista(canais) {
         'padding:12px 10px;text-align:center;border-top:3px solid '+cor+';'+
         'display:flex;flex-direction:column;gap:6px;min-width:0'+
       '">'+
-      // Nome do canal
-      '<div style="font-family:var(--fmono);font-size:10px;font-weight:700;color:'+cor+';'+
-           'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px">'+
-        item.nome+
+      // 🆕 FIX30BA — Nome do canal como chip colorido (igual Tabela de Performance)
+      '<div style="display:flex;justify-content:center">'+
+        '<span class="cchip" style="background:'+cor+'18;color:'+cor+';max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px">'+
+          item.nome+
+        '</span>'+
       '</div>'+
       // Barra visual proporcional
       '<div style="display:flex;align-items:flex-end;justify-content:center;height:48px">'+
@@ -22364,11 +22434,11 @@ function _raioxRenderAnaliseMidia() {
     var midiaA  = anterior.midia[canal] || 0;
     var st      = _statusTendencia(gmvR, gmvA);
 
-    // 🆕 FIX30AL — Padrão limpo igual Tabela de Performance / Fluxo de Caixa.
-    // Antes: chip com background colorido por canal — visual "pesado".
-    // Agora: nome do canal só com cor de texto da identidade do canal (sem background/borda).
+    // 🆕 FIX30BA — Padrão visual unificado: chip colorido (igual Tabela de Performance).
+    // Histórico: FIX30AL removeu chip pra "limpar"; FIX30BA voltou porque o user
+    // pediu padronização global no estilo chip da Tabela de Performance.
     var canalCor = (typeof CCORES !== 'undefined' && CCORES[canal]) ? CCORES[canal] : '#94A3B8';
-    var nomeCanal = '<span style="color:'+canalCor+';font-weight:600">'+canal+'</span>';
+    var nomeCanal = '<span class="cchip" style="background:'+canalCor+'18;color:'+canalCor+'">'+canal+'</span>';
 
     // Variação mídia (informativo)
     var pctMidia = (midiaA > 0) ? ((midiaR - midiaA) / midiaA * 100) : null;
