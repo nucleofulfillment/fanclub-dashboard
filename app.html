@@ -3504,7 +3504,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30U-PREC-REMOVE-CARD';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30V-MIDIA-HOOK';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -10046,6 +10046,27 @@ async function loadFluxoV2(forceRefresh) {
       raioxRender();
     }
   } catch(e2) {}
+
+  // 🆕 FIX30V — Se Financeiro está aberto, re-popula Mídia/ADS automaticamente.
+  // ANTES: loadFluxoV2 terminava DEPOIS de syncFinanceiroKPIs, então Mídia ficava R$ 0
+  // até o usuário recarregar a página. Agora: dispara update direto.
+  try {
+    var pgFin = document.getElementById('page-financeiro');
+    if(pgFin && pgFin.classList.contains('active')) {
+      // Pré-calcula _fluxoV2_midia_auto pra usar na próxima syncFinanceiroKPIs
+      var fGlobalFrom = (document.getElementById('f-from')||{}).value || '';
+      var fGlobalTo   = (document.getElementById('f-to')||{}).value   || '';
+      if(typeof fluxoV2TotalMidia === 'function') {
+        var totMidia = fluxoV2TotalMidia(fGlobalFrom, fGlobalTo);
+        window._fluxoV2_midia_auto = totMidia;
+        console.log('[FluxoV2 → Financeiro] Mídia auto pre-populada: R$ '+totMidia.toFixed(0));
+      }
+      // Dispara re-render do Financeiro com os novos dados
+      if(typeof finAutoPreencherDoFluxo === 'function') finAutoPreencherDoFluxo();
+      if(typeof applyFilterFin === 'function') applyFilterFin();
+      else if(typeof atualizarResultado === 'function') atualizarResultado();
+    }
+  } catch(e3) { console.warn('[FluxoV2 → Financeiro] erro:', e3); }
 
   return window._fluxoV2Data;
 }
