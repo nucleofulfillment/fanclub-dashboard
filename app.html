@@ -1048,25 +1048,30 @@ body.light { filter: saturate(0.85); }
 </head>
 <body>
 
-<!-- ══ FIX30BL — VELTRO PROGRESS BAR (topo absoluto) ══
-     Barra fina (3px) no topo da página, gradiente verde animado da esquerda
-     pra direita. Aparece quando alguma sincronização está ativa. Discreta:
-     pointer-events:none, fade in/out 200ms, z-index altíssimo.
+<!-- ══ FIX30BL/BO — VELTRO PROGRESS BAR (topo absoluto) ══
+     🆕 FIX30BO — Versão 3: barra de progresso REAL 0-100%, 5px de altura.
+     SEM label flutuante (o badge "Sincronizando..." do header já comunica isso —
+     dois textos sobrepostos atrapalhavam).
 
-     Uso (global):
-       VeltroProgress.start('Sincronizando pedidos...')   // mostra barra + label opcional
-       VeltroProgress.stop()                              // esconde com fade
-       VeltroProgress.task(promise, 'Carregando...')      // wrapper auto: start/stop
+     Como funciona o progresso "fake-real":
+       - Cada start() incrementa o "alvo" (target)
+       - Progresso visual avança em curva exponencial decay até ~88%
+       - Quando todas as tarefas terminam, snap pra 100% + fade out
+     Isso dá a impressão de progresso real sem o fetch reportar bytes.
+
+     Uso:
+       VeltroProgress.start()
+       VeltroProgress.stop()
+       VeltroProgress.task(promise)
    ══ -->
 <div id="veltro-progress-wrap" aria-hidden="true">
   <div id="veltro-progress-bar"></div>
-  <div id="veltro-progress-label"></div>
 </div>
 <style>
   #veltro-progress-wrap {
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: 3px;
+    height: 5px;
     z-index: 100000;
     pointer-events: none;
     background: rgba(110,231,183,.06);
@@ -1078,138 +1083,124 @@ body.light { filter: saturate(0.85); }
     position: absolute;
     top: 0; left: 0;
     height: 100%;
-    width: 30%;
-    background: linear-gradient(90deg,
-      rgba(110,231,183,0)   0%,
-      rgba(110,231,183,.7) 30%,
-      #6EE7B7 50%,
-      rgba(110,231,183,.7) 70%,
-      rgba(110,231,183,0) 100%);
-    box-shadow: 0 0 12px rgba(110,231,183,.55);
-    border-radius: 0 2px 2px 0;
-    animation: veltroProgressSlide 1.4s cubic-bezier(.4,.0,.2,1) infinite;
-  }
-  @keyframes veltroProgressSlide {
-    0%   { left: -30%; }
-    100% { left: 100%; }
-  }
-  #veltro-progress-label {
-    position: fixed;
-    top: 8px; right: 16px;
-    z-index: 100001;
-    font-family: var(--fmono);
-    font-size: 10px;
-    color: var(--accent);
-    background: rgba(10,12,16,.85);
-    border: 1px solid rgba(110,231,183,.25);
-    border-radius: 5px;
-    padding: 4px 10px;
-    letter-spacing: .3px;
-    pointer-events: none;
-    opacity: 0;
-    transform: translateY(-4px);
-    transition: opacity .2s ease, transform .2s ease;
-    backdrop-filter: blur(4px);
-    max-width: 240px;
+    width: 0%;
+    background: linear-gradient(90deg, #34D399 0%, #6EE7B7 50%, #A7F3D0 100%);
+    box-shadow: 0 0 14px rgba(110,231,183,.7);
+    border-radius: 0 3px 3px 0;
+    transition: width .25s cubic-bezier(.4,0,.2,1);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-  #veltro-progress-label.show {
-    opacity: 1;
-    transform: translateY(0);
+  /* Brilho sutil deslizando enquanto carrega — sensação "vivo" */
+  #veltro-progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 30%;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.35) 50%, transparent 100%);
+    animation: veltroProgressShine 1.6s linear infinite;
   }
-  /* Modo dia: tons mais sutis */
+  @keyframes veltroProgressShine {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+  }
+  /* Modo dia */
   body.light #veltro-progress-wrap { background: rgba(4,120,87,.08); }
   body.light #veltro-progress-bar {
-    background: linear-gradient(90deg,
-      rgba(4,120,87,0)   0%,
-      rgba(4,120,87,.6) 30%,
-      #047857 50%,
-      rgba(4,120,87,.6) 70%,
-      rgba(4,120,87,0) 100%);
-    box-shadow: 0 0 8px rgba(4,120,87,.4);
-  }
-  body.light #veltro-progress-label {
-    color: #047857;
-    background: rgba(255,255,255,.92);
-    border-color: rgba(4,120,87,.25);
+    background: linear-gradient(90deg, #047857 0%, #10B981 50%, #34D399 100%);
+    box-shadow: 0 0 10px rgba(4,120,87,.5);
   }
 </style>
 <script>
-  /* 🆕 FIX30BL — Progress bar global. Usa contador (refcount) pra suportar
-     múltiplas tarefas paralelas: barra só esconde quando TODAS terminaram. */
+  /* 🆕 FIX30BL/BO — Progress bar global. Refcount + curva suave 0→100%. */
   (function(){
     var refCount = 0;
-    var labelEl, wrapEl;
+    var pct = 0;            // 0..100 (visual)
+    var pctTarget = 0;      // alvo (cresce a cada start)
+    var rafId = null;
+    var wrapEl, barEl;
+    var stopTimer = null;
+
     function _ensureRefs() {
-      if(!labelEl) labelEl = document.getElementById('veltro-progress-label');
-      if(!wrapEl)  wrapEl  = document.getElementById('veltro-progress-wrap');
+      if(!wrapEl) wrapEl = document.getElementById('veltro-progress-wrap');
+      if(!barEl)  barEl  = document.getElementById('veltro-progress-bar');
     }
-    function start(label) {
+    function _renderBar() {
+      if(barEl) barEl.style.width = pct + '%';
+    }
+    function _tick() {
+      _ensureRefs();
+      var ativo = refCount > 0;
+      if(ativo) {
+        // Decay exponencial até pctTarget — rápido no início, lento no fim
+        var diff = pctTarget - pct;
+        if(diff > 0.5) {
+          pct += diff * 0.06;
+          if(pct > pctTarget) pct = pctTarget;
+        }
+        _renderBar();
+        rafId = requestAnimationFrame(_tick);
+      } else {
+        // Sem tarefas: snap pra 100%, fade out
+        pct = 100;
+        _renderBar();
+        rafId = null;
+        clearTimeout(stopTimer);
+        stopTimer = setTimeout(function(){
+          if(refCount > 0) return;
+          if(wrapEl) wrapEl.classList.remove('active');
+          // Reset estado pra próxima sequência
+          setTimeout(function(){
+            if(refCount > 0) return;
+            pct = 0; pctTarget = 0;
+            if(barEl) barEl.style.width = '0%';
+          }, 280);
+        }, 200);
+      }
+    }
+    function _kick() {
+      if(rafId == null) rafId = requestAnimationFrame(_tick);
+    }
+    function start(_label) {
       _ensureRefs();
       refCount++;
+      pctTarget = Math.min(88, 8 + refCount * 35);
       if(wrapEl) wrapEl.classList.add('active');
-      if(label && labelEl) {
-        labelEl.textContent = label;
-        labelEl.classList.add('show');
-      }
+      clearTimeout(stopTimer);
+      _kick();
     }
     function stop() {
       _ensureRefs();
       refCount = Math.max(0, refCount - 1);
-      if(refCount === 0) {
-        if(wrapEl) wrapEl.classList.remove('active');
-        if(labelEl) {
-          labelEl.classList.remove('show');
-          // limpa texto após fade
-          setTimeout(function(){
-            if(refCount === 0 && labelEl) labelEl.textContent = '';
-          }, 250);
-        }
+      if(refCount > 0) {
+        pctTarget = Math.min(88, 8 + refCount * 35 + 20);
       }
+      _kick();
     }
     function reset() {
       refCount = 0;
+      pct = 0; pctTarget = 0;
       _ensureRefs();
       if(wrapEl) wrapEl.classList.remove('active');
-      if(labelEl) {
-        labelEl.classList.remove('show');
-        labelEl.textContent = '';
-      }
+      if(barEl) barEl.style.width = '0%';
     }
-    function task(promise, label) {
-      start(label);
+    function task(promise, _label) {
+      start();
       var p = Promise.resolve(promise);
       p.finally ? p.finally(stop) : p.then(stop, stop);
       return p;
     }
     window.VeltroProgress = { start: start, stop: stop, task: task, reset: reset };
 
-    /* 🆕 FIX30BL — Interceptor automático de fetch.
-       Toda requisição pra Google Sheets (CSV/JSON) ativa a barra automaticamente.
-       Não precisa hookar manualmente cada função load*. Quando tem múltiplos fetches
-       paralelos, o refCount conta direito (só esconde quando o ÚLTIMO termina). */
+    /* Interceptor automático de fetch — sync de Google Sheets ativa barra. */
     if(typeof window.fetch === 'function' && !window._veltroFetchHooked) {
       window._veltroFetchHooked = true;
       var _origFetch = window.fetch.bind(window);
       window.fetch = function(input, init) {
         var url = (typeof input === 'string') ? input : (input && input.url) || '';
-        // Só conta sincronizações relevantes (Google Sheets, drive, docs)
         var ehSync = /docs\.google\.com|spreadsheets|drive\.google\.com/i.test(url);
-        // Detecta o tipo de planilha pelo conteúdo da URL pra label específica
-        var label = null;
-        if(ehSync) {
-          if(/fluxo|caixa/i.test(url))                  label = 'Sincronizando fluxo de caixa...';
-          else if(/produtos|vendidos/i.test(url))       label = 'Sincronizando produtos vendidos...';
-          else if(/estoque/i.test(url))                 label = 'Sincronizando estoque...';
-          else if(/custo/i.test(url))                   label = 'Sincronizando custos...';
-          else                                          label = 'Sincronizando dados...';
-          start(label);
-        }
+        if(ehSync) start();
         var p = _origFetch(input, init);
         if(ehSync) {
-          // Garante stop em qualquer cenário (sucesso, erro, abort)
           p.then(function(r){ stop(); return r; }, function(e){ stop(); throw e; });
         }
         return p;
@@ -1472,6 +1463,15 @@ body.light { filter: saturate(0.85); }
   <div class="hdr-right">
     <span class="hdr-time" id="hdr-time">—</span>
     <div class="live-badge"><span class="live-dot"></span><span id="sync-lbl">AO VIVO</span></div>
+    <!-- 🆕 FIX30BN — Sininho de novidades/changelog -->
+    <button id="veltro-bell-btn" onclick="veltroBellToggle(event)" title="Novidades e atualizações"
+      style="position:relative;background:transparent;border:1px solid var(--border2);color:var(--muted);
+             font-size:14px;padding:6px 10px;border-radius:8px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center">
+      🔔
+      <span id="veltro-bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;
+            background:#F43F5E;color:#fff;font-family:var(--fmono);font-size:9px;font-weight:700;
+            min-width:16px;height:16px;line-height:14px;padding:0 4px;border-radius:8px;border:2px solid var(--bg);text-align:center"></span>
+    </button>
     <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" title="Alternar tema">🌙</button>
     <div id="plat-badge" onclick="veltroMostrarOnboarding(veltroGetEmpresaAtualObj())"
       title="Plataforma ativa — clique para alterar"
@@ -1490,6 +1490,31 @@ body.light { filter: saturate(0.85); }
     <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
   </div>
 </header>
+
+<!-- 🆕 FIX30BN — Painel de novidades (dropdown do sininho).
+     Posicionado fixo, alinhado ao botão pelo JS. Z-index alto pra ficar sobre tudo. -->
+<div id="veltro-bell-panel"
+  style="display:none;position:fixed;top:60px;right:16px;width:380px;max-width:calc(100vw - 32px);
+         max-height:calc(100vh - 80px);background:var(--s1);border:1px solid var(--border);
+         border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5);z-index:9999;overflow:hidden;
+         display:none;flex-direction:column">
+  <!-- Header -->
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div>
+      <div style="font-family:var(--fhead);font-size:14px;font-weight:600;color:var(--text)">🔔 Novidades</div>
+      <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-top:2px">Histórico de atualizações</div>
+    </div>
+    <button onclick="veltroBellMarcarTodasLidas()"
+      style="background:transparent;border:1px solid var(--border2);color:var(--muted);
+             font-family:var(--fmono);font-size:9px;padding:5px 9px;border-radius:5px;cursor:pointer">
+      ✓ Marcar todas como lidas
+    </button>
+  </div>
+  <!-- Lista -->
+  <div id="veltro-bell-list" style="flex:1;overflow-y:auto;padding:8px 0">
+    <!-- Populado por veltroBellRender() -->
+  </div>
+</div>
 
 <!-- Drawer e overlay removidos: configuração de planilhas migrou para o sistema de Links por empresa -->
 
@@ -3715,7 +3740,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BM-SENSIBILIDADE';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BO-PROGRESS-V3';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -8605,6 +8630,225 @@ function toggleTheme() {
     if(window._lastProcessedData) makeCharts(window._lastProcessedData);
   }, 50);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   🆕 FIX30BN — SININHO DE NOVIDADES / CHANGELOG
+   - Lista de updates do produto, persiste estado lido em localStorage
+   - Badge mostra quantas não-lidas
+   - Click no item marca como lido
+   - "Marcar todas como lidas" zera o badge
+═══════════════════════════════════════════════════════════════ */
+var VELTRO_BELL_KEY = 'veltro_bell_lidas';
+
+/* Lista das novidades. NOVOS ITEMS ENTRAM NO TOPO.
+   id: chave única (não muda nunca, é o que marca como lido)
+   data: data exibida
+   titulo: título curto
+   tags: array de tags coloridas (ex: ['Novo', 'Visual'])
+   desc: descrição em uma frase */
+var VELTRO_NOVIDADES = [
+  {
+    id: 'fix30bm-sensibilidade',
+    data: '30/04',
+    titulo: 'Sensibilidade dos diagnósticos ajustável',
+    tags: ['Novo', 'Raio X'],
+    cor: '#10B981',
+    desc: 'Adicionado seletor no canto superior direito do card Diagnósticos pra você escolher entre 5%, 10%, 15%, 25% ou 40% como threshold de alerta. Default agora é 10%.'
+  },
+  {
+    id: 'fix30bl-progress-bar',
+    data: '30/04',
+    titulo: 'Barra de progresso ao sincronizar',
+    tags: ['Novo', 'Visual'],
+    cor: '#10B981',
+    desc: 'Agora aparece uma barra fina verde no topo da página enquanto qualquer planilha está sincronizando + label discreto no canto.'
+  },
+  {
+    id: 'fix30bk-midia-azul',
+    data: '30/04',
+    titulo: 'Linha de Mídia mudou de cor',
+    tags: ['Visual'],
+    cor: '#60A5FA',
+    desc: 'No gráfico Evolução de Vendas, a linha da Mídia agora é azul royal (era laranja) pra destacar do amarelo do Marketplace.'
+  },
+  {
+    id: 'fix30bk-diag-calendario',
+    data: '30/04',
+    titulo: 'Diagnóstico de mídia respeitando calendário',
+    tags: ['Bug', 'Raio X'],
+    cor: '#F59E0B',
+    desc: 'O alerta "Mídia possivelmente não lançada" agora respeita o shift de -1 dia (FIX30BG). Não vai mais alertar dias incompletos por design.'
+  },
+  {
+    id: 'fix30bj-grafico-30d',
+    data: '30/04',
+    titulo: 'Gráfico do Raio X com janela completa',
+    tags: ['Bug', 'Raio X'],
+    cor: '#F59E0B',
+    desc: 'Filtro 30 dias do gráfico Evolução de Vendas voltou a mostrar 30 dias inteiros (estava limitado a poucos dias por causa da janela de diagnóstico).'
+  },
+  {
+    id: 'fix30bi-alertas-sensiveis',
+    data: '30/04',
+    titulo: 'Detector de pontos do gráfico mais sensível',
+    tags: ['Melhoria', 'Raio X'],
+    cor: '#A78BFA',
+    desc: 'Threshold de queda no gráfico passou de -30% pra -20%, e adicionado novo ponto laranja 🟠 que detecta tendências de 3+ dias seguidos abaixo do equilíbrio.'
+  },
+  {
+    id: 'fix30bg-shift-d1',
+    data: '30/04',
+    titulo: 'Janela ignora último dia da planilha',
+    tags: ['Melhoria', 'Dados'],
+    cor: '#A78BFA',
+    desc: 'Como a planilha é atualizada de manhã com dados de ontem, o sistema agora descarta o último dia (que pode estar incompleto) e ancora análises em D-2 pra sempre ter dados garantidamente completos.'
+  },
+  {
+    id: 'fix30bf-conc-real',
+    data: '30/04',
+    titulo: 'Detalhamento por marketplace com dados reais',
+    tags: ['Bug', 'Marketplace'],
+    cor: '#F59E0B',
+    desc: 'Tabela de Conciliação de Marketplaces deixou de mostrar canais fictícios (Magalu, Amazon...). Agora puxa dados reais da planilha de pedidos.'
+  },
+  {
+    id: 'fix30bd-score-ponderado',
+    data: '30/04',
+    titulo: 'Termômetro do Negócio com 5 indicadores',
+    tags: ['Novo', 'Raio X'],
+    cor: '#10B981',
+    desc: 'Score do Termômetro agora é média ponderada de 5 indicadores: GMV (40%), Pedidos (20%), Mídia (15%), Estoque (15%) e Canais (10%). Card mostra breakdown visual.'
+  },
+  {
+    id: 'fix30bb-fontes-padrao',
+    data: '30/04',
+    titulo: 'Fontes padronizadas nas tabelas',
+    tags: ['Visual'],
+    cor: '#60A5FA',
+    desc: 'Coluna principal (R$) das tabelas Detalhamento por marketplace e Performance por Canal agora usa fonte display destacada em verde, igual a Tabela de Performance do Marketing.'
+  },
+  {
+    id: 'fix30az-atualizar-resumo',
+    data: '30/04',
+    titulo: 'Botão "Atualizar dados" nos resumos salvos',
+    tags: ['Novo', 'Resumos'],
+    cor: '#10B981',
+    desc: 'Cada snapshot do menu Resumos agora tem botão pra recalcular KPIs e marcas com os dados atuais (corrige snapshots antigos sem precisar apagar).'
+  }
+];
+
+function _bellLidas() {
+  try { return JSON.parse(localStorage.getItem(VELTRO_BELL_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function _bellSalvarLidas(lidas) {
+  try { localStorage.setItem(VELTRO_BELL_KEY, JSON.stringify(lidas)); } catch(e){}
+}
+
+function veltroBellNaoLidas() {
+  var lidas = _bellLidas();
+  return VELTRO_NOVIDADES.filter(function(n){ return lidas.indexOf(n.id) < 0; });
+}
+
+function veltroBellAtualizarBadge() {
+  var badge = document.getElementById('veltro-bell-badge');
+  if(!badge) return;
+  var qtd = veltroBellNaoLidas().length;
+  if(qtd > 0) {
+    badge.textContent = qtd > 9 ? '9+' : qtd;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function veltroBellRender() {
+  var list = document.getElementById('veltro-bell-list');
+  if(!list) return;
+  var lidas = _bellLidas();
+  if(VELTRO_NOVIDADES.length === 0) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;font-family:var(--fmono);font-size:11px;color:var(--muted)">Sem novidades por enquanto.</div>';
+    return;
+  }
+  list.innerHTML = VELTRO_NOVIDADES.map(function(n){
+    var lida = lidas.indexOf(n.id) >= 0;
+    var corPrincipal = n.cor || 'var(--accent)';
+    var tagsHtml = (n.tags || []).map(function(t){
+      return '<span style="display:inline-block;background:'+corPrincipal+'22;color:'+corPrincipal+';font-family:var(--fmono);font-size:9px;font-weight:600;padding:2px 7px;border-radius:4px;letter-spacing:.3px">'+t+'</span>';
+    }).join(' ');
+    var dotNaoLido = lida
+      ? ''
+      : '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+corPrincipal+';flex-shrink:0;margin-top:6px"></span>';
+    return '<div onclick="veltroBellMarcarLida(\''+n.id+'\')" '+
+      'style="padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;'+
+      (lida?'opacity:.55':'')+'"'+
+      ' onmouseover="this.style.background=\'rgba(255,255,255,.02)\'"'+
+      ' onmouseout="this.style.background=\'transparent\'">'+
+      '<div style="display:flex;gap:10px">'+
+        dotNaoLido+
+        (lida ? '<span style="width:7px;flex-shrink:0"></span>' : '')+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">'+
+            '<div style="font-family:var(--fhead);font-size:12px;font-weight:600;color:var(--text);line-height:1.3">'+n.titulo+'</div>'+
+            '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted2);flex-shrink:0">'+n.data+'</span>'+
+          '</div>'+
+          (tagsHtml ? '<div style="margin-bottom:6px">'+tagsHtml+'</div>' : '')+
+          '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);line-height:1.5">'+n.desc+'</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function veltroBellToggle(ev) {
+  if(ev) ev.stopPropagation();
+  var panel = document.getElementById('veltro-bell-panel');
+  if(!panel) return;
+  var visivel = panel.style.display === 'flex';
+  if(visivel) {
+    panel.style.display = 'none';
+  } else {
+    veltroBellRender();
+    panel.style.display = 'flex';
+    // Click fora fecha
+    setTimeout(function(){
+      document.addEventListener('click', _bellClickFora, { once: true });
+    }, 50);
+  }
+}
+function _bellClickFora(e) {
+  var panel = document.getElementById('veltro-bell-panel');
+  var btn   = document.getElementById('veltro-bell-btn');
+  if(!panel) return;
+  if(panel.contains(e.target) || (btn && btn.contains(e.target))) {
+    // Click dentro: re-arma listener
+    document.addEventListener('click', _bellClickFora, { once: true });
+    return;
+  }
+  panel.style.display = 'none';
+}
+
+function veltroBellMarcarLida(id) {
+  var lidas = _bellLidas();
+  if(lidas.indexOf(id) < 0) {
+    lidas.push(id);
+    _bellSalvarLidas(lidas);
+    veltroBellAtualizarBadge();
+    veltroBellRender();
+  }
+}
+
+function veltroBellMarcarTodasLidas() {
+  var todas = VELTRO_NOVIDADES.map(function(n){ return n.id; });
+  _bellSalvarLidas(todas);
+  veltroBellAtualizarBadge();
+  veltroBellRender();
+}
+
+// Inicializa badge no boot
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(veltroBellAtualizarBadge, 100);
+});
 
 /* ═══════════════════════════════════════════════════════════════
    MENU RESUMOS — Snapshots, Exportação e Comparação
