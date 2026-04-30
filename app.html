@@ -3493,7 +3493,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30Q-MIDIA-RECALC';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30R-MARKETING-AUTO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -7727,15 +7727,22 @@ function calcMarketing() {
   });
 
   // ── Calcular por canal ────────────────────────────────────
+  // 🆕 FIX30R — Filtrar brindes do GMV/quantidade (alinha com Financeiro/Dashboard).
+  // Brindes não geram receita real, então não devem influenciar ROAS, conversão, etc.
   var porCanal = {};
+  var totalGMV = 0;
+  var totalQtd = 0;
   filtrado.forEach(function(p) {
+    var pagStr = String(p.pag || '').trim();
+    var ehBrinde = /brinde/i.test(pagStr);
+    if(ehBrinde) return; // pula brindes
     if(!porCanal[p.canal]) porCanal[p.canal] = {gmv:0, qtd:0};
     porCanal[p.canal].gmv += p.valor;
     porCanal[p.canal].qtd += 1;
+    totalGMV += p.valor;
+    totalQtd += 1;
   });
 
-  var totalGMV = filtrado.reduce(function(s,p){return s+p.valor;},0);
-  var totalQtd = filtrado.length;
   var roasGlobal = totalInv > 0 ? totalGMV / totalInv : 0;
   var cpcGlobal  = totalQtd > 0 && totalInv > 0 ? totalInv / totalQtd : 0;
 
@@ -8010,8 +8017,15 @@ function _mktBadgeAuto(inputId, valor) {
 
 /* Retorna o período ativo do filtro global como {from, to} ISO */
 function _mktGetPeriodoAtivo() {
-  var from = (document.getElementById('fin-from')||{}).value || '';
-  var to   = (document.getElementById('fin-to')||{}).value || '';
+  // 🆕 FIX30R — Lê filtro local primeiro, depois global (mesma lógica do Financeiro).
+  // Resolve bug onde fin-from/fin-to estava vazio mas filtro global tinha período,
+  // fazendo Marketing zerar inputs (auto-preenchimento aparentemente "parado").
+  var from = (document.getElementById('fin-from')||{}).value
+          || (document.getElementById('f-from')||{}).value
+          || '';
+  var to   = (document.getElementById('fin-to')||{}).value
+          || (document.getElementById('f-to')||{}).value
+          || '';
   // Fallback: jan-abr 2026 se vazio (garante preenchimento na primeira)
   if(!from) from = '2026-01-01';
   if(!to)   to   = td();
