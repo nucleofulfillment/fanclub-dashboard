@@ -312,7 +312,7 @@ body::before {
 .proj-fbtn.on { background:var(--s1); color:var(--text); border-color:var(--accent); }
 .proj-row {
   display:grid; grid-template-columns:36px 1fr 80px 80px 80px 80px 110px 130px 36px;
-  gap:10px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--s3);
+  gap:10px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border);
   transition:background .15s; cursor:pointer;
 }
 .proj-row:hover { background:rgba(110,231,183,.04); }
@@ -3525,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AL-PADRAO-VISUAL';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AO-MKP-PROJ-PADRAO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -8797,7 +8797,9 @@ function renderResumos() {
         _resumoKPI('📊','% Mídia',(pctMidia>0?pctMidia.toFixed(1)+'%':'—'),'')+
         _resumoKPI('🧾','Impostos',fM(k.impostos),'')+
       '</div>'+
-      _resumoMarcasHTML(r)+
+      // 🆕 FIX30AM — TOP MARCAS aparece SÓ na visão comparativa (compararResumos),
+      // não em cada card individual. Antes: poluía visualmente cada card e mostrava
+      // marcas potencialmente erradas (de outro contexto/empresa salvo no snapshot).
     '</div>';
   }).join('');
 }
@@ -12280,27 +12282,29 @@ function conciliacaoRenderTabela(marketplaces) {
     var esp = m.vendido * (1 - m.taxa/100);
     var dif = m.recebido - esp;
     var pct = esp > 0 ? (m.recebido / esp * 100) : 0;
-    var status, cor;
+    var status, cor, seta;
     if(Math.abs(dif) <= esp * 0.05) {
-      status = '🟢 Conciliado'; cor = 'var(--green)';
+      status = 'Conciliado'; cor = '#10B981'; seta = '✓';
     } else if(dif > 0) {
-      status = '⚠️ Recebeu+'; cor = '#F59E0B';
+      status = 'Recebeu+'; cor = '#FBBF24'; seta = '▲';
     } else if(Math.abs(dif) <= esp * 0.15) {
-      status = '🟡 Pendente'; cor = '#F59E0B';
+      status = 'Pendente'; cor = '#FBBF24'; seta = '→';
     } else {
-      status = '🔴 Falta muito'; cor = 'var(--red)';
+      status = 'Falta muito'; cor = '#F43F5E'; seta = '▼';
     }
-    // 🏪 Nome do marketplace renderizado como cchip colorido (mesmo padrão da tabela de Performance)
+    // 🆕 FIX30AN — Padrão clean igual Tabela de Performance e Performance por Canal.
+    // Antes: chip com background colorido + badge de status com fundo.
+    // Agora: nome do marketplace só com cor da identidade, status só texto colorido + setinha.
     var canalCor = (typeof CCORES !== 'undefined' && CCORES[m.nome]) ? CCORES[m.nome] : '#94A3B8';
-    var nomeChip = '<span class="cchip" style="background:'+canalCor+'18;color:'+canalCor+';border:1px solid '+canalCor+'33">'+m.nome+'</span>';
-    return '<tr style="border-bottom:1px solid var(--s3)">'+
-      '<td style="padding:10px 8px">'+nomeChip+'</td>'+
+    var nomeCanal = '<span style="color:'+canalCor+';font-weight:600">'+m.nome+'</span>';
+    return '<tr style="border-bottom:1px solid var(--border)">'+
+      '<td style="padding:10px 8px">'+nomeCanal+'</td>'+
       '<td style="padding:10px 8px;text-align:right">'+fR(m.vendido)+'</td>'+
       '<td style="padding:10px 8px;text-align:right;color:var(--muted)">'+m.taxa+'%</td>'+
       '<td style="padding:10px 8px;text-align:right;color:var(--accent);font-weight:600">'+fR(esp)+'</td>'+
       '<td style="padding:10px 8px;text-align:right;color:var(--text)">'+fR(m.recebido)+'</td>'+
       '<td style="padding:10px 8px;text-align:right;color:'+cor+';font-weight:600">'+(dif>=0?'+':'')+fR(dif)+'</td>'+
-      '<td style="padding:10px 8px;text-align:right"><span style="font-size:10px;padding:3px 8px;border-radius:4px;background:'+cor+'22;color:'+cor+';font-weight:600">'+status+'</span></td>'+
+      '<td style="padding:10px 8px;text-align:right;color:'+cor+';font-weight:600;font-size:12px">'+seta+' '+status+'</td>'+
     '</tr>';
   }).join('');
 
@@ -12937,7 +12941,7 @@ function projRenderLista(dadosOpcional) {
 
   // Header da tabela
   var html =
-    '<div style="display:grid;grid-template-columns:36px 1fr 80px 80px 80px 80px 110px 130px 36px;gap:10px;padding:10px 18px;background:var(--s1);border-bottom:1px solid var(--s3);font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0;z-index:5">'+
+    '<div style="display:grid;grid-template-columns:36px 1fr 80px 80px 80px 80px 110px 130px 36px;gap:10px;padding:10px 18px;background:var(--s1);border-bottom:1px solid var(--border);font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0;z-index:5">'+
       '<div></div>'+
       '<div>Produto</div>'+
       '<div style="text-align:right">Vendido</div>'+
@@ -12993,10 +12997,11 @@ function projLinhaSkuPai(it) {
   var isExpanded = !!_projExpandidos[it.skuPai];
   var arrow = isExpanded ? '▼' : '▶';
 
-  // 🆕 Verifica se já tem ordem ativa pra esse SKU
+  // 🆕 FIX30AO — Badge EM ORDEM padronizado: texto colorido + ícone, sem fundo azul.
+  // Mesmo padrão clean da Tabela de Performance / Marketplace / Performance por Canal.
   var qtdOrdens = projTemOrdemAtiva(it.skuPai);
   var badgeOrdem = qtdOrdens > 0
-    ? '<span style="display:inline-flex;align-items:center;gap:3px;background:#60A5FA15;border:1px solid #60A5FA40;color:#60A5FA;padding:1px 7px;border-radius:8px;font-family:var(--fmono);font-size:9px;font-weight:600;margin-left:6px;letter-spacing:.3px" title="'+qtdOrdens+' ordem(ns) em produção pra este produto">📦 EM ORDEM'+(qtdOrdens > 1 ? ' ('+qtdOrdens+')' : '')+'</span>'
+    ? '<span style="color:#60A5FA;font-family:var(--fmono);font-size:10px;font-weight:600;margin-left:8px;letter-spacing:.3px" title="'+qtdOrdens+' ordem(ns) em produção pra este produto">📦 em ordem'+(qtdOrdens > 1 ? ' ('+qtdOrdens+')' : '')+'</span>'
     : '';
 
   // Linha principal
