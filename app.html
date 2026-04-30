@@ -3119,7 +3119,7 @@ body.light body::before { opacity: 0; }
         <div class="kpi" style="--cc:#FB923C">
           <div class="ico">📋</div><div class="lbl">Custo Fixo Projetado</div>
           <div class="val" id="fc-kpi-fixo-proj" style="font-size:18px">—</div>
-          <div class="sub">col B · status N</div>
+          <div class="sub">categorias [F]</div>
         </div>
         <div class="kpi" style="--cc:#818CF8">
           <div class="ico">💰</div><div class="lbl">Saldo Atual</div>
@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX29-HEADERS';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30A-CUSTOFIXO-MIDIA';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9911,7 +9911,9 @@ async function loadFluxoV2(forceRefresh) {
       });
     }
     // ─── Custos Fixos ───────────────────────────────────────────
-    else if(CLASSIF_CUSTO_FIXO[classif]) {
+    // 🆕 FIX30A: usa d.isFixo (vindo do parser) em vez de CLASSIF_CUSTO_FIXO hardcoded.
+    // Mantém retrocompatibilidade: se isFixo undefined (planilha legada), cai na lista.
+    else if(d.isFixo === true || (d.isFixo === undefined && CLASSIF_CUSTO_FIXO[classif])) {
       custosFixos.push({
         mes:        d.aba,                  // ex: "Janeiro-26"
         categoria:  classif,
@@ -10190,6 +10192,23 @@ async function _fcv2ListarAbas(sheetId) {
   return [];
 }
 
+/* 🆕 FIX30A — Helper que detecta sufixo [F] na classificação.
+   Recebe: classif bruta da planilha (ex: "Aluguel [F]" ou "Mídia")
+   Retorna: { classif: 'Aluguel', isFixo: true } ou { classif: 'Mídia', isFixo: false }
+
+   Tolerante a variações: "Aluguel [F]", "Aluguel[F]", "aluguel [f]", "Aluguel  [F]" (2 espaços)
+   Convenção definida com Osvaldo/Laluna em 29/04/2026 — 12 categorias fixas. */
+function _fcv2NormalizaClassif(classifBruta) {
+  if(!classifBruta) return { classif: '', isFixo: false };
+  var s = String(classifBruta).trim();
+  // Detecta sufixo [F] (case-insensitive, tolera espaços)
+  var match = s.match(/^(.+?)\s*\[\s*[Ff]\s*\]\s*$/);
+  if(match) {
+    return { classif: match[1].trim(), isFixo: true };
+  }
+  return { classif: s, isFixo: false };
+}
+
 /* Engine principal — popula _fcDados a partir de 3 fontes.
    abasPreDetectadas (opcional): se o caller já listou as abas, evita re-fetch */
 async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
@@ -10374,7 +10393,8 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
           data: dataStr,
           custoFixo: 0,           // movimento já consolidado em movEfetivo
           movimento: movEfetivo,
-          classif: classif,
+          classif: _fcv2NormalizaClassif(classif).classif,    // 🆕 FIX30A: remove sufixo [F]
+          isFixo: _fcv2NormalizaClassif(classif).isFixo,      // 🆕 FIX30A: detecta [F]
           descricao: descricao,
           status: status,
           saldo: 0,                // recalculado no render
@@ -10446,6 +10466,7 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
           custoFixo: 0,
           movimento: valor,
           classif: 'Mídia',
+          isFixo: false,                       // 🆕 FIX30A: Mídia nunca é fixa
           descricao: canal + ' · ' + plataforma,
           status: 'P',
           saldo: 0,
@@ -10515,7 +10536,8 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
           data: dataStr,
           custoFixo: valor,        // ⭐ vai pra coluna Custo Fixo (lógica antiga lê dessa col)
           movimento: 0,
-          classif: categoria,
+          classif: _fcv2NormalizaClassif(categoria).classif,  // 🆕 FIX30A: remove [F] se existir
+          isFixo: true,                                       // 🆕 FIX30A: aba Custos Fixos é toda fixa por definição
           descricao: descricao,
           status: status,
           saldo: 0,
@@ -10548,6 +10570,45 @@ async function _fcLoadV2(sheetId, statusEl, abasPreDetectadas) {
   });
 
   console.log('[FC v2] ✅ TOTAL: '+_fcDados.length+' lançamentos · '+_fcMeses.length+' abas');
+
+  // 🆕 FIX30A SANITY — Validação automática pós-load
+  // Mostra agregado de Mídia diária e Custos Fixos pra você comparar com a planilha.
+  // Se algum valor estiver errado, é aqui que aparece o sintoma antes de chegar no Raio X.
+  try {
+    var fixos30A = _fcDados.filter(function(d){ return d.isFixo === true; });
+    var midia30A = _fcDados.filter(function(d){ return d.classif === 'Mídia'; });
+    var totalFixo30A = fixos30A.reduce(function(s,d){
+      return s + Math.abs((parseFloat(d.movimento)||0) + (parseFloat(d.custoFixo)||0));
+    }, 0);
+    var totalMidia30A = midia30A.reduce(function(s,d){
+      return s + Math.abs((parseFloat(d.movimento)||0));
+    }, 0);
+
+    // Mídia agregada por dia — pra comparar com planilha
+    var midiaPorDia = {};
+    midia30A.forEach(function(d){
+      midiaPorDia[d.data] = (midiaPorDia[d.data]||0) + Math.abs(parseFloat(d.movimento)||0);
+    });
+    var diasComMidia = Object.keys(midiaPorDia).sort();
+    var ultimosDias = diasComMidia.slice(-5).map(function(k){
+      return k + ': R$ ' + midiaPorDia[k].toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    });
+
+    console.log('%c[FIX30A SANITY]', 'background:#0F6E56;color:white;padding:2px 6px;border-radius:3px',
+                'Custo Fixo: '+fixos30A.length+' lançamentos · R$ '+totalFixo30A.toLocaleString('pt-BR',{maximumFractionDigits:0}));
+    console.log('%c[FIX30A SANITY]', 'background:#0F6E56;color:white;padding:2px 6px;border-radius:3px',
+                'Mídia: '+midia30A.length+' lançamentos · R$ '+totalMidia30A.toLocaleString('pt-BR',{maximumFractionDigits:0})+' · '+diasComMidia.length+' dias com mídia');
+    if(ultimosDias.length) {
+      console.log('%c[FIX30A SANITY]', 'background:#0F6E56;color:white;padding:2px 6px;border-radius:3px',
+                  'Mídia agregada — últimos 5 dias:\n  '+ultimosDias.join('\n  '));
+    }
+
+    // Aviso se nenhum [F] foi detectado (sintoma de planilha desatualizada)
+    if(fixos30A.length === 0) {
+      console.warn('%c[FIX30A SANITY]', 'background:#A32D2D;color:white;padding:2px 6px;border-radius:3px',
+                   '⚠️ Nenhum lançamento com [F] detectado. A planilha precisa estar na v3 (sufixo [F] nas categorias fixas).');
+    }
+  } catch(eSanity){ console.warn('[FIX30A SANITY] erro no log:', eSanity); }
 
   // 🆕 FIX: garante que loadFluxoV2() rode após detectar v2.
   // Motivo: loadFluxoV2 popula _fluxoV2Data.midia/custosFixos (usado por
@@ -11141,9 +11202,13 @@ function renderFluxoCaixa() {
     // Saldo PROJETADO: todos os lançamentos incluindo a vencer (N)
     movProj += mov;
 
-    // Custo Fixo Projetado: soma de todos os valores da col B (custo fixo)
-    // Independente do status — reflete o total de custos fixos do período
-    if(d.custoFixo !== 0) custoFixoProj += Math.abs(d.custoFixo);
+    // 🆕 FIX30A — Custo Fixo Projetado: soma lançamentos com isFixo=true
+    // Antes: lia col B (custoFixo) que sempre dava 0 no modelo 6 col da Laluna
+    // Agora: detecta via sufixo [F] na classif (aplicado na ingestão do _fcDados)
+    if(d.isFixo === true) {
+      var valorFixo = Math.abs((parseFloat(d.movimento)||0) + (parseFloat(d.custoFixo)||0));
+      custoFixoProj += valorFixo;
+    }
   });
 
   // Saldo = Caixa Inicial ± movimentos do período
