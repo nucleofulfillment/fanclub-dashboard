@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30H-CANAL-LP';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30I-BRINDES-VIRTUAIS';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -11146,7 +11146,140 @@ async function loadFluxoCaixa() {
       mesesUnicos.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
   }
 
+  // 🆕 FIX30I — Injeta brindes virtuais da planilha de PEDIDOS (não da planilha de Fluxo).
+  // Cada mês com brindes vira 2 linhas virtuais ("Brindes — Produto" + "Brindes — Frete")
+  // lançadas no último dia do mês como despesa. Vantagem: dados sempre frescos da
+  // operação real, sem dupla manutenção.
+  try { _fcInjetarBrindesVirtuais(); } catch(e) { console.warn('[FC] Brindes virtuais:', e); }
+
   renderFluxoCaixa();
+}
+
+/* 🆕 FIX30I — Injeta brindes virtuais lendo allRows (planilha de pedidos).
+   Adiciona em _fcDados:
+   - 1 linha "Brindes — Produto" (custo do estoque consumido) por mês
+   - 1 linha "Brindes — Frete"   (custo de envio das trocas) por mês
+   Lançadas no último dia do mês como despesa (movimento negativo, status 'P').
+   Ignora se allRows está vazio ou se já existem lançamentos "Brindes" no mês
+   (evita dupla contagem se planilha de Fluxo já tem essa categoria).
+*/
+function _fcInjetarBrindesVirtuais() {
+  if(typeof allRows === 'undefined' || !Array.isArray(allRows) || allRows.length === 0) {
+    console.log('[FC · Brindes Virtuais] allRows vazio — pulando injeção');
+    return;
+  }
+  // Identifica meses já populados em _fcDados
+  if(!_fcDados || _fcDados.length === 0) return;
+
+  var pagIdx   = (typeof _colIdx !== 'undefined' && _colIdx.pag !== undefined) ? _colIdx.pag : 19;
+  var dataIdx  = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
+  var valorIdx = (typeof _colIdx !== 'undefined' && _colIdx.valor !== undefined) ? _colIdx.valor : 30;
+  var freteIdx = (typeof _colIdx !== 'undefined' && _colIdx.frete !== undefined) ? _colIdx.frete : 28;
+
+  // Verifica se já tem categoria "Brindes" em algum mês — se sim, abandona pra não duplicar
+  var temBrindesNaPlanilha = _fcDados.some(function(d){
+    return /^brindes/i.test(String(d.classif || ''));
+  });
+  if(temBrindesNaPlanilha) {
+    console.log('[FC · Brindes Virtuais] Planilha já tem categoria "Brindes" — pulando injeção pra evitar duplicação');
+    return;
+  }
+
+  // Agrega brindes por mês (chave: "YYYY-MM")
+  var porMes = {};  // { 'YYYY-MM': { qtd, valorTotal, valorFrete, valorProduto, ultimoDia } }
+  allRows.forEach(function(r){
+    if(!r) return;
+    if(!_raioxEhBrinde(r)) return;
+    var d = _raioxParseDataPedido(r[dataIdx]);
+    if(!d) return;
+    var chaveMes = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    var valorTotal = parseFloat(String(r[valorIdx]||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+    var valorFrete = parseFloat(String(r[freteIdx]||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+    if(!porMes[chaveMes]) {
+      porMes[chaveMes] = { qtd: 0, valorTotal: 0, valorFrete: 0, valorProduto: 0, ultimoDia: d };
+    }
+    porMes[chaveMes].qtd += 1;
+    porMes[chaveMes].valorTotal += valorTotal;
+    porMes[chaveMes].valorFrete += valorFrete;
+    porMes[chaveMes].valorProduto += (valorTotal - valorFrete);
+    if(d > porMes[chaveMes].ultimoDia) porMes[chaveMes].ultimoDia = d;
+  });
+
+  if(Object.keys(porMes).length === 0) {
+    console.log('[FC · Brindes Virtuais] Sem brindes encontrados em allRows');
+    return;
+  }
+
+  // Mapeia chaves YYYY-MM → aba (precisa achar aba correspondente em _fcDados)
+  // Por exemplo: "2026-04" → "Abril-26"
+  var nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var injetados = 0;
+
+  Object.keys(porMes).forEach(function(chaveMes){
+    var dados = porMes[chaveMes];
+    var ano = parseInt(chaveMes.split('-')[0], 10);
+    var mes = parseInt(chaveMes.split('-')[1], 10);
+    var nomeMes = nomesMes[mes-1];
+    var anoCurto = String(ano).slice(2);
+
+    // Tenta achar aba que corresponda a esse mês — busca abas com esse nome no _fcDados
+    var abaCorrespondente = null;
+    var abasPossiveis = _fcDados.map(function(d){return d.aba;}).filter(function(a, i, arr){return arr.indexOf(a)===i;});
+    for(var ai = 0; ai < abasPossiveis.length; ai++) {
+      var a = abasPossiveis[ai];
+      var alower = String(a).toLowerCase();
+      if(alower.indexOf(nomeMes.toLowerCase()) >= 0 && alower.indexOf(anoCurto) >= 0) {
+        abaCorrespondente = a;
+        break;
+      }
+    }
+    if(!abaCorrespondente) {
+      console.log('[FC · Brindes Virtuais] Mês ' + chaveMes + ' (' + nomeMes + '-' + anoCurto + ') sem aba correspondente no Fluxo — pulando');
+      return;
+    }
+
+    // Pega caixaInicial da aba (qualquer linha da aba serve — usa o do primeiro item)
+    var ref = _fcDados.find(function(d){ return d.aba === abaCorrespondente; });
+    var caixaIni = ref ? (ref.caixaInicial || 0) : 0;
+
+    // Data string do último dia do mês com brinde (formato YYYY-MM-DD)
+    var ultimoDiaMes = new Date(ano, mes, 0).getDate();
+    var dataStr = ano + '-' + String(mes).padStart(2,'0') + '-' + String(ultimoDiaMes).padStart(2,'0');
+
+    // Linha 1: Brindes — Produto
+    _fcDados.push({
+      aba: abaCorrespondente,
+      caixaInicial: caixaIni,
+      data: dataStr,
+      custoFixo: 0,
+      movimento: -Math.round(dados.valorProduto * 100) / 100,
+      classif: 'Brindes',
+      isFixo: false,
+      descricao: 'Brindes — Produto (' + dados.qtd + ' pedidos · troca/cortesia, sem receita)',
+      status: 'P',
+      saldo: 0,
+      fonte: 'pedidos-virtual'
+    });
+
+    // Linha 2: Brindes — Frete
+    _fcDados.push({
+      aba: abaCorrespondente,
+      caixaInicial: caixaIni,
+      data: dataStr,
+      custoFixo: 0,
+      movimento: -Math.round(dados.valorFrete * 100) / 100,
+      classif: 'Brindes',
+      isFixo: false,
+      descricao: 'Brindes — Frete (' + dados.qtd + ' pedidos)',
+      status: 'P',
+      saldo: 0,
+      fonte: 'pedidos-virtual'
+    });
+    injetados += 2;
+    console.log('[FC · Brindes Virtuais] ' + abaCorrespondente + ': R$ ' + dados.valorProduto.toFixed(2) + ' (produto) + R$ ' + dados.valorFrete.toFixed(2) + ' (frete) · ' + dados.qtd + ' pedidos');
+  });
+
+  console.log('[FC · Brindes Virtuais] ✅ ' + injetados + ' linhas virtuais injetadas em _fcDados');
 }
 
 function _fcFiltrado() {
