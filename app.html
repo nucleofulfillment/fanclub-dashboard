@@ -234,32 +234,55 @@ select.ftab {
   appearance:none; -webkit-appearance:none; -moz-appearance:none;
   height:auto; line-height:1.2;
   padding-right:24px;
-  background-color:transparent;
+  background-color:transparent !important;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
                     linear-gradient(135deg, var(--muted) 50%, transparent 50%);
   background-position: calc(100% - 12px) calc(50% - 1px), calc(100% - 7px) calc(50% - 1px);
   background-size: 5px 5px;
   background-repeat: no-repeat;
-  outline: none;
+  outline: none !important;
+  /* 🆕 FIX30T — Bloqueia ajuste forçado de cor do navegador (Chrome/Edge highlight) */
+  forced-color-adjust: none;
+  -webkit-forced-color-adjust: none;
+  color: var(--muted) !important;
 }
 select.ftab:hover {
   background-image: linear-gradient(45deg, transparent 50%, var(--accent) 50%),
-                    linear-gradient(135deg, var(--accent) 50%, transparent 50%);
-  background-color:rgba(110,231,183,.07);
+                    linear-gradient(135deg, var(--accent) 50%, transparent 50%) !important;
+  background-color:rgba(110,231,183,.07) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
 }
-/* 🆕 FIX30O — Estado focused/active do select: sem highlight verde do browser.
-   Antes: ao clicar no select, o navegador aplicava bg verde nativo (visual quebrado).
-   Agora: força background transparente com hover discreto. */
+/* 🆕 FIX30O/T — Estado focused/active do select: sem highlight verde do browser.
+   Estilos do native browser são MUITO agressivos no select aberto. Força !important
+   em TUDO pra garantir que o tema escuro vença. */
 select.ftab:focus,
 select.ftab:focus-visible,
-select.ftab:active {
-  background-color:rgba(110,231,183,.07);
-  border-color:var(--accent);
-  color:var(--accent);
-  outline:none;
-  box-shadow:0 0 0 1px rgba(110,231,183,.20);
+select.ftab:active,
+select.ftab:focus-within {
+  background-color:rgba(110,231,183,.07) !important;
+  border-color:var(--accent) !important;
+  color:var(--accent) !important;
+  outline:none !important;
+  box-shadow:0 0 0 1px rgba(110,231,183,.20) !important;
 }
-select.ftab option { background:var(--s1); color:var(--text); }
+/* 🆕 FIX30T — Quando o select recebe a classe `.on`, evita que o estilo .ftab.on
+   (background var(--s2)) crie efeito sanduíche estranho */
+select.ftab.on {
+  background-color: rgba(110,231,183,.10) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+select.ftab option {
+  background:var(--s1) !important;
+  color:var(--text) !important;
+  padding: 4px 8px;
+}
+select.ftab option:checked,
+select.ftab option:hover {
+  background: rgba(110,231,183,.15) !important;
+  color: var(--accent) !important;
+}
 .fsep { width:1px; height:20px; background:var(--border2); flex-shrink:0; }
 
 /* ──────────── PROJEÇÃO ──────────── */
@@ -3495,7 +3518,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30S-PREC-KIT-MERGE';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30T-MIDIA-CLASSIF';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -9892,6 +9915,9 @@ async function loadFluxoV2(forceRefresh) {
   var midia = [];
   var custosFixos = [];
 
+  // 🆕 FIX30T — Diagnóstico: contar quantos lançamentos batem com cada classif
+  var _classifsEncontradas = {};
+
   _fcDados.forEach(function(d) {
     if(!d || !d.classif) return;
     var classif = String(d.classif).trim();
@@ -9899,8 +9925,21 @@ async function loadFluxoV2(forceRefresh) {
     if(valor === 0) return;
     var valorAbs = Math.abs(valor);
 
+    // 🆕 FIX30T — Conta classif (pra debug se mídia falhar)
+    _classifsEncontradas[classif] = (_classifsEncontradas[classif] || 0) + 1;
+
     // ─── Mídia ──────────────────────────────────────────────────
-    if(classif === 'Mídia') {
+    // 🆕 FIX30T — Match tolerante: aceita "Mídia", "Midia", "MIDIA", "mídia", "ads",
+    // "marketing", etc. Antes era só `=== 'Mídia'` (case-sensitive, exato).
+    var classifLower = classif.toLowerCase();
+    var ehMidia = (
+      classifLower === 'mídia' || classifLower === 'midia' ||
+      classifLower === 'ads' || classifLower === 'mídia / ads' ||
+      classifLower === 'midia / ads' || classifLower === 'marketing' ||
+      classifLower.indexOf('mídia') === 0 || classifLower.indexOf('midia') === 0 ||
+      classifLower.indexOf('ads') >= 0 && classifLower.indexOf('adsl') === -1
+    );
+    if(ehMidia) {
       // Descrição esperada: "Loja Própria · Meta Ads — diário"
       // ou "Mercado Livre · Mercado Ads — diário"
       var desc = String(d.descricao || '').trim();
@@ -9982,6 +10021,18 @@ async function loadFluxoV2(forceRefresh) {
       });
     }
   });
+
+  // 🆕 FIX30T — Log diagnóstico: se mídia ficou vazia, mostra TODAS as classifs encontradas
+  // pra Osvaldo conseguir descobrir o nome certo da categoria de ads na planilha.
+  if(midia.length === 0) {
+    console.warn('[FluxoV2] ⚠️ MÍDIA VAZIA! Classificações encontradas em _fcDados:');
+    var ordenadas = Object.entries(_classifsEncontradas).sort(function(a,b){ return b[1]-a[1]; });
+    ordenadas.forEach(function(e){ console.warn('  · "'+e[0]+'" ('+e[1]+'x)'); });
+    console.warn('[FluxoV2] 💡 Esperado: classif === "Mídia" ou variações com "ads"/"marketing"');
+  } else {
+    console.log('[FluxoV2] ✅ Mídia: '+midia.length+' lançamentos · total R$ ' +
+                midia.reduce(function(s,m){return s+m.valor;},0).toFixed(0));
+  }
 
   window._fluxoV2Data = {
     midia: midia,
