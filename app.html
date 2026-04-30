@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30I-BRINDES-VIRTUAIS';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30J-FILTRO-BRINDES-KPIS';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -4085,8 +4085,26 @@ function processarDados(pedidos) {
   var todayStr = td();
   var fut60 = addD(todayStr, 60);
 
+  // 🆕 FIX30J — Acumuladores separados pra brindes (pra mostrar no card e na forma de pagamento)
+  var brindesTotal = 0, brindesFrete = 0, brindesQtd = 0;
+
   for (var i=0; i<pedidos.length; i++) {
     var p = pedidos[i];
+
+    // 🆕 FIX30J — Detecta se é brinde (forma de pagamento "14 - Brinde")
+    var ehBrinde = /^14\s*-\s*Brinde$/i.test(String(p.pag || '').trim());
+
+    // SEMPRE conta na forma de pagamento (pra Laluna ver os brindes na pizza)
+    byPag[p.pag] = (byPag[p.pag]||0) + 1;
+
+    // Brindes acumulam SEPARADAMENTE — não entram em GMV/total/canais/etc
+    if(ehBrinde) {
+      brindesTotal += p.valor;
+      brindesFrete += p.frete;
+      brindesQtd += 1;
+      continue; // pula resto da iteração (não afeta KPIs principais)
+    }
+
     total  += p.valor;
     frete  += p.frete;
 
@@ -4109,9 +4127,6 @@ function processarDados(pedidos) {
       if (!byCanalMes[p.canal]) byCanalMes[p.canal] = {};
       byCanalMes[p.canal][mes] = (byCanalMes[p.canal][mes]||0) + p.valor;
     }
-
-    // Pagamento
-    byPag[p.pag] = (byPag[p.pag]||0) + 1;
 
     // Tamanho
     byTam[p.tamanho] = (byTam[p.tamanho]||0) + 1;
@@ -4167,12 +4182,14 @@ function processarDados(pedidos) {
   window._byCanal    = byCanal;
 
   return {
-    total, qtd: pedidos.length, frete,
+    total, qtd: pedidos.length - brindesQtd, frete,
     aprov, trans, entr,
     datas, vals: datas.map(function(d){return byData[d];}),
     canais, cgm: byCanalMes, meses,
     pagamentos, tamanhos, top20,
-    cfdatas, cfvals: cfdatas.map(function(d){return cfd[d];}), cfc
+    cfdatas, cfvals: cfdatas.map(function(d){return cfd[d];}), cfc,
+    // 🆕 FIX30J — Brindes separados (NÃO entram em total/qtd/canais)
+    brindes: { total: brindesTotal, frete: brindesFrete, qtd: brindesQtd, produto: brindesTotal - brindesFrete }
   };
 }
 
@@ -4182,7 +4199,11 @@ function processarDados(pedidos) {
 var _memCache = null;   // {key, pedidos, ts}
 
 function cacheKey(rows) {
-  return rows.length + '_' + (rows[0]?.[2]||'') + '_' + (rows[rows.length-1]?.[2]||'');
+  // 🆕 FIX30J — Inclui versão do build na chave pra invalidar cache automaticamente
+  // quando uma nova versão entra. Antes: cache antigo (com canal/brindes errados)
+  // continuava válido após upgrade. Agora: muda VELTRO_BUILD_VERSION = limpa cache.
+  var versao = (typeof VELTRO_BUILD_VERSION !== 'undefined') ? VELTRO_BUILD_VERSION : 'v0';
+  return versao + '_' + rows.length + '_' + (rows[0]?.[2]||'') + '_' + (rows[rows.length-1]?.[2]||'');
 }
 
 function loadFromLS(key) {
