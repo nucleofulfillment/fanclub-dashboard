@@ -3545,7 +3545,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BI-ALERTAS-MAIS-SENSIVEIS';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BK-MIDIA-ALINHADA';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21824,9 +21824,30 @@ function raioxGerarDiagnosticos(analise) {
         midiaPorDia[key] = (midiaPorDia[key] || 0) + (m.valor || 0);
       });
 
-      // Verifica os últimos 7 dias úteis (excluindo hoje)
-      var hoje = new Date();
-      hoje.setHours(0,0,0,0);
+      // 🆕 FIX30BK — Usa a mesma data de referência das outras análises (maxData − 1).
+      // Antes: usava `new Date()` (hoje real do navegador) → apontava o dia descartado
+      //        pelo FIX30BG como "sem mídia" mesmo quando a planilha estava OK.
+      // Agora: pega maxData de allRows e recua 1 dia (igual raioxVendasPorDia).
+      var hoje;
+      try {
+        var dataIdxMax = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
+        var maxD = null;
+        if(typeof allRows !== 'undefined' && Array.isArray(allRows)) {
+          for(var ri = 0; ri < allRows.length; ri++) {
+            var r = allRows[ri];
+            if(!r || !r[dataIdxMax]) continue;
+            var d = (typeof _raioxParseDataPedido === 'function') ? _raioxParseDataPedido(r[dataIdxMax]) : null;
+            if(d && (!maxD || d > maxD)) maxD = d;
+          }
+        }
+        hoje = maxD ? new Date(maxD) : new Date();
+        hoje.setHours(0,0,0,0);
+        // Recua 1 dia (descarta o último, possivelmente incompleto) — alinhado com FIX30BG
+        hoje.setDate(hoje.getDate() - 1);
+      } catch(e) {
+        hoje = new Date();
+        hoje.setHours(0,0,0,0);
+      }
       var diasSemMidia = [];
       for(var i = 1; i <= 14; i++) {
         var d = new Date(hoje);
@@ -22037,31 +22058,107 @@ function raioxRender() {
   window._raioxDiasLiteral = diasAnaliseLiteral;
 
   // 🆕 FIX30BE — DIAGNÓSTICOS travados em janela fixa de 5 dias (não seguem o seletor).
-  // Histórico:
-  //   Antes (FIX30AG): diagnósticos usavam diasAnaliseInterpretacao do seletor.
-  //                    Trocar pra 30d → diagnósticos comparavam D-1 vs D-30 → muito
-  //                    diferente do que aconteceu nas últimas 24h reais.
-  //   Agora (FIX30BE): diagnósticos sempre comparam D-1 vs D-5 (período RECENTE fixo).
-  //                    Cobre fim de semana sem ser muito longo:
-  //                      Segunda → D-1=domingo, D-2=sáb, D-3=sex, D-4=qui, D-5=qua
-  //                    "O que aconteceu de relevante recentemente?" — janela curta
-  //                    e estável que NÃO muda com o seletor de janela do gráfico.
-  // O TERMÔMETRO continua usando suas 3 janelas (24h/10d/30d) — só os diagnósticos
-  // que ficam travados.
+  // 🆕 FIX30BJ — Mas o GRÁFICO precisa de 30 dias de histórico pra desenhar a linha.
+  // Solução: 1 chamada de raioxComparaPeriodos(30) → 30 dias de dadosDiarios pro gráfico.
+  //          Pra diagnóstico, deriva análise da JANELA 5d com base nos mesmos dados.
   var DIAS_DIAGNOSTICO_FIXO = 5;
+  var DIAS_GRAFICO = 30;
+
+  // Helper: deriva uma análise de diagnóstico a partir dos dadosDiarios completos.
+  // Pega os ÚLTIMOS N dias e compara D-1 (último) vs últimos N-1 (média do período anterior).
+  function _derivarAnaliseDiagnostico(dadosDiarios, diasJanela) {
+    var keys = Object.keys(dadosDiarios).sort();
+    var resultado = {
+      diasJanela: diasJanela,
+      diasComparativo: 1,
+      totalAnterior: { gmv: 0, pedidos: 0, canais: {}, dias: 0 },
+      totalRecente:  { gmv: 0, pedidos: 0, canais: {}, dias: 1 },
+      varGmv: 0, varPedidos: 0, canais: [],
+      dadosDiarios: dadosDiarios
+    };
+    if(keys.length < 2) return resultado;
+
+    // Pega últimos N dias (5)
+    var janelaKeys = keys.slice(-diasJanela);
+    if(janelaKeys.length < 2) return resultado;
+
+    // D-1 = último dia da janela (período recente)
+    var diaRecente = janelaKeys[janelaKeys.length - 1];
+    // Período anterior = todos os dias da janela exceto o último (4 dias se janela=5)
+    var diasAnteriores = janelaKeys.slice(0, -1);
+
+    function somaCanaisDe(arr) {
+      var s = { gmv: 0, pedidos: 0, canais: {}, dias: arr.length };
+      arr.forEach(function(k){
+        var d = dadosDiarios[k];
+        if(!d) return;
+        s.gmv += d.gmv || 0;
+        s.pedidos += d.pedidos || 0;
+        Object.keys(d.canais || {}).forEach(function(c){
+          if(!s.canais[c]) s.canais[c] = { gmv: 0, pedidos: 0 };
+          s.canais[c].gmv += d.canais[c].gmv || 0;
+          s.canais[c].pedidos += d.canais[c].pedidos || 0;
+        });
+      });
+      // médias por dia (pra comparação justa entre períodos de tamanhos diferentes)
+      s.gmvMedio = s.dias > 0 ? s.gmv / s.dias : 0;
+      s.pedidosMedio = s.dias > 0 ? s.pedidos / s.dias : 0;
+      Object.keys(s.canais).forEach(function(c){
+        s.canais[c].gmvMedio = s.dias > 0 ? s.canais[c].gmv / s.dias : 0;
+      });
+      return s;
+    }
+    function pct(novo, antigo) {
+      if(antigo === 0) return novo > 0 ? 100 : 0;
+      return Math.round(((novo - antigo) / antigo) * 100);
+    }
+
+    var totR = somaCanaisDe([diaRecente]);          // 1 dia (D-1)
+    var totA = somaCanaisDe(diasAnteriores);         // 4 dias (D-2 a D-5), média/dia
+    resultado.totalRecente = totR;
+    resultado.totalAnterior = totA;
+    resultado.varGmv = pct(totR.gmvMedio, totA.gmvMedio);
+    resultado.varPedidos = pct(totR.pedidosMedio, totA.pedidosMedio);
+
+    // Variação por canal (média/dia)
+    var todosCanais = {};
+    Object.keys(totA.canais).forEach(function(c){ todosCanais[c] = true; });
+    Object.keys(totR.canais).forEach(function(c){ todosCanais[c] = true; });
+    Object.keys(todosCanais).forEach(function(c){
+      var gaMedio = (totA.canais[c]||{gmvMedio:0}).gmvMedio;
+      var grMedio = (totR.canais[c]||{gmvMedio:0}).gmvMedio;
+      var ga = (totA.canais[c]||{gmv:0}).gmv;
+      var gr = (totR.canais[c]||{gmv:0}).gmv;
+      if(ga + gr < 100) return;
+      resultado.canais.push({
+        canal: c,
+        gmvAnterior: ga, gmvRecente: gr,
+        gmvMedioAnterior: gaMedio, gmvMedioRecente: grMedio,
+        variacao: pct(grMedio, gaMedio)
+      });
+    });
+    resultado.canais.sort(function(a,b){ return Math.abs(b.variacao) - Math.abs(a.variacao); });
+    return resultado;
+  }
 
   // 🎬 Modo demo: gera dados fictícios se ativo
   var modoDemo = raioxGetModoDemo();
   var analise;
   if(modoDemo !== 'real') {
-    // Demo gera 30 dias completos sempre — depois recalcula compara com a janela do diagnóstico
+    // Demo gera 30 dias completos sempre
     analise = raioxGerarDadosDemo(modoDemo);
     if(analise.vendas && analise.vendas.dadosDiarios) {
-      analise.vendas = _raioxRecalcularJanela(analise.vendas.dadosDiarios, DIAS_DIAGNOSTICO_FIXO);
+      var dadosCompletosDemo = analise.vendas.dadosDiarios;
+      var compDiagDemo = _derivarAnaliseDiagnostico(dadosCompletosDemo, DIAS_DIAGNOSTICO_FIXO);
+      analise.vendas = compDiagDemo;
     }
   } else {
+    // Real: 1 query de 30d → dadosDiarios completos pro gráfico, derivação 5d pro diagnóstico
+    var compFull = raioxComparaPeriodos(DIAS_GRAFICO);
+    var dadosCompletosReal = compFull.dadosDiarios;
+    var compDiag = _derivarAnaliseDiagnostico(dadosCompletosReal, DIAS_DIAGNOSTICO_FIXO);
     analise = {
-      vendas: raioxComparaPeriodos(DIAS_DIAGNOSTICO_FIXO),
+      vendas: compDiag,
       estoque: raioxAnaliseEstoque()
     };
   }
@@ -22519,7 +22616,7 @@ function raioxRender() {
             _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
             _raioxLinhaIndicador('🏪', 'Loja Própria', '#CBD5E1', resumo.lojaPropria)+
             _raioxLinhaMercado(resumo.mercado, resumo)+
-            _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resumo.midia)+
+            _raioxLinhaIndicador('📢', 'Mídia',       '#3B82F6', resumo.midia)+
             _raioxLinhaEstoque(resumo.estoque, analiseAtiva.estoque)+
           '</div>'
         : ''
@@ -23172,7 +23269,9 @@ function _raioxDesenharChart(dadosDiarios) {
     datasets.push({
       label: '📢 Mídia 🔬',
       data: aux.midia.map(function(v){ return Math.round(v); }),
-      borderColor: '#FB923C',
+      // 🆕 FIX30BK — Cor azul royal vivo (#3B82F6) pra destacar da Marketplace (amarelo)
+      // que usa #FCD34D. Antes era #FB923C (laranja) — mas conflitava visualmente.
+      borderColor: '#3B82F6',
       backgroundColor: 'transparent',
       borderWidth: cfgMidia.borderWidth,
       fill: false,
@@ -23705,7 +23804,7 @@ function _raioxDesenharChart(dadosDiarios) {
                     '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas · vs dia anterior</div>'+
                     (marketplaceV !== null ? _linha('🛒', 'Marketplace 🔬', marketplaceV, marketplaceAnt, false, '#FCD34D') : '')+
                     (lojaPropriaV !== null ? _linha('🏪', 'Loja Própria 🔬', lojaPropriaV, lojaPropriaAnt, false, '#CBD5E1') : '')+
-                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, midiaAnt, false, '#FB923C') : '')+
+                    (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, midiaAnt, false, '#3B82F6') : '')+
                     (estoqueV !== null ? _linhaEstoque(estoqueV, estoqueAnt, '#EC4899') : '')+
                     (mercadoV !== null ? _linhaMercado(mercadoV, idx, '#A78BFA') : '')+
                   '</div>'
