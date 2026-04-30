@@ -1889,33 +1889,40 @@ body.light body::before { opacity: 0; }
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════
-           FILEIRA 3: RESULTADO LÍQUIDO (clicável para expandir breakdown)
+           FILEIRA 3: RESULTADO LÍQUIDO + LUCRO REAL GERENCIAL (lado a lado)
+           🆕 FIX30AX — 2 colunas com labels diferenciados:
+              • OPERACIONAL = Resultado Líquido (DRE do e-commerce)
+              • EMPRESA     = Lucro Real Gerencial (DRE − custos fixos)
            ═══════════════════════════════════════════════════════════ -->
-      <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:20px">
+      <div id="fin-resultados-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <!-- ① OPERACIONAL (Resultado Líquido) -->
         <div class="kpi" id="fin-resultado-kpi" style="--cc:#6EE7B7;padding:14px 16px;cursor:pointer" onclick="finToggleBreakdown()" title="Clique para expandir/recolher breakdown">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
               <span style="font-size:18px">💎</span>
               <div>
-                <div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Resultado Líquido</div>
-                <div class="val" id="fin-resultado" style="font-size:26px;letter-spacing:-0.5px;line-height:1.1;margin-top:2px">—</div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span style="font-family:var(--fmono);font-size:9px;color:#6EE7B7;background:rgba(110,231,183,.12);padding:2px 7px;border-radius:4px;border:1px solid rgba(110,231,183,.25);font-weight:700;letter-spacing:.5px">OPERACIONAL</span>
+                  <span style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Resultado Líquido</span>
+                </div>
+                <div class="val" id="fin-resultado" style="font-size:26px;letter-spacing:-0.5px;line-height:1.1;margin-top:4px">—</div>
                 <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:2px" id="fin-resultado-pct">— do GMV</div>
               </div>
-              <span id="fin-resultado-status" style="font-family:var(--fmono);font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600"></span>
+              <span id="fin-resultado-status" style="font-family:var(--fmono);font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600;flex-shrink:0"></span>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
               <button id="fin-resultado-toggle" type="button"
                 onclick="event.stopPropagation();finToggleBreakdown();"
-                style="background:rgba(110,231,183,.12);border:1px solid rgba(110,231,183,.3);color:var(--accent);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:var(--fmono);font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .15s"
+                style="background:rgba(110,231,183,.12);border:1px solid rgba(110,231,183,.3);color:var(--accent);padding:6px 10px;border-radius:6px;cursor:pointer;font-family:var(--fmono);font-size:10px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .15s;white-space:nowrap"
                 title="Ver detalhamento dos custos">
                 <span id="fin-resultado-toggle-icon">+</span>
-                <span id="fin-resultado-toggle-label">Ver detalhamento</span>
+                <span id="fin-resultado-toggle-label">Detalhar</span>
               </button>
               <button id="fin-resultado-export" type="button"
                 onclick="event.stopPropagation();finExportarExcel();"
-                style="background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.3);color:#22C55E;padding:6px 12px;border-radius:6px;cursor:pointer;font-family:var(--fmono);font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .15s"
+                style="background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.3);color:#22C55E;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:var(--fmono);font-size:10px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .15s;white-space:nowrap"
                 title="Exportar detalhamento para Excel (CSV)">
-                📥 Exportar Excel
+                📥 Excel
               </button>
             </div>
           </div>
@@ -1923,49 +1930,49 @@ body.light body::before { opacity: 0; }
           <div id="fin-resultado-breakdown" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
             <div id="fin-resultado-breakdown-content" style="font-family:var(--fmono);font-size:11px;color:var(--text);line-height:1.7"></div>
           </div>
+          <!-- Subtítulo explicativo -->
+          <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(110,231,183,.25);font-family:var(--fmono);font-size:10px;color:var(--muted);line-height:1.5">
+            <span style="color:#6EE7B7">ℹ</span> Resultado do e-commerce (GMV − custos diretos: frete, comissão, mídia, taxas, impostos).
+          </div>
         </div>
-      </div>
 
-      <!-- ═══════════════════════════════════════════════════════════
-           CARD: LUCRO REAL GERENCIAL (conciliação simplificada DRE x Fluxo)
-           Aparece apenas quando planilha de Fluxo de Caixa está carregada
-           ═══════════════════════════════════════════════════════════ -->
-      <div id="fin-lucro-real-card" style="display:none;margin-bottom:20px">
-        <div class="kpi" style="--cc:#A78BFA;padding:14px 16px;background:linear-gradient(135deg,var(--s1),rgba(167,139,250,.06));border-color:rgba(167,139,250,.25)">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex:1;min-width:280px">
-              <span style="font-size:20px">🏦</span>
-              <div>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <div style="font-family:var(--fmono);font-size:10px;color:#A78BFA;text-transform:uppercase;letter-spacing:1px;font-weight:600">Lucro Real Gerencial</div>
-                  <span style="font-family:var(--fmono);font-size:9px;color:var(--muted2);background:rgba(167,139,250,.10);padding:2px 8px;border-radius:4px;border:1px solid rgba(167,139,250,.18)">conciliação simplificada</span>
+        <!-- ② EMPRESA (Lucro Real Gerencial) — aparece quando Fluxo de Caixa está carregado -->
+        <div id="fin-lucro-real-card" style="display:none">
+          <div class="kpi" style="--cc:#A78BFA;padding:14px 16px;background:linear-gradient(135deg,var(--s1),rgba(167,139,250,.06));border-color:rgba(167,139,250,.25)">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
+                <span style="font-size:18px">🏦</span>
+                <div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <span style="font-family:var(--fmono);font-size:9px;color:#A78BFA;background:rgba(167,139,250,.12);padding:2px 7px;border-radius:4px;border:1px solid rgba(167,139,250,.25);font-weight:700;letter-spacing:.5px">EMPRESA</span>
+                    <span style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Lucro Real Gerencial</span>
+                  </div>
+                  <div class="val" id="fin-lucro-real" style="font-size:26px;letter-spacing:-0.5px;line-height:1.1;margin-top:4px;color:var(--text)">—</div>
+                  <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:2px" id="fin-lucro-real-sub">DRE − Custos Fixos</div>
                 </div>
-                <div class="val" id="fin-lucro-real" style="font-size:26px;letter-spacing:-0.5px;line-height:1.1;margin-top:2px;color:var(--text)">—</div>
-                <div style="font-family:var(--fmono);font-size:11px;color:var(--muted);margin-top:2px" id="fin-lucro-real-sub">DRE − Custos Fixos do Fluxo de Caixa</div>
               </div>
             </div>
-            <!-- Composição lado direito -->
-            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-family:var(--fmono);font-size:11px">
-              <div style="text-align:right">
-                <div style="color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Resultado DRE</div>
-                <div id="fin-lucro-real-dre" style="color:var(--green);font-weight:700;font-size:14px">—</div>
+            <!-- Composição: DRE − Custo Fixo = Lucro Real -->
+            <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(167,139,250,.25);display:flex;gap:8px;align-items:center;justify-content:space-between;font-family:var(--fmono);font-size:10px;flex-wrap:wrap">
+              <div style="text-align:left;flex:1;min-width:80px">
+                <div style="color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px">Operacional</div>
+                <div id="fin-lucro-real-dre" style="color:var(--text);font-weight:700;font-size:12px">—</div>
               </div>
               <span style="color:var(--muted2);font-size:14px">−</span>
-              <div style="text-align:right">
-                <div style="color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Custos Fixos (Fluxo)</div>
-                <div id="fin-lucro-real-cfixo" style="color:var(--red);font-weight:700;font-size:14px">—</div>
+              <div style="text-align:center;flex:1;min-width:80px">
+                <div style="color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px">Custos Fixos</div>
+                <div id="fin-lucro-real-cfixo" style="color:var(--red);font-weight:700;font-size:12px">—</div>
               </div>
               <span style="color:var(--muted2);font-size:14px">=</span>
-              <div style="text-align:right">
-                <div style="color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Lucro Real</div>
-                <div id="fin-lucro-real-final" style="font-weight:700;font-size:14px">—</div>
+              <div style="text-align:right;flex:1;min-width:80px">
+                <div style="color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px">Empresa</div>
+                <div id="fin-lucro-real-final" style="font-weight:700;font-size:12px">—</div>
               </div>
             </div>
-          </div>
-          <!-- Aviso/explicação -->
-          <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(167,139,250,.25);font-family:var(--fmono);font-size:10px;color:var(--muted);line-height:1.5">
-            <span style="color:#A78BFA">ℹ</span> Soma dos lançamentos da coluna <strong style="color:var(--text)">Custo Fixo</strong> (status Pago) do Fluxo de Caixa no mesmo período do filtro.
-            Para conciliação completa, classifique no Fluxo: folha · aluguel · pró-labore · admin como <strong style="color:var(--text)">Custo Fixo</strong>.
+            <!-- Subtítulo -->
+            <div style="margin-top:8px;font-family:var(--fmono);font-size:9px;color:var(--muted);line-height:1.4">
+              <span style="color:#A78BFA">ℹ</span> Resultado da empresa (operacional − folha · aluguel · pró-labore · admin do Fluxo).
+            </div>
           </div>
         </div>
       </div>
@@ -3525,7 +3532,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AW-CURVA-SENSIVEL';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AX-FASE1-MULTI';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -16689,11 +16696,14 @@ function syncFinanceiroKPIs(d) {
   // ═══════════════════════════════════════════════════════════════════
   try {
     var lrCard = document.getElementById('fin-lucro-real-card');
+    var lrGrid = document.getElementById('fin-resultados-grid');
     if(lrCard) {
       // Só mostrar se Fluxo de Caixa carregado
       var temFC = (typeof _fcDados !== 'undefined') && Array.isArray(_fcDados) && _fcDados.length > 0;
       if(!temFC) {
         lrCard.style.display = 'none';
+        // 🆕 FIX30AX — Sem Lucro Real: Operacional ocupa 100% (1 coluna).
+        if(lrGrid) lrGrid.style.gridTemplateColumns = '1fr';
       } else {
         // Filtrar lançamentos pelo mesmo período do DRE
         var fcFrom = (document.getElementById('f-from')||{}).value || '';
@@ -16744,6 +16754,8 @@ function syncFinanceiroKPIs(d) {
         setTL('fin-lucro-real-sub', subTxt);
 
         lrCard.style.display = 'block';
+        // 🆕 FIX30AX — Com Lucro Real: 2 colunas lado a lado (Operacional | Empresa)
+        if(lrGrid) lrGrid.style.gridTemplateColumns = '1fr 1fr';
       }
     }
   } catch(e) { console.warn('[Lucro Real] erro:', e); }
@@ -22190,13 +22202,18 @@ function _raioxRenderAnaliseMidia() {
   //   -3% a -10%  → 🟡 Atenção
   //   < -10%      → 🔴 Crítico
   function _statusTendencia(novo, antigo) {
+    // 🆕 FIX30AX — Thresholds redefinidos:
+    //   • +5% ou mais   → 🟢 em alta
+    //   • -5% a +5%     → ⚪ estável (margem normal de oscilação)
+    //   • -5% a -15%    → 🟡 atenção (sinal precoce, monitorar)
+    //   • <-15%         → 🔴 crítico (queda confirmada, agir)
     if(antigo === 0 && novo === 0) return {emoji:'⚪', cor:'var(--muted)', label:'sem dados', pct:null};
     if(antigo === 0) return {emoji:'🟢', cor:'#10B981', label:'novo canal', pct:null};
     var pct = ((novo - antigo) / antigo) * 100;
     var pctTxt = (pct >= 0 ? '+' : '') + Math.round(pct) + '%';
     if(pct > 5)        return {emoji:'🟢', cor:'#10B981', label:'em alta',  pct:pctTxt};
-    if(pct >= -3)      return {emoji:'⚪', cor:'var(--muted)', label:'estável', pct:pctTxt};
-    if(pct >= -10)     return {emoji:'🟡', cor:'#FCD34D', label:'atenção', pct:pctTxt};
+    if(pct >= -5)      return {emoji:'⚪', cor:'var(--muted)', label:'estável', pct:pctTxt};
+    if(pct >= -15)     return {emoji:'🟡', cor:'#FCD34D', label:'atenção', pct:pctTxt};
     return                    {emoji:'🔴', cor:'#F43F5E', label:'crítico', pct:pctTxt};
   }
 
