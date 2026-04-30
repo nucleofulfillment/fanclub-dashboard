@@ -3545,7 +3545,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BF-CONC-DADOS-REAIS';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BG-SHIFT-D1';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21254,6 +21254,8 @@ function raioxAgregarBrindes(diasJanela) {
   }
   var hoje = maxData || new Date();
   hoje.setHours(0,0,0,0);
+  // 🆕 FIX30BG — Mesmo shift -1 dia do raioxVendasPorDia (descarta D-1 incompleto)
+  hoje.setDate(hoje.getDate() - 1);
   var limite = new Date(hoje);
   limite.setDate(limite.getDate() - diasJanela + 1);
 
@@ -21294,8 +21296,12 @@ function raioxVendasPorDia(diasJanela) {
   if(typeof allRows === 'undefined' || !Array.isArray(allRows)) return resultado;
 
   // 🆕 FIX30E — Ancora a janela no ÚLTIMO DIA COM DADOS REAIS, não no "hoje" do navegador.
-  // Antes: gerava dias zerados ao fim quando planilha estava desatualizada.
-  // Agora: encontra a data máxima do allRows e usa como ponto final da janela.
+  // 🆕 FIX30BG — DESCARTA o último dia da planilha (pode estar incompleto).
+  //    Contexto: planilha é atualizada de manhã com dados de ontem. Mas no momento
+  //    da atualização, "ontem" pode ainda estar sendo finalizado (pedidos pendentes,
+  //    cancelamentos pós-meia-noite, etc). O dia anterior (D-2) é o último dia
+  //    GARANTIDAMENTE completo. Ignorar D-1 evita comparar dia parcial com dia
+  //    completo e gerar falsa "queda".
   var dataIdx = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
   var maxData = null;
   for(var ri = 0; ri < allRows.length; ri++) {
@@ -21307,6 +21313,8 @@ function raioxVendasPorDia(diasJanela) {
   // Fallback: se não achou nenhuma data válida, usa hoje (comportamento antigo)
   var hoje = maxData || new Date();
   hoje.setHours(0,0,0,0);
+  // 🆕 FIX30BG — Recua 1 dia: se planilha tem até 30/04, ancora janela em 29/04.
+  hoje.setDate(hoje.getDate() - 1);
   var limite = new Date(hoje);
   limite.setDate(limite.getDate() - diasJanela + 1);
 
