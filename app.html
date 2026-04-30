@@ -1048,6 +1048,176 @@ body.light { filter: saturate(0.85); }
 </head>
 <body>
 
+<!-- ══ FIX30BL — VELTRO PROGRESS BAR (topo absoluto) ══
+     Barra fina (3px) no topo da página, gradiente verde animado da esquerda
+     pra direita. Aparece quando alguma sincronização está ativa. Discreta:
+     pointer-events:none, fade in/out 200ms, z-index altíssimo.
+
+     Uso (global):
+       VeltroProgress.start('Sincronizando pedidos...')   // mostra barra + label opcional
+       VeltroProgress.stop()                              // esconde com fade
+       VeltroProgress.task(promise, 'Carregando...')      // wrapper auto: start/stop
+   ══ -->
+<div id="veltro-progress-wrap" aria-hidden="true">
+  <div id="veltro-progress-bar"></div>
+  <div id="veltro-progress-label"></div>
+</div>
+<style>
+  #veltro-progress-wrap {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    z-index: 100000;
+    pointer-events: none;
+    background: rgba(110,231,183,.06);
+    opacity: 0;
+    transition: opacity .25s ease;
+  }
+  #veltro-progress-wrap.active { opacity: 1; }
+  #veltro-progress-bar {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    width: 30%;
+    background: linear-gradient(90deg,
+      rgba(110,231,183,0)   0%,
+      rgba(110,231,183,.7) 30%,
+      #6EE7B7 50%,
+      rgba(110,231,183,.7) 70%,
+      rgba(110,231,183,0) 100%);
+    box-shadow: 0 0 12px rgba(110,231,183,.55);
+    border-radius: 0 2px 2px 0;
+    animation: veltroProgressSlide 1.4s cubic-bezier(.4,.0,.2,1) infinite;
+  }
+  @keyframes veltroProgressSlide {
+    0%   { left: -30%; }
+    100% { left: 100%; }
+  }
+  #veltro-progress-label {
+    position: fixed;
+    top: 8px; right: 16px;
+    z-index: 100001;
+    font-family: var(--fmono);
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(10,12,16,.85);
+    border: 1px solid rgba(110,231,183,.25);
+    border-radius: 5px;
+    padding: 4px 10px;
+    letter-spacing: .3px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity .2s ease, transform .2s ease;
+    backdrop-filter: blur(4px);
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #veltro-progress-label.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  /* Modo dia: tons mais sutis */
+  body.light #veltro-progress-wrap { background: rgba(4,120,87,.08); }
+  body.light #veltro-progress-bar {
+    background: linear-gradient(90deg,
+      rgba(4,120,87,0)   0%,
+      rgba(4,120,87,.6) 30%,
+      #047857 50%,
+      rgba(4,120,87,.6) 70%,
+      rgba(4,120,87,0) 100%);
+    box-shadow: 0 0 8px rgba(4,120,87,.4);
+  }
+  body.light #veltro-progress-label {
+    color: #047857;
+    background: rgba(255,255,255,.92);
+    border-color: rgba(4,120,87,.25);
+  }
+</style>
+<script>
+  /* 🆕 FIX30BL — Progress bar global. Usa contador (refcount) pra suportar
+     múltiplas tarefas paralelas: barra só esconde quando TODAS terminaram. */
+  (function(){
+    var refCount = 0;
+    var labelEl, wrapEl;
+    function _ensureRefs() {
+      if(!labelEl) labelEl = document.getElementById('veltro-progress-label');
+      if(!wrapEl)  wrapEl  = document.getElementById('veltro-progress-wrap');
+    }
+    function start(label) {
+      _ensureRefs();
+      refCount++;
+      if(wrapEl) wrapEl.classList.add('active');
+      if(label && labelEl) {
+        labelEl.textContent = label;
+        labelEl.classList.add('show');
+      }
+    }
+    function stop() {
+      _ensureRefs();
+      refCount = Math.max(0, refCount - 1);
+      if(refCount === 0) {
+        if(wrapEl) wrapEl.classList.remove('active');
+        if(labelEl) {
+          labelEl.classList.remove('show');
+          // limpa texto após fade
+          setTimeout(function(){
+            if(refCount === 0 && labelEl) labelEl.textContent = '';
+          }, 250);
+        }
+      }
+    }
+    function reset() {
+      refCount = 0;
+      _ensureRefs();
+      if(wrapEl) wrapEl.classList.remove('active');
+      if(labelEl) {
+        labelEl.classList.remove('show');
+        labelEl.textContent = '';
+      }
+    }
+    function task(promise, label) {
+      start(label);
+      var p = Promise.resolve(promise);
+      p.finally ? p.finally(stop) : p.then(stop, stop);
+      return p;
+    }
+    window.VeltroProgress = { start: start, stop: stop, task: task, reset: reset };
+
+    /* 🆕 FIX30BL — Interceptor automático de fetch.
+       Toda requisição pra Google Sheets (CSV/JSON) ativa a barra automaticamente.
+       Não precisa hookar manualmente cada função load*. Quando tem múltiplos fetches
+       paralelos, o refCount conta direito (só esconde quando o ÚLTIMO termina). */
+    if(typeof window.fetch === 'function' && !window._veltroFetchHooked) {
+      window._veltroFetchHooked = true;
+      var _origFetch = window.fetch.bind(window);
+      window.fetch = function(input, init) {
+        var url = (typeof input === 'string') ? input : (input && input.url) || '';
+        // Só conta sincronizações relevantes (Google Sheets, drive, docs)
+        var ehSync = /docs\.google\.com|spreadsheets|drive\.google\.com/i.test(url);
+        // Detecta o tipo de planilha pelo conteúdo da URL pra label específica
+        var label = null;
+        if(ehSync) {
+          if(/fluxo|caixa/i.test(url))                  label = 'Sincronizando fluxo de caixa...';
+          else if(/produtos|vendidos/i.test(url))       label = 'Sincronizando produtos vendidos...';
+          else if(/estoque/i.test(url))                 label = 'Sincronizando estoque...';
+          else if(/custo/i.test(url))                   label = 'Sincronizando custos...';
+          else                                          label = 'Sincronizando dados...';
+          start(label);
+        }
+        var p = _origFetch(input, init);
+        if(ehSync) {
+          // Garante stop em qualquer cenário (sucesso, erro, abort)
+          p.then(function(r){ stop(); return r; }, function(e){ stop(); throw e; });
+        }
+        return p;
+      };
+    }
+  })();
+</script>
+
 <!-- ══ VELTRO LOGIN SCREEN ══ -->
 <div id="veltro-login" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);
      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0">
@@ -3545,7 +3715,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BK-MIDIA-ALINHADA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BM-SENSIBILIDADE';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -20529,7 +20699,7 @@ var RAIOX_CFG_KEY = 'veltro_raiox_cfg';
 /* Defaults dos parâmetros */
 var RAIOX_DEFAULTS = {
   dias: 7,
-  varVendas: 15,    // %
+  varVendas: 10,    // % — 🆕 FIX30BM: era 15, baixado pra 10 (mais sensível por default)
   varMidia: 20,     // %
   ruptura: 7,       // dias de cobertura
   sensibilidade: 3  // 1-5
@@ -22708,14 +22878,41 @@ function raioxRender() {
 
   // 🆕 FIX30AR — labelJanela já definido no início do card do termômetro.
 
+  // 🆕 FIX30BM — Sensibilidade do diagnóstico (threshold % que dispara alertas).
+  // Lê config atual (cfg.varVendas) pra montar o select com valor selecionado.
+  var sensAtual = (raioxGetConfig().varVendas || 15);
+  var optsSens = [
+    { val:5,  label:'5% — muito sensível',  emoji:'🔬', desc:'Detecta variações pequenas (mais alertas)' },
+    { val:10, label:'10% — sensível',        emoji:'🔍', desc:'Detecta variações moderadas' },
+    { val:15, label:'15% — equilibrado',     emoji:'⚖️', desc:'Padrão recomendado' },
+    { val:25, label:'25% — pouco sensível',  emoji:'🔵', desc:'Só variações grandes' },
+    { val:40, label:'40% — só extremos',     emoji:'⚠️', desc:'Apenas situações críticas' }
+  ];
+  var sensOptsHtml = optsSens.map(function(o){
+    var sel = (sensAtual === o.val) ? ' selected' : '';
+    return '<option value="'+o.val+'"'+sel+'>'+o.emoji+' '+o.label+'</option>';
+  }).join('');
+  var sensTooltip = 'Define o limite mínimo de variação que dispara alertas.\n\n' +
+    'Ex: com 10%, vendas que caírem 10%+ vs período anterior viram diagnóstico de Alerta.\n' +
+    'Com 25%, só quedas grandes geram alerta. Mais sensível = mais notificações.';
+
   html +=
     '<div class="card fu">'+
-      '<div class="ch">'+
+      '<div class="ch" style="align-items:flex-start">'+
         '<div>'+
           '<div class="ct">Diagnósticos</div>'+
           // 🆕 FIX30BE — Título fixo: sempre últimos 4 dias, não segue o seletor do gauge.
           // Garante que segunda-feira o user veja sex/sáb/dom também.
           '<div class="cs">'+realCount+' real(is) · '+simCount+' simulado(s) · <strong style="color:var(--accent)" title="Diagnósticos sempre comparam o último dia com os 4 dias anteriores (cobre fim de semana). Não muda com o seletor do termômetro.">D-1 vs últimos 4 dias</strong></div>'+
+        '</div>'+
+        // 🆕 FIX30BM — Seletor de sensibilidade no canto superior direito
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">'+
+          '<label style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px" title="'+sensTooltip.replace(/"/g,'&quot;')+'">⚙ Sensibilidade</label>'+
+          '<select id="raiox-diag-sens" onchange="raioxAjustarSensibilidade(this.value)" '+
+                  'style="background:var(--s2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:5px;font-family:var(--fmono);font-size:10px;cursor:pointer;min-width:160px"'+
+                  ' title="'+sensTooltip.replace(/"/g,'&quot;')+'">'+
+            sensOptsHtml+
+          '</select>'+
         '</div>'+
       '</div>'+
       // 🆕 Abas de filtro por categoria
@@ -23874,6 +24071,18 @@ function raioxSetFoco(foco) {
 function raioxFiltrarDiag(categoria) {
   window._raioxFiltroDiag = categoria; // 'todos' | 'critico' | 'alerta' | 'atencao' | 'positivo' | 'info'
   raioxRender();
+}
+
+/* 🆕 FIX30BM — Ajusta sensibilidade do diagnóstico (varVendas).
+   Threshold % que dispara alertas. Persiste em localStorage via raioxSaveConfig. */
+function raioxAjustarSensibilidade(novoValor) {
+  var v = parseInt(novoValor, 10);
+  if(!v || isNaN(v)) return;
+  var cfg = raioxGetConfig();
+  cfg.varVendas = v;
+  raioxSaveConfig(cfg);
+  // Re-renderiza o Raio X com nova sensibilidade
+  if(typeof raioxRender === 'function') raioxRender();
 }
 
 function veltroFecharEditarEmpresa() {
