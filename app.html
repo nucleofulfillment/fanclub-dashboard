@@ -2906,28 +2906,14 @@ body.light body::before { opacity: 0; }
         <!-- COLUNA ESQUERDA: Inputs -->
         <div style="display:flex;flex-direction:column;gap:12px">
 
-          <!-- ETAPA 1: Produto -->
-          <div class="card">
-            <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">① Produto</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div>
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:5px">Custo do Produto (R$) *</label>
-                <input type="number" id="prec-custo" placeholder="ex: 10,00" min="0" step="0.01"
-                  oninput="try{document.getElementById('prec-custo-top').value=this.value;}catch(e){} calcPreco()"
-                  style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:var(--fdisplay);font-size:18px;font-weight:700;color:var(--text);outline:none;color-scheme:dark">
-              </div>
-              <div>
-                <label style="font-family:var(--fmono);font-size:10px;color:var(--muted);display:block;margin-bottom:5px">Adicional de Frete (R$)</label>
-                <input type="number" id="prec-frete" placeholder="0" min="0" step="0.01" value="0" oninput="calcPreco()"
-                  style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:var(--fdisplay);font-size:18px;font-weight:700;color:var(--text);outline:none;color-scheme:dark">
-              </div>
-            </div>
-            <!-- 🆕 FIX30S — Botões de Kit removidos daqui (movidos pro card amarelo Custo do Produto no topo) -->
-          </div>
+          <!-- 🆕 FIX30U — Card "① Produto" REMOVIDO (Custo já está no card amarelo do topo,
+               Adicional de Frete vira hidden = R$ 0). Inputs mantidos pra não quebrar calcPreco(). -->
+          <input type="hidden" id="prec-custo" value="">
+          <input type="hidden" id="prec-frete" value="0">
 
-          <!-- ETAPA 2: Canal -->
+          <!-- ETAPA 1: Canal (renumerado de ② → ① após remoção do card Produto) -->
           <div class="card">
-            <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">② Canal de Venda</div>
+            <div style="font-family:var(--fmono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">① Canal de Venda</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px" id="prec-canal-btns">
               <button class="prec-canal-btn active" data-canal="Shopee" onclick="selecionarCanal('Shopee')"
                 style="padding:10px;border-radius:8px;border:1px solid #EE4D2D;background:rgba(238,77,45,.12);color:#EE4D2D;font-family:var(--fhead);font-size:12px;font-weight:700;cursor:pointer;text-align:left">
@@ -3518,7 +3504,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30T-MIDIA-CLASSIF';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30U-PREC-REMOVE-CARD';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
