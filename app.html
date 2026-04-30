@@ -3523,7 +3523,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30Z-COMISSAO-PCT-MKT';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AB-PRESETS-MAXDATA';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -5594,33 +5594,60 @@ function setPreset(p,btn){
     });
     if(alvo) alvo.classList.add('on');
   }
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth(); // 0-based
-  const t = td(); // hoje YYYY-MM-DD
-  let from=null, to=t;
+
+  // 🆕 FIX30AB — Presets ancoram em maxData (data mais recente nos pedidos reais),
+  // não em td() (data do navegador). Antes: "Hoje" e "7 dias" zeravam quando a
+  // planilha estava 1+ dia atrasada da data atual (último pedido em 28/04, mas
+  // navegador em 30/04 → filtro 30/04→30/04 retornava 0).
+  // Agora: "Hoje" = último dia com pedidos; "7 dias" = janela ancorada nesse dia.
+  var maxData = '';
+  try {
+    if(typeof getPedidos === 'function') {
+      var ped = getPedidos();
+      if(ped && ped.length) {
+        // Acha a data MAIS RECENTE dos pedidos (eficiente: scan linear)
+        for(var i = 0; i < ped.length; i++) {
+          var pd = ped[i].data;
+          if(pd && pd.length >= 10 && pd > maxData) maxData = pd.slice(0,10);
+        }
+      }
+    }
+  } catch(e){ console.warn('[setPreset] erro buscando maxData:', e); }
+  // Fallback: se não conseguiu detectar (planilha vazia / antes de carregar), usa hoje
+  var t = maxData || td();
+  // Parse do maxData pra usar nos cálculos relativos (year, month, day)
+  var ancora;
+  if(maxData) {
+    var partes = maxData.split('-');
+    ancora = new Date(parseInt(partes[0]), parseInt(partes[1])-1, parseInt(partes[2]));
+  } else {
+    ancora = new Date();
+  }
+  var y = ancora.getFullYear();
+  var m = ancora.getMonth(); // 0-based
+  var from=null, to=t;
 
   if(p==='hoje'){
     from = t;
   } else if(p==='7d'){
-    const d=new Date(now); d.setDate(d.getDate()-6);
-    from = d.toISOString().split('T')[0];
+    var d7 = new Date(ancora); d7.setDate(d7.getDate()-6);
+    from = d7.getFullYear()+'-'+String(d7.getMonth()+1).padStart(2,'0')+'-'+String(d7.getDate()).padStart(2,'0');
   } else if(p==='30d'){
-    const d=new Date(now); d.setDate(d.getDate()-29);
-    from = d.toISOString().split('T')[0];
+    var d30 = new Date(ancora); d30.setDate(d30.getDate()-29);
+    from = d30.getFullYear()+'-'+String(d30.getMonth()+1).padStart(2,'0')+'-'+String(d30.getDate()).padStart(2,'0');
   } else if(p==='mes'){
-    // Primeiro dia do mês corrente
+    // Primeiro dia do mês da âncora
     from = y+'-'+String(m+1).padStart(2,'0')+'-01';
     to   = t;
   } else if(p==='trim'){
     // Trimestre corrente: Q1=jan-mar, Q2=abr-jun, Q3=jul-set, Q4=out-dez
-    const q = Math.floor(m/3);
-    const qStart = q*3; // mês inicial do trimestre (0-based)
-    const qEnd   = qStart+2; // mês final (0-based)
-    const lastDay = new Date(y, qEnd+1, 0).getDate();
+    var q = Math.floor(m/3);
+    var qStart = q*3; // mês inicial do trimestre (0-based)
+    var qEnd   = qStart+2; // mês final (0-based)
+    var lastDay = new Date(y, qEnd+1, 0).getDate();
     from = y+'-'+String(qStart+1).padStart(2,'0')+'-01';
     to   = y+'-'+String(qEnd+1).padStart(2,'0')+'-'+String(lastDay).padStart(2,'0');
-    // Não ultrapassar hoje
+    // Não ultrapassar a âncora
     if(to > t) to = t;
   } else {
     from=null; to=null;
@@ -5682,19 +5709,41 @@ function _atualizarDropdownMeses() {
       if(!r) return;
       var raw = r[dataIdx];
       if(!raw) return;
-      // Espera YYYY-MM-DD ou DD/MM/YYYY
+      // 🆕 FIX30AA — Aceita 4 formatos de data:
+      //   1) YYYY-MM-DD                (ISO)
+      //   2) DD/MM/YYYY                (BR completo)
+      //   3) M/D/YY ou MM/DD/YY        (americano com ano 2 dígitos, ex: "1/31/26")
+      //   4) D/M/YYYY                  (BR sem zero à esquerda)
+      // O Magazord exporta como "M/D/YY HH:MM" (formato americano), por isso o regex anterior falhava.
       var s = String(raw);
-      var match = s.match(/(\d{4})-(\d{2})-/);
-      if(!match) match = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      if(!match) return;
-      var ym;
-      if(match.length === 3) {
-        // YYYY-MM-DD
-        ym = match[1] + '-' + match[2];
+      var ym = null;
+      // 1) ISO: 2026-04-15
+      var m1 = s.match(/^(\d{4})-(\d{2})-/);
+      if(m1) {
+        ym = m1[1] + '-' + m1[2];
       } else {
-        // DD/MM/YYYY
-        ym = match[3] + '-' + match[2];
+        // 2/3/4) Tem barras: extrai 3 grupos numéricos
+        var m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if(m2) {
+          var p1 = parseInt(m2[1], 10);
+          var p2 = parseInt(m2[2], 10);
+          var anoRaw = m2[3];
+          var ano = parseInt(anoRaw, 10);
+          if(anoRaw.length === 2) ano += 2000; // "26" → 2026
+          // Determina se é DD/MM ou MM/DD baseado nos valores
+          // - Se p1 > 12: só pode ser DIA → formato D/M (BR)
+          // - Se p2 > 12: só pode ser DIA → formato M/D (US)
+          // - Ambos ≤ 12: ambíguo. Magazord exporta MM/DD/YY (americano), assume essa heurística como default.
+          var mes;
+          if(p1 > 12)      { mes = p2; }      // DD/MM
+          else if(p2 > 12) { mes = p1; }      // MM/DD
+          else             { mes = p1; }      // ambos ≤ 12, default MM/DD (americano)
+          if(mes >= 1 && mes <= 12) {
+            ym = ano + '-' + String(mes).padStart(2,'0');
+          }
+        }
       }
+      if(!ym) return;
       mesesUnicos[ym] = true;
     });
 
