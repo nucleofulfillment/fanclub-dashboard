@@ -1794,9 +1794,12 @@ body.light { filter: saturate(0.85); }
   <!-- Seção Pagamento vazia (canvas movido acima) -->
   <div id="pag-placeholder" style="display:none"></div>
 
+  <!-- 🆕 FIX30BQ — GMV por Estado e Ranking por Cidade OCULTOS por enquanto.
+       Voltarão quando integrado via API (Magazord). Por hora não agregam valor real
+       sem dados precisos. Pra reativar: trocar style="display:none" por "" abaixo. -->
   <!-- GMV por Estado -->
-  <div class="slabel">vendas por estado</div>
-  <div class="g2 fu" style="margin-bottom:14px">
+  <div class="slabel" style="display:none">vendas por estado</div>
+  <div class="g2 fu" style="margin-bottom:14px;display:none">
     <div class="card">
       <div class="ch">
         <div><div class="ct">GMV por Estado</div><div class="cs">Distribuição geográfica de vendas</div></div>
@@ -3740,7 +3743,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BO-PROGRESS-V3';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BQ-MULTI-AJUSTES';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -8647,6 +8650,14 @@ var VELTRO_BELL_KEY = 'veltro_bell_lidas';
    tags: array de tags coloridas (ex: ['Novo', 'Visual'])
    desc: descrição em uma frase */
 var VELTRO_NOVIDADES = [
+  {
+    id: 'fix30bp-midia-detectores',
+    data: '30/04',
+    titulo: 'Diagnósticos de variação de mídia',
+    tags: ['Novo', 'Raio X'],
+    cor: '#10B981',
+    desc: 'Adicionados 2 novos detectores: variação brusca do gasto total de mídia (D-1 vs média 4 dias) e variação por canal (Shopee, Meta, Google, etc). Threshold respeita a sensibilidade escolhida. Detector de "mídia não lançada" agora cobre só 5 dias (alinhado com a janela do diagnóstico).'
+  },
   {
     id: 'fix30bm-sensibilidade',
     data: '30/04',
@@ -22239,9 +22250,10 @@ function raioxGerarDiagnosticos(analise) {
       });
 
       // 🆕 FIX30BK — Usa a mesma data de referência das outras análises (maxData − 1).
-      // Antes: usava `new Date()` (hoje real do navegador) → apontava o dia descartado
-      //        pelo FIX30BG como "sem mídia" mesmo quando a planilha estava OK.
-      // Agora: pega maxData de allRows e recua 1 dia (igual raioxVendasPorDia).
+      // 🆕 FIX30BP — Janela ALINHADA com diagnósticos: olha apenas os últimos 5 dias úteis
+      //              (D-1 a D-5) em vez de 14 dias. Antes alertava dias fora do escopo
+      //              do diagnóstico, gerando ruído e confundindo o usuário.
+      // Também: log diagnóstico no console pra debugar quando dispara incorretamente.
       var hoje;
       try {
         var dataIdxMax = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
@@ -22263,17 +22275,19 @@ function raioxGerarDiagnosticos(analise) {
         hoje.setHours(0,0,0,0);
       }
       var diasSemMidia = [];
-      for(var i = 1; i <= 14; i++) {
+      var diagMidiaLog = []; // pra debug
+      // 🆕 FIX30BP — Varre só os últimos 5 dias úteis (D-1 a D-5), igual janela diagnóstica
+      for(var i = 1; i <= 5; i++) {
         var d = new Date(hoje);
-        d.setDate(d.getDate() - i);
-        var wd = d.getDay(); // 0=dom, 1=seg, ..., 6=sáb
-        // Verifica todo dia (Loja Própria deveria lançar todo dia)
+        d.setDate(d.getDate() - (i - 1)); // i=1 → D-1 (hoje recuado 1), ..., i=5 → D-5
+        var wd = d.getDay(); // 0=dom, 6=sáb
         var key = d.getFullYear() + '-' +
                   String(d.getMonth()+1).padStart(2,'0') + '-' +
                   String(d.getDate()).padStart(2,'0');
         var total = midiaPorDia[key] || 0;
-        // Tolerância: se sáb/dom, espera valor pequeno; se dia útil, espera valor maior
+        // Tolerância: se sáb/dom espera valor pequeno; dia útil R$ 1000+
         var minimoEsperado = (wd === 0 || wd === 6) ? 100 : 1000;
+        diagMidiaLog.push({ data: key, wd: wd, total: total, minimo: minimoEsperado, alerta: total < minimoEsperado });
         if(total < minimoEsperado) {
           diasSemMidia.push({
             data: key,
@@ -22282,11 +22296,22 @@ function raioxGerarDiagnosticos(analise) {
             label: String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')
           });
         }
-        if(diasSemMidia.length >= 3) break; // mostra no máximo 3
+      }
+      // Log diagnóstico (só dispara em F12 quando user investiga)
+      if(window._raioxDebugMidia) {
+        console.log('[Raio X · Mídia · Detector] Janela 5d analisada:', diagMidiaLog);
       }
 
       if(diasSemMidia.length > 0) {
         var labels = diasSemMidia.map(function(d){ return d.label; }).join(', ');
+        // 🆕 FIX30BQ — Log AUTOMÁTICO sempre que dispara, mostra os 5 dias avaliados
+        // pra facilitar diagnóstico quando o user reporta falso-positivo.
+        console.log('[Raio X · Mídia] ⚠️ Alerta "Mídia não lançada" disparou. Análise dos 5 dias:');
+        console.table(diagMidiaLog);
+        console.log('[Raio X · Mídia] Total de lançamentos em _fluxoV2Data.midia: ' + window._fluxoV2Data.midia.length);
+        console.log('[Raio X · Mídia] Datas distintas com lançamento: ' + Object.keys(midiaPorDia).length);
+        console.log('[Raio X · Mídia] Últimas 7 datas com mídia (chaves):',
+          Object.keys(midiaPorDia).sort().slice(-7));
         diags.push({
           tipo: 'midia-atrasada',
           severidade: 'atencao',
@@ -22297,6 +22322,183 @@ function raioxGerarDiagnosticos(analise) {
           simulado: false
         });
       }
+
+      // 🆕 FIX30BP — DETECTOR DE VARIAÇÃO BRUSCA TOTAL DE MÍDIA
+      // Compara gasto total de D-1 com média de D-2 a D-5. Se variação % passar
+      // do threshold de sensibilidade (cfg.varVendas), gera diagnóstico.
+      // Agnóstico de "lançada ou não" — foca em VARIAÇÃO, não em ausência.
+      // 🆕 FIX30BQ — Adicionado detector de OUTLIER INTERNO: se qualquer dia DA
+      // JANELA (não só D-1) tem variação muito grande vs média dos demais, alerta.
+      // Isso captura quedas/picos no MEIO da janela que o detector D-1-vs-média
+      // ignorava (ex: 28/04 caiu 99% mas 29/04 voltou ao normal).
+      try {
+        var diaD1 = new Date(hoje);
+        var d1Key = diaD1.getFullYear() + '-' + String(diaD1.getMonth()+1).padStart(2,'0') + '-' + String(diaD1.getDate()).padStart(2,'0');
+        var d1Valor = midiaPorDia[d1Key] || 0;
+        var soma234 = 0, n234 = 0;
+        for(var k = 2; k <= 5; k++) {
+          var dk = new Date(hoje); dk.setDate(dk.getDate() - (k - 1));
+          var dkKey = dk.getFullYear() + '-' + String(dk.getMonth()+1).padStart(2,'0') + '-' + String(dk.getDate()).padStart(2,'0');
+          if(midiaPorDia[dkKey] !== undefined && midiaPorDia[dkKey] > 0) {
+            soma234 += midiaPorDia[dkKey];
+            n234++;
+          }
+        }
+        var mediaAnt = n234 > 0 ? soma234 / n234 : 0;
+        if(mediaAnt > 100 && d1Valor >= 0) { // só dispara se média anterior é minimamente relevante
+          var variacao = ((d1Valor - mediaAnt) / mediaAnt) * 100;
+          var threshold = cfg.varVendas || 10; // mesma sensibilidade dos diagnósticos
+          if(Math.abs(variacao) >= threshold) {
+            var dataLabelD1 = String(diaD1.getDate()).padStart(2,'0')+'/'+String(diaD1.getMonth()+1).padStart(2,'0');
+            var sevMidia = Math.abs(variacao) >= threshold * 4 ? 'critico'
+                         : Math.abs(variacao) >= threshold * 2 ? 'alerta'
+                         : 'atencao';
+            var sentido = variacao < 0 ? 'caiu' : 'subiu';
+            var emoji = variacao < 0 ? '📉' : '📈';
+            var fmtBR = function(v){ return 'R$ ' + Math.round(v).toLocaleString('pt-BR'); };
+            diags.push({
+              tipo: 'midia-variacao-total',
+              severidade: sevMidia,
+              titulo: emoji+' Investimento em mídia '+sentido+' '+Math.abs(Math.round(variacao))+'% no dia '+dataLabelD1,
+              desc: 'D-1 ('+dataLabelD1+'): '+fmtBR(d1Valor)+' · média dos 4 dias anteriores: '+fmtBR(mediaAnt)+'.',
+              detalhe: variacao < 0
+                ? 'Gasto em ads caiu fortemente vs média recente. Verifique se campanhas pausaram, orçamento estourou ou se algum canal travou.'
+                : 'Gasto em ads aumentou fortemente vs média recente. Confira se foi planejado e se o ROAS está acompanhando.',
+              confianca: 90,
+              simulado: false
+            });
+          }
+        }
+
+        // 🆕 FIX30BQ — DETECTOR DE OUTLIER INTERNO NA JANELA 5d
+        // Pra CADA dia da janela, calcula sua diferença vs média dos OUTROS dias.
+        // Se algum dia tem variação anômala (>= threshold * 3 pra ser bem destoante),
+        // gera diagnóstico apontando esse dia específico.
+        try {
+          var valoresJanela = []; // {dataLabel, key, valor}
+          for(var dd = 1; dd <= 5; dd++) {
+            var dDay = new Date(hoje);
+            dDay.setDate(dDay.getDate() - (dd - 1));
+            var dDayKey = dDay.getFullYear() + '-' + String(dDay.getMonth()+1).padStart(2,'0') + '-' + String(dDay.getDate()).padStart(2,'0');
+            valoresJanela.push({
+              key: dDayKey,
+              dataLabel: String(dDay.getDate()).padStart(2,'0')+'/'+String(dDay.getMonth()+1).padStart(2,'0'),
+              valor: midiaPorDia[dDayKey] || 0
+            });
+          }
+          // Identifica o dia com maior desvio absoluto
+          var melhorOutlier = null;
+          valoresJanela.forEach(function(item, idx){
+            // Média dos OUTROS dias (exclui o próprio)
+            var outros = valoresJanela.filter(function(_, j){ return j !== idx; });
+            var soma = 0, cnt = 0;
+            outros.forEach(function(o){ if(o.valor > 0){ soma += o.valor; cnt++; } });
+            if(cnt < 2) return; // sem base suficiente
+            var media = soma / cnt;
+            if(media < 100) return; // valores muito baixos, ignora ruído
+            var varPct = ((item.valor - media) / media) * 100;
+            // Pra outlier interno, usa threshold DOBRADO do que o D-1 (3x sensibilidade)
+            // — só queremos sinalizar quando é REALMENTE um dia destoante.
+            var thrInterno = Math.max((cfg.varVendas || 10) * 3, 50); // mínimo 50% pra ser outlier
+            if(Math.abs(varPct) >= thrInterno) {
+              if(!melhorOutlier || Math.abs(varPct) > Math.abs(melhorOutlier.varPct)) {
+                melhorOutlier = {
+                  dataLabel: item.dataLabel,
+                  valor: item.valor,
+                  media: media,
+                  varPct: varPct,
+                  ehD1: idx === 0
+                };
+              }
+            }
+          });
+          // Reporta SE não for o D-1 (porque D-1 já tem detector próprio acima)
+          if(melhorOutlier && !melhorOutlier.ehD1) {
+            var sentidoO = melhorOutlier.varPct < 0 ? 'caiu' : 'subiu';
+            var emojiO = melhorOutlier.varPct < 0 ? '📉' : '📈';
+            var fmtBR3 = function(v){ return 'R$ ' + Math.round(v).toLocaleString('pt-BR'); };
+            var sevO = Math.abs(melhorOutlier.varPct) >= 90 ? 'critico'
+                     : Math.abs(melhorOutlier.varPct) >= 50 ? 'alerta'
+                     : 'atencao';
+            diags.push({
+              tipo: 'midia-outlier-interno',
+              severidade: sevO,
+              titulo: emojiO+' Mídia '+sentidoO+' '+Math.abs(Math.round(melhorOutlier.varPct))+'% em '+melhorOutlier.dataLabel,
+              desc: melhorOutlier.dataLabel+': '+fmtBR3(melhorOutlier.valor)+' · média dos outros dias da janela: '+fmtBR3(melhorOutlier.media)+'.',
+              detalhe: melhorOutlier.varPct < 0
+                ? 'Dia destoante na janela analisada. Pode ter havido pausa de campanhas, problema técnico ou esquecimento de lançamento na planilha.'
+                : 'Dia destoante na janela analisada. Pode ter havido reforço de orçamento, ou registro duplicado/incorreto.',
+              confianca: 88,
+              simulado: false
+            });
+          }
+        } catch(eOI) { console.warn('[Raio X] Erro detector outlier interno mídia:', eOI); }
+      } catch(eVarTotal) { console.warn('[Raio X] Erro detector variação mídia total:', eVarTotal); }
+
+      // 🆕 FIX30BP — DETECTOR DE VARIAÇÃO BRUSCA POR CANAL
+      // Quando 1 canal específico (Shopee, Meta, Google, etc) despenca ou explode
+      // de um dia pro outro. Captura migrações inesperadas de orçamento.
+      try {
+        // Reagrupa lançamentos por (canal, data)
+        var midiaPorCanalDia = {};
+        window._fluxoV2Data.midia.forEach(function(m){
+          if(!m.data) return;
+          var dt = m.data instanceof Date ? m.data : new Date(m.data);
+          if(isNaN(dt.getTime())) return;
+          var keyD = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+          var canal = m.canal || 'Outros';
+          if(!midiaPorCanalDia[canal]) midiaPorCanalDia[canal] = {};
+          midiaPorCanalDia[canal][keyD] = (midiaPorCanalDia[canal][keyD] || 0) + (m.valor || 0);
+        });
+
+        // Pra cada canal, calcula D-1 vs média D-2..D-5
+        var alertasCanal = [];
+        Object.keys(midiaPorCanalDia).forEach(function(canal){
+          var porDia = midiaPorCanalDia[canal];
+          var d1Date = new Date(hoje);
+          var d1k = d1Date.getFullYear() + '-' + String(d1Date.getMonth()+1).padStart(2,'0') + '-' + String(d1Date.getDate()).padStart(2,'0');
+          var v1 = porDia[d1k] || 0;
+          var soma = 0, n = 0;
+          for(var kk = 2; kk <= 5; kk++) {
+            var dx = new Date(hoje); dx.setDate(dx.getDate() - (kk - 1));
+            var dxk = dx.getFullYear() + '-' + String(dx.getMonth()+1).padStart(2,'0') + '-' + String(dx.getDate()).padStart(2,'0');
+            if(porDia[dxk] !== undefined && porDia[dxk] > 0) { soma += porDia[dxk]; n++; }
+          }
+          var media = n > 0 ? soma / n : 0;
+          if(media < 100) return; // canal pouco relevante, ignora
+          var varCanal = ((v1 - media) / media) * 100;
+          var thr = cfg.varVendas || 10;
+          if(Math.abs(varCanal) >= thr) {
+            alertasCanal.push({
+              canal: canal,
+              variacao: varCanal,
+              d1: v1,
+              media: media
+            });
+          }
+        });
+        // Ordena pelo % absoluto, mostra os top 3 piores
+        alertasCanal.sort(function(a,b){ return Math.abs(b.variacao) - Math.abs(a.variacao); });
+        alertasCanal.slice(0, 3).forEach(function(a){
+          var sevC = Math.abs(a.variacao) >= (cfg.varVendas||10) * 4 ? 'critico'
+                   : Math.abs(a.variacao) >= (cfg.varVendas||10) * 2 ? 'alerta'
+                   : 'atencao';
+          var sentidoC = a.variacao < 0 ? 'caiu' : 'subiu';
+          var emojiC = a.variacao < 0 ? '📉' : '📈';
+          var fmtBR2 = function(v){ return 'R$ ' + Math.round(v).toLocaleString('pt-BR'); };
+          diags.push({
+            tipo: 'midia-variacao-canal',
+            severidade: sevC,
+            titulo: emojiC+' Mídia em '+a.canal+' '+sentidoC+' '+Math.abs(Math.round(a.variacao))+'% (D-1)',
+            desc: 'D-1: '+fmtBR2(a.d1)+' · média dos 4 dias anteriores: '+fmtBR2(a.media)+'.',
+            detalhe: a.variacao < 0
+              ? 'Investimento em '+a.canal+' caiu fortemente. Campanha pausou? Orçamento esgotado?'
+              : 'Investimento em '+a.canal+' subiu fortemente. Foi planejado? Confira ROAS desse canal.',
+            confianca: 88,
+            simulado: false
+          });
+        });
+      } catch(eVarCanal) { console.warn('[Raio X] Erro detector variação mídia canal:', eVarCanal); }
     }
   } catch(eMidiaAtrasada) { console.warn('[Raio X] Erro detectando mídia atrasada:', eMidiaAtrasada); }
 
@@ -23123,8 +23325,21 @@ function raioxRender() {
   // 🆕 FIX30AR — labelJanela já definido no início do card do termômetro.
 
   // 🆕 FIX30BM — Sensibilidade do diagnóstico (threshold % que dispara alertas).
-  // Lê config atual (cfg.varVendas) pra montar o select com valor selecionado.
-  var sensAtual = (raioxGetConfig().varVendas || 15);
+  // 🆕 FIX30BP — Defensive snap: garante que valor salvo bate com 1 dos 5 níveis
+  //              (5/10/15/25/40). Se vier valor antigo (ex: 20), arredonda pro vizinho.
+  var sensRaw = (raioxGetConfig().varVendas || 10);
+  var nivelDisponiveis = [5, 10, 15, 25, 40];
+  var sensAtual = nivelDisponiveis.reduce(function(prev, cur){
+    return Math.abs(cur - sensRaw) < Math.abs(prev - sensRaw) ? cur : prev;
+  }, nivelDisponiveis[0]);
+  // Se o snap mudou o valor, salva imediato pra não ficar desincronizado
+  if(sensAtual !== sensRaw) {
+    try {
+      var cfgFix = raioxGetConfig();
+      cfgFix.varVendas = sensAtual;
+      raioxSaveConfig(cfgFix);
+    } catch(e) {}
+  }
   var optsSens = [
     { val:5,  label:'5% — muito sensível',  emoji:'🔬', desc:'Detecta variações pequenas (mais alertas)' },
     { val:10, label:'10% — sensível',        emoji:'🔍', desc:'Detecta variações moderadas' },
@@ -24745,7 +24960,8 @@ window.addEventListener('load', function() {
         <input type="text" id="cfg-url-estoque" placeholder="URL do Google Sheets (opcional)"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
       </div>
-      <div>
+      <!-- 🆕 FIX30BQ — GMV por Estado oculto (volta quando integrar via API) -->
+      <div style="display:none">
         <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#818CF8;text-transform:uppercase;margin-bottom:5px">🗺️ GMV por Estado</div>
         <input type="text" id="cfg-url-estados" placeholder="URL do Google Sheets (opcional)"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
@@ -24761,7 +24977,8 @@ window.addEventListener('load', function() {
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
         <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-top:4px">Detecta automático abas Mídia/Custos Fixos. Alimenta Marketing (mídia/canal) e Raio X (ROAS, CPA).</div>
       </div>
-      <div>
+      <!-- 🆕 FIX30BQ — Custo de Produtos oculto (será coberto pela planilha de Estoque) -->
+      <div style="display:none">
         <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#FBBF24;text-transform:uppercase;margin-bottom:5px">💰 Custo de Produtos</div>
         <input type="text" id="cfg-url-custo" placeholder="URL do Google Sheets (opcional)"
           style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;color-scheme:dark;box-sizing:border-box">
