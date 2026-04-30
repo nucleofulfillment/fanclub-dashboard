@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30G-FILTRO-BRINDES';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30H-CANAL-LP';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -20498,7 +20498,20 @@ function raioxVendasPorDia(diasJanela) {
     if(!resultado[key]) return;
 
     var v = parseFloat(String(r[valorIdx]||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
-    var canal = String(r[canalIdx] || 'Outros').trim() || 'Outros';
+    // 🆕 FIX30H — Padronização: canais marketplace vêm com prefixo "NN - Nome"
+    // (ex: "41 - Shopee", "70 - Shein"). Quando vazio/nulo = Loja Própria.
+    // Antes: virava "Outros", quebrando a separação MKT vs LP no gráfico.
+    var canalRaw = String(r[canalIdx] || '').trim();
+    var canal;
+    if(!canalRaw) {
+      canal = 'Loja Própria';
+    } else if(/^\d+\s*-\s*/.test(canalRaw)) {
+      // Tem prefixo numérico tipo "41 - Shopee" → marketplace
+      canal = canalRaw;
+    } else {
+      // Texto sem prefixo numérico = Loja Própria também (variações)
+      canal = 'Loja Própria';
+    }
 
     resultado[key].gmv += v;
     resultado[key].pedidos += 1;
@@ -21221,7 +21234,7 @@ function raioxRender() {
             '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Variação · janela <span style="color:var(--accent)">'+labelJanela+'</span> vs período anterior</div>'+
             _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resumo.vendas)+
             _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
-            _raioxLinhaIndicador('🏪', 'Loja Própria', '#FF8C42', resumo.lojaPropria)+
+            _raioxLinhaIndicador('🏪', 'Loja Própria', '#CBD5E1', resumo.lojaPropria)+
             _raioxLinhaMercado(resumo.mercado)+
             _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resumo.midia)+
             _raioxLinhaEstoque(resumo.estoque)+
@@ -21843,7 +21856,7 @@ function _raioxDesenharChart(dadosDiarios) {
       datasets.push({
         label: '🏪 Loja Própria 🔬',
         data: aux.lojaPropria.map(function(v){ return Math.round(v); }),
-        borderColor: '#FF8C42',
+        borderColor: '#CBD5E1',
         backgroundColor: 'transparent',
         borderWidth: cfgLp.borderWidth,
         fill: false,
@@ -22218,7 +22231,7 @@ function _raioxDesenharChart(dadosDiarios) {
                 ? '<div style="margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06)">'+
                     '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas · vs dia anterior</div>'+
                     (marketplaceV !== null ? _linha('🛒', 'Marketplace 🔬', marketplaceV, marketplaceAnt, false, '#FCD34D') : '')+
-                    (lojaPropriaV !== null ? _linha('🏪', 'Loja Própria 🔬', lojaPropriaV, lojaPropriaAnt, false, '#FF8C42') : '')+
+                    (lojaPropriaV !== null ? _linha('🏪', 'Loja Própria 🔬', lojaPropriaV, lojaPropriaAnt, false, '#CBD5E1') : '')+
                     (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, midiaAnt, false, '#FB923C') : '')+
                     (estoqueV !== null ? _linhaEstoque(estoqueV, estoqueAnt, '#EC4899') : '')+
                     (mercadoV !== null ? _linhaMercado(mercadoV, idx, '#A78BFA') : '')+
