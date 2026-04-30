@@ -3525,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AU-DIAG-TEXTO';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AW-CURVA-SENSIVEL';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21242,47 +21242,66 @@ function raioxAnaliseEstoque() {
 /* Calcula score do termômetro (0-100) e cor */
 function raioxCalcularTermometro(analise) {
   var cfg = raioxGetConfig();
-  var sens = cfg.sensibilidade; // 1-5
 
-  // Pontuação inicial: 100 (saudável)
-  var score = 100;
+  // 🆕 FIX30AV — Score simplificado: começa em 100 (saudável) e cai conforme variação.
+  // Antes: somava penalidades múltiplas (vendas + estoque + canais) com caps que
+  // colidiam → janelas diferentes batiam no mesmo "piso" coincidentemente.
+  // Agora: regra única clara baseada na variação real do GMV total.
+  //
+  // Mapa: variação → score
+  //   +20% ou mais  → 100 (excelente)
+  //   +5%           → 95
+  //   0% (estável)  → 90
+  //   -5%           → 80
+  //   -10%          → 70
+  //   -25%          → 50
+  //   -50%          → 25
+  //   -75%+         → 0 (crítico)
+  //
+  // Modificadores secundários (cada um -5 pts no máx):
+  //   - Estoque em ruptura: até -10 pts
+  //   - Canais em queda forte (>2x cfg.varVendas): até -10 pts
   var fatores = [];
+  var score;
 
-  // 🆕 FIX30AT — Penalidades escalam proporcionalmente sem cap baixo.
-  // Antes: cap de 40/35/20 fazia janelas com queda forte (>-67%) baterem todas no
-  // mesmo limite, gerando scores idênticos (todos 40). Agora: cap mais alto e
-  // escala mais sensível pra diferenciar variações grandes.
-  // Vendas: penalidade escala 0..70 conforme magnitude da queda
-  if(analise.vendas && analise.vendas.varGmv < -cfg.varVendas) {
-    var queda = Math.abs(analise.vendas.varGmv);
-    // 0-10% queda → penal 0-15 | 10-30% → 15-35 | 30-50% → 35-50 | 50+% → 50-70
-    var penal;
-    if(queda <= 10)      penal = queda * 1.5;                  // 0-15
-    else if(queda <= 30) penal = 15 + (queda - 10);            // 15-35
-    else if(queda <= 50) penal = 35 + (queda - 30) * 0.75;     // 35-50
-    else                 penal = 50 + Math.min(20, (queda - 50) * 0.4); // 50-70
-    penal = penal * (sens / 3); // sensibilidade modula (default sens=3 → factor 1.0)
-    penal = Math.min(70, penal);
-    score -= penal;
-    fatores.push({ tipo: 'vendas-queda', peso: penal, descr: 'Vendas caíram ' + queda + '%' });
-  } else if(analise.vendas && analise.vendas.varGmv > cfg.varVendas) {
-    fatores.push({ tipo: 'vendas-alta', peso: 0, descr: 'Vendas subiram ' + analise.vendas.varGmv + '%' });
+  var varGmv = (analise.vendas && typeof analise.vendas.varGmv === 'number') ? analise.vendas.varGmv : 0;
+
+  // 🆕 FIX30AW — Curva REVISADA: mais sensível na faixa de queda forte (-30% a -80%).
+  // Antes (FIX30AV): -50%→25, -75%→12, -100%→0. Janelas com queda forte ficavam
+  // todas comprimidas no rodapé (12-25), parecendo iguais visualmente.
+  // Agora: distribui mais a faixa de quedas grandes:
+  //   -10% → 70 | -20% → 55 | -30% → 45 | -40% → 35 | -50% → 28 | -65% → 18 | -80% → 10 | -100% → 0
+  // Diferença entre -65% e -80% agora é 8 pts (era ~3) → janelas se diferenciam.
+  if(varGmv >= 20)        score = 100;
+  else if(varGmv >= 0)    score = 90 + varGmv * 0.5;                  // 0% → 90, +20% → 100
+  else if(varGmv >= -10)  score = 90 + varGmv * 2;                     // 0% → 90, -10% → 70
+  else if(varGmv >= -30)  score = 70 + (varGmv + 10) * 1.25;           // -10% → 70, -30% → 45
+  else if(varGmv >= -50)  score = 45 + (varGmv + 30) * 0.85;           // -30% → 45, -50% → 28
+  else if(varGmv >= -80)  score = 28 + (varGmv + 50) * 0.6;            // -50% → 28, -80% → 10
+  else                    score = Math.max(0, 10 + (varGmv + 80) * 0.5); // -80% → 10, -100% → 0
+
+  // Registra fator principal
+  if(varGmv < -3) {
+    fatores.push({ tipo: 'vendas-queda', peso: 100 - score, descr: 'Vendas caíram ' + Math.abs(varGmv) + '%' });
+  } else if(varGmv > 3) {
+    fatores.push({ tipo: 'vendas-alta', peso: 0, descr: 'Vendas subiram ' + varGmv + '%' });
+  } else {
+    fatores.push({ tipo: 'vendas-estavel', peso: 0, descr: 'Vendas estáveis (' + (varGmv >= 0 ? '+' : '') + varGmv + '%)' });
   }
 
-  // Estoque: penalidade escalada (cap 35)
+  // Modificador 1: estoque em ruptura (-10 pts máx)
   if(analise.estoque && analise.estoque.percRuptura > 0) {
-    var penalEst = Math.min(35, analise.estoque.percRuptura * sens * 0.5);
+    var penalEst = Math.min(10, analise.estoque.percRuptura * 0.2);
     score -= penalEst;
-    fatores.push({ tipo: 'estoque-ruptura', peso: penalEst, descr: analise.estoque.skusRuptura + ' de ' + analise.estoque.totalSkusA + ' SKUs Curva A em ruptura' });
+    fatores.push({ tipo: 'estoque-ruptura', peso: penalEst, descr: analise.estoque.skusRuptura + ' SKUs Curva A em ruptura' });
   }
 
-  // Canais com queda forte: cap mais alto (era 20, agora 30)
+  // Modificador 2: canais com queda muito forte (-10 pts máx, só conta o pior)
   if(analise.vendas && analise.vendas.canais) {
     var canaisCriticos = analise.vendas.canais.filter(function(c){ return c.variacao < -cfg.varVendas * 1.5; });
     if(canaisCriticos.length > 0) {
-      // Penalidade soma a magnitude das quedas individuais (não só conta canais)
-      var totalMagnitude = canaisCriticos.reduce(function(s,c){ return s + Math.abs(c.variacao); }, 0);
-      var penalCanal = Math.min(30, canaisCriticos.length * 3 + totalMagnitude * 0.05);
+      // Max -10 pontos, escala por nº de canais
+      var penalCanal = Math.min(10, canaisCriticos.length * 2);
       score -= penalCanal;
       fatores.push({ tipo: 'canal-queda', peso: penalCanal, descr: canaisCriticos.length + ' canal(is) com queda forte' });
     }
@@ -21939,8 +21958,9 @@ function raioxRender() {
       '• 0-39: Crítico (vermelho)\n\n' +
       'Calculado com base em queda de vendas, estoque crítico e canais em queda.';
     return '<div style="flex:1;text-align:center;min-width:120px" title="'+tooltipScore+'">'+
-      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+
-        'Janela <span style="color:var(--accent);font-weight:700">'+janelaLabel+'</span>'+
+      // 🆕 FIX30AV — Removido "Janela" do label (só "24H" / "10 DIAS" / "30 DIAS")
+      '<div style="font-family:var(--fmono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:700">'+
+        janelaLabel+
       '</div>'+
       _raioxRenderGauge(trm, instanciaId)+
       '<div style="font-family:var(--fhead);font-size:12px;font-weight:700;color:'+trm.cor+';margin-top:8px">'+trm.icone+' '+trm.label+'</div>'+
