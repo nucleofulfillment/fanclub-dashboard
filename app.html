@@ -3525,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AH-DIAG-REAL-ONLY';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AL-PADRAO-VISUAL';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21306,13 +21306,15 @@ function raioxGerarDiagnosticos(analise) {
   var cfg = raioxGetConfig();
   var diags = [];
 
-  // 🆕 FIX30AH — Janela ativa do diagnóstico (D-1 vs D-N).
-  // Usa diasAnaliseInterpretacao (setado em raioxRender) ao invés de cfg.dias hardcoded.
-  // Texto resultante: "GMV caiu 30% comparado a 10 dias atrás" (em vez de "últimos 7 dias").
+  // 🆕 FIX30AJ — Texto da comparação usa o label da janela ativa (24h, 10 dias, 30 dias).
+  // Mais consistente com o seletor do gráfico — usuário escolheu "24h" → diagnóstico
+  // mostra "janela 24h", e sabe que está comparando início vs fim dessa janela.
   var diasJanela = window._raioxDiasInterpretacao || cfg.dias || 2;
   var labelComparacao;
-  if(diasJanela === 2) labelComparacao = 'vs ontem';
-  else                 labelComparacao = 'comparado a ' + diasJanela + ' dias atrás';
+  if(diasJanela === 2) labelComparacao = 'janela 24h';
+  else if(diasJanela === 10) labelComparacao = 'janela 10 dias';
+  else if(diasJanela === 30) labelComparacao = 'janela 30 dias';
+  else                       labelComparacao = 'janela ' + diasJanela + ' dias';
 
   // ─── Diagnósticos REAIS ───
 
@@ -21635,8 +21637,71 @@ function raioxRender() {
     };
   }
 
-  var term = raioxCalcularTermometro(analise);
-  var diags = raioxGerarDiagnosticos(analise);
+  // 🆕 FIX30AK — Calcula análise/termômetro/resumo para CADA uma das 3 janelas.
+  // O seletor 24h/10d/30d agora controla SÓ o gráfico — os 3 termômetros sempre
+  // aparecem lado a lado pra dar visão completa em todas as janelas de uma vez.
+  function _calcularJanela(diasN) {
+    var anal;
+    if(modoDemo !== 'real') {
+      // Demo: clona os dadosDiarios e recalcula com janela específica
+      var demoBase = raioxGerarDadosDemo(modoDemo);
+      if(demoBase.vendas && demoBase.vendas.dadosDiarios) {
+        anal = { vendas: _raioxRecalcularJanela(demoBase.vendas.dadosDiarios, diasN), estoque: demoBase.estoque };
+      } else {
+        anal = demoBase;
+      }
+    } else {
+      anal = { vendas: raioxComparaPeriodos(diasN), estoque: raioxAnaliseEstoque() };
+    }
+    var trm = raioxCalcularTermometro(anal);
+    // Resumo dos indicadores pra essa janela específica
+    var resm = null;
+    try {
+      var aux = raioxGerarLinhasAuxiliares(anal.vendas.dadosDiarios, modoDemo || 'real');
+      var keysAux = Object.keys(anal.vendas.dadosDiarios).sort();
+      function _calc(arr) {
+        if(!arr || arr.length < 2) return null;
+        var jan = arr.slice(-diasN);
+        if(jan.length < 2) return null;
+        var ini = jan[0], fim = jan[jan.length - 1];
+        if(!ini || ini === 0) {
+          for(var i = 1; i < jan.length - 1; i++) { if(jan[i]) { ini = jan[i]; break; } }
+          if(!ini) return fim > 0 ? 100 : null;
+        }
+        return Math.round(((fim - ini) / ini) * 100);
+      }
+      function _scoreM(arr) {
+        if(!arr || arr.length < 1) return null;
+        var jan = arr.slice(-diasN);
+        var s = 0, n = 0;
+        jan.forEach(function(v){ if(v !== undefined && v !== null){ s += v; n++; } });
+        return n === 0 ? null : Math.round(s / n);
+      }
+      var vArr = keysAux.map(function(k){ return anal.vendas.dadosDiarios[k].gmv || 0; });
+      resm = {
+        marketplace: _calc(aux.marketplace),
+        lojaPropria: _calc(aux.lojaPropria),
+        mercado:     _scoreM(aux.mercado),
+        midia:       _calc(aux.midia),
+        estoque:     _calc(aux.estoque),
+        vendas:      _calc(vArr)
+      };
+    } catch(e) {}
+    return { analise: anal, termometro: trm, resumo: resm };
+  }
+
+  var jan24h = _calcularJanela(2);
+  var jan10d = _calcularJanela(10);
+  var jan30d = _calcularJanela(30);
+
+  // O termômetro/diagnóstico do "atual" (usado em outras partes do render)
+  // continua sendo a janela ativa do gráfico — pra manter compatibilidade
+  // com o card de diagnósticos lateral e título.
+  var term = (janelaAtual === '24h') ? jan24h.termometro : (janelaAtual === '10d') ? jan10d.termometro : jan30d.termometro;
+  var resumo = (janelaAtual === '24h') ? jan24h.resumo    : (janelaAtual === '10d') ? jan10d.resumo    : jan30d.resumo;
+  var diags = raioxGerarDiagnosticos(
+    (janelaAtual === '24h') ? jan24h.analise : (janelaAtual === '10d') ? jan10d.analise : jan30d.analise
+  );
 
   // ─── HTML ──
 
@@ -21710,22 +21775,25 @@ function raioxRender() {
     try {
       var aux = raioxGerarLinhasAuxiliares(analise.vendas.dadosDiarios, modoDemo || 'real');
       var keysAux = Object.keys(analise.vendas.dadosDiarios).sort();
-      // Janela de comparação: dias da janela atual (mínimo 3)
+      // 🆕 FIX30AI — Janela = mesma do diagnóstico (D-1 vs D-N).
+      // Antes: comparava média dos últimos N vs média dos N anteriores → exigia 2N dias.
+      // Agora: pega só a janela visível (últimos N dias) e compara primeiro vs último.
       var nDias = diasAnaliseInterpretacao;
       function _calcVar(arr) {
-        if(!arr || arr.length < nDias * 2) return null;
-        // Compara últimos nDias vs nDias anteriores (média)
-        var recente = arr.slice(-nDias);
-        var anterior = arr.slice(-nDias * 2, -nDias);
-        function _avg(a) {
-          var s = 0, c = 0;
-          a.forEach(function(v){ if(v !== undefined && v !== null){ s += v; c++; } });
-          return c === 0 ? 0 : s / c;
+        if(!arr || arr.length < 2) return null;
+        // Pega só os últimos nDias (a janela visível)
+        var janela = arr.slice(-nDias);
+        if(janela.length < 2) return null;
+        var inicio = janela[0];                    // D-N
+        var fim    = janela[janela.length - 1];    // D-1
+        if(inicio === undefined || inicio === null || inicio === 0) {
+          // Se início é zero, evita divisão por zero — usa primeiro valor não-zero
+          for(var i = 1; i < janela.length - 1; i++) {
+            if(janela[i] && janela[i] !== 0) { inicio = janela[i]; break; }
+          }
+          if(!inicio || inicio === 0) return fim > 0 ? 100 : null;
         }
-        var avgR = _avg(recente);
-        var avgA = _avg(anterior);
-        if(avgA === 0) return null;
-        return Math.round(((avgR - avgA) / avgA) * 100);
+        return Math.round(((fim - inicio) / inicio) * 100);
       }
       var vendasArr = keysAux.map(function(k){ return analise.vendas.dadosDiarios[k].gmv || 0; });
 
@@ -21733,10 +21801,10 @@ function raioxRender() {
       // Calcula proporção de dias positivos na janela recente vs anterior
       // pra dar uma noção de "tendência geral".
       function _scoreMedio(arr) {
-        if(!arr || arr.length < nDias) return null;
-        var recente = arr.slice(-nDias);
+        if(!arr || arr.length < 1) return null;
+        var janela = arr.slice(-nDias);
         var soma = 0, n = 0;
-        recente.forEach(function(v){ if(v !== undefined && v !== null){ soma += v; n++; } });
+        janela.forEach(function(v){ if(v !== undefined && v !== null){ soma += v; n++; } });
         return n === 0 ? null : Math.round(soma / n);  // score médio na janela
       }
 
@@ -21796,54 +21864,59 @@ function raioxRender() {
     '</div>';
   }
 
-  // Helper: label legível da janela
-  var labelJanela = janelaAtual === '24h' ? '3 dias (mín)' : (janelaAtual === '10d' ? '10 dias' : '30 dias');
-  var avisoJanela24h = (janelaAtual === '24h')
-    ? '<div style="font-family:var(--fmono);font-size:9px;color:rgba(252,211,77,.85);background:rgba(252,211,77,.06);border-left:2px solid rgba(252,211,77,.50);padding:6px 8px;border-radius:4px;margin-bottom:10px;line-height:1.45">⚠️ Filtro 24h: termômetro e diagnósticos usam <strong>mínimo 3 dias</strong> pra ter validade estatística. Tooltip do gráfico mantém comparação 1d.</div>'
-    : '';
-
-  html +=
-    '<div class="card fu">'+
-      '<div class="ch">'+
+  // 🆕 FIX30AK — Helper que renderiza um termômetro COMPLETO de uma janela
+  // (gauge animado + label + variações + fatores). Usado 3x lado a lado.
+  function _renderTermometroJanela(janelaLabel, diasN, dadosJanela, instanciaId) {
+    var trm = dadosJanela.termometro;
+    var resm = dadosJanela.resumo;
+    return '<div class="card fu raiox-term-card" style="flex:1;min-width:280px">'+
+      '<div class="ch" style="margin-bottom:8px">'+
         '<div>'+
-          '<div class="ct">Termômetro do Negócio</div>'+
-          '<div class="cs">Pontuação geral · janela <strong style="color:var(--accent)">'+labelJanela+'</strong></div>'+
+          '<div class="ct" style="font-size:13px">Janela <span style="color:var(--accent)">'+janelaLabel+'</span></div>'+
+          '<div class="cs" style="font-size:10px">Pontuação geral · D-1 vs D-'+diasN+'</div>'+
         '</div>'+
       '</div>'+
-      avisoJanela24h+
-      '<div style="text-align:center;padding:10px 0 16px">'+
-        _raioxRenderGauge(term)+
-        '<div style="font-family:var(--fhead);font-size:15px;font-weight:700;color:'+term.cor+';margin-top:14px">'+term.icone+' '+term.label+'</div>'+
+      '<div style="text-align:center;padding:8px 0 12px">'+
+        _raioxRenderGauge(trm, instanciaId)+
+        '<div style="font-family:var(--fhead);font-size:13px;font-weight:700;color:'+trm.cor+';margin-top:10px">'+trm.icone+' '+trm.label+'</div>'+
       '</div>'+
-      // 🆕 BLOCO RESUMO — janela = mesma do termômetro
-      (resumo
-        ? '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Variação · janela <span style="color:var(--accent)">'+labelJanela+'</span> vs período anterior</div>'+
-            _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resumo.vendas)+
-            _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
-            _raioxLinhaIndicador('🏪', 'Loja Própria', '#CBD5E1', resumo.lojaPropria)+
-            _raioxLinhaMercado(resumo.mercado)+
-            _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resumo.midia)+
-            _raioxLinhaEstoque(resumo.estoque)+
+      // Resumo (variações)
+      (resm
+        ? '<div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px">'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Variação · '+janelaLabel+'</div>'+
+            _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resm.vendas)+
+            _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resm.marketplace)+
+            _raioxLinhaIndicador('🏪', 'Loja Própria', '#CBD5E1', resm.lojaPropria)+
+            _raioxLinhaMercado(resm.mercado)+
+            _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resm.midia)+
+            _raioxLinhaEstoque(resm.estoque)+
           '</div>'
         : ''
       )+
-      // Fatores compactos
-      '<div style="border-top:1px solid var(--border);padding-top:12px">'+
-        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fatores · impacto no score</div>'+
-        (term.fatores.length > 0
-          ? term.fatores.map(function(f){
+      // Fatores
+      '<div style="border-top:1px solid var(--border);padding-top:10px">'+
+        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Fatores · impacto no score</div>'+
+        (trm.fatores.length > 0
+          ? trm.fatores.map(function(f){
             var corF = f.peso > 0 ? '#F43F5E' : '#10B981';
-            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-family:var(--fmono);font-size:10px">'+
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-family:var(--fmono);font-size:10px">'+
               '<span style="color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(f.descr)+'</span>'+
               (f.peso > 0
                 ? '<span style="color:'+corF+';font-weight:700;flex-shrink:0;margin-left:6px">−'+Math.round(f.peso)+'</span>'
                 : '<span style="color:'+corF+';font-weight:700;flex-shrink:0;margin-left:6px">✓</span>')+
             '</div>';
           }).join('')
-          : '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:center;padding:8px 0">Operação saudável</div>'
+          : '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:center;padding:6px 0">Operação saudável</div>'
         ) +
       '</div>'+
+    '</div>';
+  }
+
+  html +=
+    '<div style="display:flex;gap:14px;flex-wrap:wrap">'+
+      _renderTermometroJanela('24h', 2, jan24h, 't24')+
+      _renderTermometroJanela('10 dias', 10, jan10d, 't10')+
+      _renderTermometroJanela('30 dias', 30, jan30d, 't30')+
     '</div>';
 
   // 🆕 FIX30L — Card Brindes REMOVIDO do Raio X (movido pro módulo Financeiro
@@ -22038,22 +22111,31 @@ function _raioxRenderAnaliseMidia() {
     var midiaA  = anterior.midia[canal] || 0;
     var st      = _statusTendencia(gmvR, gmvA);
 
+    // 🆕 FIX30AL — Padrão limpo igual Tabela de Performance / Fluxo de Caixa.
+    // Antes: chip com background colorido por canal — visual "pesado".
+    // Agora: nome do canal só com cor de texto da identidade do canal (sem background/borda).
     var canalCor = (typeof CCORES !== 'undefined' && CCORES[canal]) ? CCORES[canal] : '#94A3B8';
-    var chip = '<span class="cchip" style="background:'+canalCor+'18;color:'+canalCor+';border:1px solid '+canalCor+'33">'+canal+'</span>';
+    var nomeCanal = '<span style="color:'+canalCor+';font-weight:600">'+canal+'</span>';
 
     // Variação mídia (informativo)
     var pctMidia = (midiaA > 0) ? ((midiaR - midiaA) / midiaA * 100) : null;
     var pctMidiaTxt = (pctMidia !== null) ? ((pctMidia >= 0 ? '+' : '') + Math.round(pctMidia) + '%') : '—';
     var corMidia = (pctMidia === null) ? 'var(--muted)' : (pctMidia > 5 ? '#FB923C' : (pctMidia < -5 ? '#10B981' : 'var(--muted2)'));
 
-    return '<tr style="border-bottom:1px solid var(--s3)">'+
-      '<td style="padding:10px 8px">'+chip+'</td>'+
+    // 🆕 FIX30AL — Tendência GMV: só texto colorido, sem badge com fundo.
+    // Mantém a setinha pra indicar direção (▲/▼/→).
+    var setaTend = '';
+    if(st.label === 'em alta') setaTend = '▲';
+    else if(st.label === 'crítico' || st.label === 'atenção') setaTend = '▼';
+    else setaTend = '→';
+
+    return '<tr style="border-bottom:1px solid var(--border)">'+
+      '<td style="padding:10px 8px">'+nomeCanal+'</td>'+
       '<td style="padding:10px 8px;text-align:right;color:var(--text)">'+fR(gmvR)+'</td>'+
       '<td style="padding:10px 8px;text-align:right;color:#F472B6">'+fR(midiaR)+'</td>'+
       '<td style="padding:10px 8px;text-align:right;color:'+corMidia+';font-size:11px">'+pctMidiaTxt+'</td>'+
-      '<td style="padding:10px 8px;text-align:center">'+
-        '<span style="font-size:11px;padding:4px 10px;border-radius:5px;background:'+st.cor+'22;color:'+st.cor+';font-weight:600;letter-spacing:.3px">'+
-        st.emoji+' '+st.label+(st.pct?' '+st.pct:'')+'</span>'+
+      '<td style="padding:10px 8px;text-align:center;color:'+st.cor+';font-weight:600;font-size:12px">'+
+        setaTend+' '+st.label+(st.pct?' '+st.pct:'')+
       '</td>'+
     '</tr>';
   }).join('');
@@ -22067,14 +22149,18 @@ function _raioxRenderAnaliseMidia() {
   var pctMidiaTotal = (totMidiaA > 0) ? ((totMidiaR - totMidiaA) / totMidiaA * 100) : null;
   var pctMidiaTotalTxt = (pctMidiaTotal !== null) ? ((pctMidiaTotal >= 0 ? '+' : '') + Math.round(pctMidiaTotal) + '%') : '—';
 
+  var setaTendTotal = '';
+  if(stTotal.label === 'em alta') setaTendTotal = '▲';
+  else if(stTotal.label === 'crítico' || stTotal.label === 'atenção') setaTendTotal = '▼';
+  else setaTendTotal = '→';
+
   var totalRow = '<tr style="border-top:2px solid var(--s3);font-weight:700">'+
-    '<td style="padding:12px 8px;color:var(--muted);font-size:11px">TOTAL</td>'+
+    '<td style="padding:12px 8px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">TOTAL</td>'+
     '<td style="padding:12px 8px;text-align:right;color:var(--text)">'+fR(totGmvR)+'</td>'+
     '<td style="padding:12px 8px;text-align:right;color:#F472B6">'+fR(totMidiaR)+'</td>'+
     '<td style="padding:12px 8px;text-align:right;color:var(--muted2);font-size:11px">'+pctMidiaTotalTxt+'</td>'+
-    '<td style="padding:12px 8px;text-align:center">'+
-      '<span style="font-size:11px;padding:4px 10px;border-radius:5px;background:'+stTotal.cor+'22;color:'+stTotal.cor+';font-weight:600;letter-spacing:.3px">'+
-      stTotal.emoji+' '+stTotal.label+(stTotal.pct?' '+stTotal.pct:'')+'</span>'+
+    '<td style="padding:12px 8px;text-align:center;color:'+stTotal.cor+';font-weight:700;font-size:12px">'+
+      setaTendTotal+' '+stTotal.label+(stTotal.pct?' '+stTotal.pct:'')+
     '</td>'+
   '</tr>';
 
@@ -22096,7 +22182,7 @@ function _raioxRenderAnaliseMidia() {
 }
 
 /* SVG Gauge do termômetro — versão menor pra split */
-function _raioxRenderGauge(term) {
+function _raioxRenderGauge(term, instanciaId) {
   var size = 140;
   var stroke = 12;
   var radius = (size - stroke) / 2;
@@ -22104,23 +22190,66 @@ function _raioxRenderGauge(term) {
   var pct = term.score / 100;
   var dashOffset = circ * (1 - pct);
 
-  // 🆕 Glow filter ID único pra cada render
-  var glowId = 'raiox-glow-' + Math.floor(Math.random()*1e6);
+  // 🆕 IDs únicos por instância pra animar 3 gauges independentes
+  var iid = instanciaId || ('g'+Math.floor(Math.random()*1e6));
+  var glowId  = 'raiox-glow-'+iid;
+  var textId  = 'raiox-score-text-'+iid;
+  var arcId   = 'raiox-score-arc-'+iid;
+
+  // 🆕 FIX30AK — Animação contadora 0→score com cor cinza inicial → cor final.
+  // Roda assincronamente após o SVG entrar no DOM.
+  setTimeout(function(){
+    var textEl = document.getElementById(textId);
+    var arcEl = document.getElementById(arcId);
+    if(!textEl || !arcEl) return;
+    var alvo = term.score;
+    var corAlvo = term.cor;
+    var inicio = performance.now();
+    var dur = 900; // duração da animação (ms)
+    function tick(now){
+      var t = Math.min(1, (now - inicio) / dur);
+      // Easing out (cubic): cresce rápido e desacelera
+      var eased = 1 - Math.pow(1 - t, 3);
+      var valor = Math.round(alvo * eased);
+      textEl.textContent = valor;
+      // Cor: interpola de cinza pra cor final ao longo da animação
+      if(t < 1) {
+        // Interpola entre cinza neutro e a cor alvo
+        var r = parseInt(corAlvo.slice(4).split(',')[0], 10);
+        var g = parseInt(corAlvo.slice(4).split(',')[1], 10);
+        var b = parseInt(corAlvo.slice(4).split(',')[2], 10);
+        if(isNaN(r)) { textEl.style.fill = corAlvo; arcEl.style.stroke = corAlvo; }
+        else {
+          var cinzaR = 100, cinzaG = 100, cinzaB = 100;
+          var rr = Math.round(cinzaR + (r - cinzaR) * eased);
+          var gg = Math.round(cinzaG + (g - cinzaG) * eased);
+          var bb = Math.round(cinzaB + (b - cinzaB) * eased);
+          var corInterm = 'rgb('+rr+','+gg+','+bb+')';
+          textEl.style.fill = corInterm;
+          arcEl.style.stroke = corInterm;
+        }
+        requestAnimationFrame(tick);
+      } else {
+        textEl.textContent = alvo;
+        textEl.style.fill = corAlvo;
+        arcEl.style.stroke = corAlvo;
+      }
+    }
+    requestAnimationFrame(tick);
+  }, 60);
 
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="display:block;margin:0 auto;overflow:visible">'+
-    // Glow sutil pra dar "neon" no arco
     '<defs>'+
       '<filter id="'+glowId+'" x="-50%" y="-50%" width="200%" height="200%">'+
         '<feGaussianBlur stdDeviation="2.5" result="b"/>'+
         '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'+
       '</filter>'+
     '</defs>'+
-    // Trilho de fundo (cinza)
     '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="var(--s3)" stroke-width="'+stroke+'"/>'+
-    // Progresso — cor dinâmica conforme score (rosa→laranja→verde)
-    '<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="'+term.cor+'" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" filter="url(#'+glowId+')" style="transition:stroke-dashoffset .8s ease, stroke .6s ease"/>'+
-    // Texto central
-    '<text x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="38" font-weight="700" fill="'+term.cor+'">'+term.score+'</text>'+
+    // Inicia com cor cinza neutra; animação muda pra term.cor
+    '<circle id="'+arcId+'" cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+radius+'" fill="none" stroke="rgb(100,100,100)" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOffset+'" transform="rotate(-90 '+(size/2)+' '+(size/2)+')" filter="url(#'+glowId+')" style="transition:stroke-dashoffset .8s ease, stroke .9s ease"/>'+
+    // Texto começa em 0; animação contadora atualiza
+    '<text id="'+textId+'" x="50%" y="50%" text-anchor="middle" dy="-2" font-family="Syne,sans-serif" font-size="38" font-weight="700" fill="rgb(100,100,100)">0</text>'+
     '<text x="50%" y="50%" text-anchor="middle" dy="20" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--muted)">/ 100</text>'+
   '</svg>';
 }
