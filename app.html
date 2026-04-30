@@ -3473,7 +3473,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30L-FALLBACK-ZEROS';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30N-REGEX-BRINDE';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -4092,8 +4092,10 @@ function processarDados(pedidos) {
   for (var i=0; i<pedidos.length; i++) {
     var p = pedidos[i];
 
-    // 🆕 FIX30J — Detecta se é brinde (forma de pagamento "14 - Brinde")
-    var ehBrinde = /^14\s*-\s*Brinde$/i.test(String(p.pag || '').trim());
+    // 🆕 FIX30J/N — Detecta se é brinde. Aceita tanto raw "14 - Brinde" quanto
+    // normalizado "Brinde" (normPag converte "14 - Brinde" pra apenas "Brinde").
+    var pagStr = String(p.pag || '').trim();
+    var ehBrinde = /brinde/i.test(pagStr);
 
     // SEMPRE conta na forma de pagamento (pra Laluna ver os brindes na pizza)
     byPag[p.pag] = (byPag[p.pag]||0) + 1;
@@ -20565,8 +20567,8 @@ function _raioxEhBrinde(row) {
   if(!row) return false;
   var pagIdx = (typeof _colIdx !== 'undefined' && _colIdx.pag !== undefined) ? _colIdx.pag : 19;
   var forma = String(row[pagIdx] || '').trim();
-  // Match exato pra "14 - Brinde" (com tolerância a variações de espaço/case)
-  return /^14\s*-\s*Brinde$/i.test(forma);
+  // 🆕 FIX30N — Detecta brinde de forma ampla: "14 - Brinde", "Brinde", "Cortesia", etc.
+  return /brinde|cortesia/i.test(forma);
 }
 
 /* 🆕 FIX30G — Agrega dados de BRINDES no período (mesma janela do Raio X).
@@ -21932,6 +21934,21 @@ function _raioxDesenharChart(dadosDiarios) {
 
     // Linhas auxiliares — sempre computadas (pra tooltip), visibilidade controlada por foco
     var aux = raioxGerarLinhasAuxiliares(dadosDiarios, cenario);
+
+    // 🆕 FIX30M — As séries auxiliares (midia, estoque, mercado, marketplace, lojaPropria)
+    // são geradas com 30 dias SEMPRE (porque dadosDiarios tem 30 dias). Mas o gráfico
+    // mostra só `nExibir` dias (3, 10 ou 30). Sem este slice, o tooltip pegava o ÍNDICE
+    // ERRADO da série inteira → mostrava valor de OUTRO dia (LP > Vendas total).
+    // Fix: slice das séries pra alinhar com `keys` do gráfico.
+    var auxKeys = Object.keys(dadosDiarios).sort();
+    var sliceStart = auxKeys.length - keys.length;
+    if(sliceStart > 0) {
+      if(aux.midia)       aux.midia       = aux.midia.slice(sliceStart);
+      if(aux.estoque)     aux.estoque     = aux.estoque.slice(sliceStart);
+      if(aux.mercado)     aux.mercado     = aux.mercado.slice(sliceStart);
+      if(aux.marketplace) aux.marketplace = aux.marketplace.slice(sliceStart);
+      if(aux.lojaPropria) aux.lojaPropria = aux.lojaPropria.slice(sliceStart);
+    }
 
     var cfgMidia = _focoConfig('midia');
     datasets.push({
