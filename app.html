@@ -264,8 +264,14 @@ body::before {
   border: 1px solid var(--border2);
   border-radius: 6px;
   box-shadow: 0 6px 24px rgba(0,0,0,.5);
-  z-index: 100;
+  /* 🆕 FIX30AC — z-index muito alto pra ficar ACIMA dos cards (que tinham z-index implícito > 100). */
+  z-index: 9999;
   padding: 4px;
+}
+/* 🆕 FIX30AC — Garante que o wrapper crie contexto de empilhamento */
+.fmes-wrap {
+  position: relative;
+  z-index: 9998;
 }
 .fmes-menu .fmes-item {
   display: block;
@@ -3523,7 +3529,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AB-PRESETS-MAXDATA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AC-DROPDOWN-FIXES';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -5758,11 +5764,27 @@ function _atualizarDropdownMeses() {
       var ano = ym.slice(0,4);
       var mIdx = parseInt(ym.slice(5,7), 10) - 1;
       var nome = MES_NOMES[mIdx] || '';
+      // 🆕 FIX30AC — Sem onclick inline (escape de aspas com "Março" etc. quebrava o parsing).
+      // Usa data-attributes + delegação de evento via listener no menu.
       html += '<button type="button" class="fmes-item" data-ym="'+ym+'" '+
-              'onclick="selecionarMes(\''+ym+'\', \''+nome+' '+ano+'\')">'+
+              'data-label="'+nome+' '+ano+'">'+
               nome+' '+ano+'</button>';
     });
     menu.innerHTML = html;
+
+    // 🆕 FIX30AC — Listener delegado pra capturar clique em qualquer botão
+    // (substitui onclick inline que falhava por escape de aspas).
+    if(!menu._listenerInstalado) {
+      menu.addEventListener('click', function(ev){
+        var btn = ev.target.closest('.fmes-item');
+        if(!btn) return;
+        ev.stopPropagation();
+        var ym = btn.getAttribute('data-ym');
+        var label = btn.getAttribute('data-label');
+        if(typeof selecionarMes === 'function') selecionarMes(ym, label);
+      });
+      menu._listenerInstalado = true;
+    }
   } catch(e){ console.warn('[Filtro] Erro populando dropdown de meses:', e); }
 }
 
