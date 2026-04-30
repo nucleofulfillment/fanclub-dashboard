@@ -3525,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AQ-RAIOX-MKT-FIX';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AR-3GAUGES-1CARD';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21892,59 +21892,72 @@ function raioxRender() {
     '</div>';
   }
 
-  // 🆕 FIX30AK — Helper que renderiza um termômetro COMPLETO de uma janela
-  // (gauge animado + label + variações + fatores). Usado 3x lado a lado.
-  function _renderTermometroJanela(janelaLabel, diasN, dadosJanela, instanciaId) {
+  // 🆕 FIX30AR — Define labelJanela baseado na janela ativa.
+  var labelJanela = (janelaAtual === '24h') ? '24h' : (janelaAtual === '10d') ? '10 dias' : '30 dias';
+
+  // 🆕 FIX30AR — UM card só com os 3 gauges lado a lado.
+  // Antes (FIX30AK): 3 cards COMPLETOS lado a lado (gauge + variações + fatores em cada)
+  //   → ocupava muito espaço e replicava informação.
+  // Agora: 1 card com:
+  //   - Título "Termômetro do Negócio"
+  //   - 3 gauges lado a lado (24h | 10 dias | 30 dias) com label cada
+  //   - Variações (1 única seção, da janela ativa selecionada no gráfico)
+  //   - Fatores (1 única seção, da janela ativa)
+  function _renderGaugeMini(janelaLabel, diasN, dadosJanela, instanciaId) {
     var trm = dadosJanela.termometro;
-    var resm = dadosJanela.resumo;
-    return '<div class="card fu raiox-term-card" style="flex:1;min-width:280px">'+
-      '<div class="ch" style="margin-bottom:8px">'+
+    return '<div style="flex:1;text-align:center;min-width:140px">'+
+      '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+
+        'Janela <span style="color:var(--accent);font-weight:700">'+janelaLabel+'</span>'+
+      '</div>'+
+      _raioxRenderGauge(trm, instanciaId)+
+      '<div style="font-family:var(--fhead);font-size:12px;font-weight:700;color:'+trm.cor+';margin-top:8px">'+trm.icone+' '+trm.label+'</div>'+
+      '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:3px">D-1 vs D-'+diasN+'</div>'+
+    '</div>';
+  }
+
+  html +=
+    '<div class="card fu">'+
+      '<div class="ch">'+
         '<div>'+
-          '<div class="ct" style="font-size:13px">Janela <span style="color:var(--accent)">'+janelaLabel+'</span></div>'+
-          '<div class="cs" style="font-size:10px">Pontuação geral · D-1 vs D-'+diasN+'</div>'+
+          '<div class="ct">Termômetro do Negócio</div>'+
+          '<div class="cs">Pontuação geral nas 3 janelas · variações da janela ativa: <strong style="color:var(--accent)">'+labelJanela+'</strong></div>'+
         '</div>'+
       '</div>'+
-      '<div style="text-align:center;padding:8px 0 12px">'+
-        _raioxRenderGauge(trm, instanciaId)+
-        '<div style="font-family:var(--fhead);font-size:13px;font-weight:700;color:'+trm.cor+';margin-top:10px">'+trm.icone+' '+trm.label+'</div>'+
+      // 3 gauges lado a lado
+      '<div style="display:flex;gap:12px;justify-content:space-around;align-items:flex-start;padding:14px 0 18px;flex-wrap:wrap">'+
+        (function(){ try { return _renderGaugeMini('24h', 2, jan24h, 't24'); } catch(e){ console.error('[Raio X] erro gauge 24h:', e); return ''; } })()+
+        (function(){ try { return _renderGaugeMini('10 dias', 10, jan10d, 't10'); } catch(e){ console.error('[Raio X] erro gauge 10d:', e); return ''; } })()+
+        (function(){ try { return _renderGaugeMini('30 dias', 30, jan30d, 't30'); } catch(e){ console.error('[Raio X] erro gauge 30d:', e); return ''; } })()+
       '</div>'+
-      // Resumo (variações)
-      (resm
-        ? '<div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px">'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Variação · '+janelaLabel+'</div>'+
-            _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resm.vendas)+
-            _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resm.marketplace)+
-            _raioxLinhaIndicador('🏪', 'Loja Própria', '#CBD5E1', resm.lojaPropria)+
-            _raioxLinhaMercado(resm.mercado)+
-            _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resm.midia)+
-            _raioxLinhaEstoque(resm.estoque)+
+      // Resumo (variações) — janela ativa
+      (resumo
+        ? '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px">'+
+            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Variação · janela <span style="color:var(--accent)">'+labelJanela+'</span></div>'+
+            _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resumo.vendas)+
+            _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
+            _raioxLinhaIndicador('🏪', 'Loja Própria', '#CBD5E1', resumo.lojaPropria)+
+            _raioxLinhaMercado(resumo.mercado)+
+            _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resumo.midia)+
+            _raioxLinhaEstoque(resumo.estoque)+
           '</div>'
         : ''
       )+
-      // Fatores
-      '<div style="border-top:1px solid var(--border);padding-top:10px">'+
-        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Fatores · impacto no score</div>'+
-        (trm.fatores.length > 0
-          ? trm.fatores.map(function(f){
+      // Fatores compactos — janela ativa
+      '<div style="border-top:1px solid var(--border);padding-top:12px">'+
+        '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fatores · impacto no score (janela '+labelJanela+')</div>'+
+        (term.fatores.length > 0
+          ? term.fatores.map(function(f){
             var corF = f.peso > 0 ? '#F43F5E' : '#10B981';
-            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-family:var(--fmono);font-size:10px">'+
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-family:var(--fmono);font-size:10px">'+
               '<span style="color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(f.descr)+'</span>'+
               (f.peso > 0
                 ? '<span style="color:'+corF+';font-weight:700;flex-shrink:0;margin-left:6px">−'+Math.round(f.peso)+'</span>'
                 : '<span style="color:'+corF+';font-weight:700;flex-shrink:0;margin-left:6px">✓</span>')+
             '</div>';
           }).join('')
-          : '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:center;padding:6px 0">Operação saudável</div>'
+          : '<div style="font-family:var(--fmono);font-size:10px;color:var(--muted2);text-align:center;padding:8px 0">Operação saudável</div>'
         ) +
       '</div>'+
-    '</div>';
-  }
-
-  html +=
-    '<div style="display:flex;gap:14px;flex-wrap:wrap">'+
-      (function(){ try { return _renderTermometroJanela('24h', 2, jan24h, 't24'); } catch(e){ console.error('[Raio X] erro render 24h:', e); return ''; } })()+
-      (function(){ try { return _renderTermometroJanela('10 dias', 10, jan10d, 't10'); } catch(e){ console.error('[Raio X] erro render 10d:', e); return ''; } })()+
-      (function(){ try { return _renderTermometroJanela('30 dias', 30, jan30d, 't30'); } catch(e){ console.error('[Raio X] erro render 30d:', e); return ''; } })()+
     '</div>';
 
   // 🆕 FIX30L — Card Brindes REMOVIDO do Raio X (movido pro módulo Financeiro
@@ -21983,9 +21996,7 @@ function raioxRender() {
     ? diags
     : diags.filter(function(d){ return d.severidade === filtroAtivo; });
 
-  // 🆕 FIX30AQ — Define labelJanela baseado na janela ativa (era removido no FIX30AK
-  // mas continuava referenciado no card de Diagnósticos, derrubando todo o render).
-  var labelJanela = (janelaAtual === '24h') ? '24h' : (janelaAtual === '10d') ? '10 dias' : '30 dias';
+  // 🆕 FIX30AR — labelJanela já definido no início do card do termômetro.
 
   html +=
     '<div class="card fu">'+
