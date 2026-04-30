@@ -229,60 +229,71 @@ body::before {
 }
 .ftab:hover { border-color:var(--accent); color:var(--accent); background:rgba(110,231,183,.07); }
 .ftab.on { background:var(--s2); color:var(--text); border-color:var(--border2); box-shadow:0 1px 8px rgba(0,0,0,.4); }
-/* 🆕 Quando o .ftab é um <select> (dropdown de meses): manter visual de botão */
-select.ftab {
-  appearance:none; -webkit-appearance:none; -moz-appearance:none;
-  height:auto; line-height:1.2;
-  padding-right:24px;
-  background-color:transparent !important;
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: calc(100% - 12px) calc(50% - 1px), calc(100% - 7px) calc(50% - 1px);
-  background-size: 5px 5px;
-  background-repeat: no-repeat;
-  outline: none !important;
-  /* 🆕 FIX30T — Bloqueia ajuste forçado de cor do navegador (Chrome/Edge highlight) */
-  forced-color-adjust: none;
-  -webkit-forced-color-adjust: none;
-  color: var(--muted) !important;
+/* 🆕 FIX30Y — Dropdown customizado de meses (substitui o <select> nativo
+   que tinha highlight verde fluorescente impossível de remover no Chrome). */
+.fmes-btn {
+  position: relative;
+  background: transparent;
 }
-select.ftab:hover {
-  background-image: linear-gradient(45deg, transparent 50%, var(--accent) 50%),
-                    linear-gradient(135deg, var(--accent) 50%, transparent 50%) !important;
-  background-color:rgba(110,231,183,.07) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
+.fmes-btn::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid var(--muted);
+  transform: translateY(-50%);
+  transition: border-color .15s;
 }
-/* 🆕 FIX30O/T — Estado focused/active do select: sem highlight verde do browser.
-   Estilos do native browser são MUITO agressivos no select aberto. Força !important
-   em TUDO pra garantir que o tema escuro vença. */
-select.ftab:focus,
-select.ftab:focus-visible,
-select.ftab:active,
-select.ftab:focus-within {
-  background-color:rgba(110,231,183,.07) !important;
-  border-color:var(--accent) !important;
-  color:var(--accent) !important;
-  outline:none !important;
-  box-shadow:0 0 0 1px rgba(110,231,183,.20) !important;
+.fmes-btn:hover::after { border-top-color: var(--accent); }
+.fmes-btn.open::after {
+  border-top: 0;
+  border-bottom: 4px solid var(--accent);
 }
-/* 🆕 FIX30T — Quando o select recebe a classe `.on`, evita que o estilo .ftab.on
-   (background var(--s2)) crie efeito sanduíche estranho */
-select.ftab.on {
-  background-color: rgba(110,231,183,.10) !important;
-  color: var(--accent) !important;
-  border-color: var(--accent) !important;
+.fmes-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--s1);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.5);
+  z-index: 100;
+  padding: 4px;
 }
-select.ftab option {
-  background:var(--s1) !important;
-  color:var(--text) !important;
-  padding: 4px 8px;
+.fmes-menu .fmes-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--fhead);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .12s;
 }
-select.ftab option:checked,
-select.ftab option:hover {
-  background: rgba(110,231,183,.15) !important;
-  color: var(--accent) !important;
+.fmes-menu .fmes-item:hover {
+  background: rgba(110,231,183,.12);
+  color: var(--accent);
 }
+.fmes-menu .fmes-item.selected {
+  background: rgba(110,231,183,.18);
+  color: var(--accent);
+}
+.fmes-menu::-webkit-scrollbar { width: 6px; }
+.fmes-menu::-webkit-scrollbar-track { background: var(--s2); border-radius: 3px; }
+.fmes-menu::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 .fsep { width:1px; height:20px; background:var(--border2); flex-shrink:0; }
 
 /* ──────────── PROJEÇÃO ──────────── */
@@ -1408,10 +1419,18 @@ body.light body::before { opacity: 0; }
       <button class="ftab" onclick="setPreset('7d',this)">7 dias</button>
       <button class="ftab" onclick="setPreset('30d',this)">30 dias</button>
       <button class="ftab" onclick="setPreset('mes',this)">Este mês</button>
-      <select class="ftab" id="f-mes-sel" onchange="setPresetMes(this.value, this); this.value='';" style="cursor:pointer;padding:0 10px;height:30px;border-radius:6px" title="Selecionar um mês específico">
-        <option value="">▼ Outros meses</option>
-        <!-- Populado dinamicamente após carregar dados em _atualizarDropdownMeses() -->
-      </select>
+      <!-- 🆕 FIX30Y — Dropdown customizado (botão + menu absoluto). Substitui o
+           <select> nativo que tinha highlight verde fluorescente do navegador. -->
+      <div class="fmes-wrap" style="position:relative;display:inline-block">
+        <button class="ftab fmes-btn" id="f-mes-btn" type="button"
+                onclick="toggleMesDropdown(event)" title="Selecionar um mês específico"
+                style="padding-right:22px">
+          <span id="f-mes-btn-label">▼ Outros meses</span>
+        </button>
+        <div class="fmes-menu" id="f-mes-menu" style="display:none">
+          <!-- Populado por _atualizarDropdownMeses() -->
+        </div>
+      </div>
       <button class="ftab on" onclick="setPreset('tudo',this)">Tudo</button>
       <button class="ftab" id="preset-custom" style="display:none" onclick="event.preventDefault()" title="Período personalizado ativo">Personalizado</button>
     </div>
@@ -3504,7 +3523,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30W-MIDIA-FORCE-RECALC';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30Y-DROPDOWN-CUSTOM';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -5653,8 +5672,9 @@ function setPresetMes(mes, sel) {
    Lista do mais recente pro mais antigo. Limita a 24 meses pra não inflar. */
 function _atualizarDropdownMeses() {
   try {
-    var sel = document.getElementById('f-mes-sel');
-    if(!sel || typeof allRows === 'undefined' || !allRows.length) return;
+    // 🆕 FIX30Y — Popula o novo menu customizado em vez do <select> nativo.
+    var menu = document.getElementById('f-mes-menu');
+    if(!menu || typeof allRows === 'undefined' || !allRows.length) return;
 
     var dataIdx = (typeof _colIdx !== 'undefined' && _colIdx.data !== undefined) ? _colIdx.data : 6;
     var mesesUnicos = {};
@@ -5684,17 +5704,56 @@ function _atualizarDropdownMeses() {
     var MES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                      'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-    var optsHtml = '<option value="">▼ Outros meses</option>';
+    var html = '';
     listaMeses.forEach(function(ym){
       var ano = ym.slice(0,4);
       var mIdx = parseInt(ym.slice(5,7), 10) - 1;
       var nome = MES_NOMES[mIdx] || '';
-      optsHtml += '<option value="'+ym+'">'+nome+' '+ano+'</option>';
+      html += '<button type="button" class="fmes-item" data-ym="'+ym+'" '+
+              'onclick="selecionarMes(\''+ym+'\', \''+nome+' '+ano+'\')">'+
+              nome+' '+ano+'</button>';
     });
-
-    sel.innerHTML = optsHtml;
+    menu.innerHTML = html;
   } catch(e){ console.warn('[Filtro] Erro populando dropdown de meses:', e); }
 }
+
+/* 🆕 FIX30Y — Abre/fecha o menu customizado de meses */
+function toggleMesDropdown(e) {
+  if(e) e.stopPropagation();
+  var menu = document.getElementById('f-mes-menu');
+  var btn = document.getElementById('f-mes-btn');
+  if(!menu || !btn) return;
+  var aberto = menu.style.display === 'block';
+  if(aberto) {
+    menu.style.display = 'none';
+    btn.classList.remove('open');
+  } else {
+    menu.style.display = 'block';
+    btn.classList.add('open');
+  }
+}
+
+/* 🆕 FIX30Y — Seleciona um mês do dropdown customizado */
+function selecionarMes(ym, label) {
+  var menu = document.getElementById('f-mes-menu');
+  var btn = document.getElementById('f-mes-btn');
+  var lbl = document.getElementById('f-mes-btn-label');
+  if(menu) menu.style.display = 'none';
+  if(btn) btn.classList.remove('open');
+  if(lbl) lbl.textContent = label || '▼ Outros meses';
+  if(typeof setPresetMes === 'function') setPresetMes(ym, btn);
+}
+
+/* 🆕 FIX30Y — Fecha o dropdown ao clicar fora */
+document.addEventListener('click', function(e){
+  var btn = document.getElementById('f-mes-btn');
+  var menu = document.getElementById('f-mes-menu');
+  if(!btn || !menu) return;
+  if(menu.style.display !== 'block') return;
+  if(btn.contains(e.target) || menu.contains(e.target)) return;
+  menu.style.display = 'none';
+  btn.classList.remove('open');
+});
 
 /* Detectar se o filtro atual bate com algum preset oficial e marcar o botão certo.
    Se não bater com nenhum, ativa "Personalizado". Chamado após applyFilter(). */
@@ -7482,8 +7541,62 @@ async function refresh(){
     }
     if(typeof loadCustoProdutos === 'function') loadCustoProdutos(); // custo real (legado)
     // ⚡ Fluxo V2 — Mídia + Custos Fixos (alimenta Marketing automático e Raio X)
-    if(typeof loadFluxoV2 === 'function' && localStorage.getItem('fc_fluxo_v2_url')) {
-      loadFluxoV2().catch(function(e){ console.warn('[FluxoV2] Falha no boot:', e); });
+    // 🆕 FIX30X — Espelha fc_url → fc_fluxo_v2_url no boot. Antes: o espelho só
+    // acontecia DENTRO de _fcLoadV2, mas o boot só chamava loadFluxoV2 se fc_fluxo_v2_url
+    // já existisse. Era um catch-22: nunca rodava na 1ª sessão sem entrar no menu Fluxo.
+    if(typeof loadFluxoV2 === 'function') {
+      var fcv2Url = localStorage.getItem('fc_fluxo_v2_url') || localStorage.getItem('fc_url') || '';
+      if(fcv2Url) {
+        if(!localStorage.getItem('fc_fluxo_v2_url')) {
+          localStorage.setItem('fc_fluxo_v2_url', fcv2Url);
+          console.log('[FluxoV2 boot] 🔧 Espelhando fc_url → fc_fluxo_v2_url');
+        }
+
+        // 🆕 FIX30X — Se _fcDados ainda não foi populado, dispara loadFluxoCaixa primeiro.
+        // Antes: loadFluxoV2 saía cedo ("aguardando motor v2") e ninguém populava _fcDados
+        // até o usuário entrar no menu Fluxo. Agora: dispara em background no boot.
+        var precisaCarregarFC = (typeof _fcDados === 'undefined' || !_fcDados || !_fcDados.length);
+        if(precisaCarregarFC && typeof loadFluxoCaixa === 'function') {
+          console.log('[FluxoV2 boot] 🔄 _fcDados vazio — disparando loadFluxoCaixa pra popular...');
+          // loadFluxoCaixa NÃO retorna Promise, então usamos polling pra detectar conclusão.
+          // Quando _fcDados for populado, dispara loadFluxoV2 + re-render do Financeiro.
+          try { loadFluxoCaixa(); } catch(eFC) { console.warn('[FluxoV2 boot] loadFluxoCaixa falhou:', eFC); }
+          // Polling: aguarda _fcDados ficar populado (max 30s)
+          var tentativas = 0;
+          var waitFC = setInterval(function(){
+            tentativas++;
+            if(typeof _fcDados !== 'undefined' && _fcDados && _fcDados.length > 0) {
+              clearInterval(waitFC);
+              console.log('[FluxoV2 boot] ✅ _fcDados pronto após '+tentativas+' tentativas, derivando mídia...');
+              loadFluxoV2().then(function(){
+                console.log('[FluxoV2 boot] ✅ loadFluxoV2 concluído');
+                try {
+                  var pgFin = document.getElementById('page-financeiro');
+                  if(pgFin && pgFin.classList.contains('active') && typeof applyFilterFin === 'function') {
+                    applyFilterFin();
+                  }
+                } catch(eFin) {}
+              });
+            } else if(tentativas >= 60) {
+              clearInterval(waitFC);
+              console.warn('[FluxoV2 boot] ⏱️ Timeout aguardando _fcDados (30s)');
+            }
+          }, 500);
+        } else {
+          // _fcDados já populado, só deriva
+          loadFluxoV2().then(function(){
+            console.log('[FluxoV2 boot] ✅ loadFluxoV2 concluído (cache)');
+            try {
+              var pgFin = document.getElementById('page-financeiro');
+              if(pgFin && pgFin.classList.contains('active') && typeof applyFilterFin === 'function') {
+                applyFilterFin();
+              }
+            } catch(eFin) {}
+          }).catch(function(e){ console.warn('[FluxoV2] Falha no boot:', e); });
+        }
+      } else {
+        console.log('[FluxoV2 boot] Sem URL — usuário precisa conectar a planilha pelo menu Fluxo');
+      }
     }
     applyFilter();
     document.getElementById('hdr-time').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
