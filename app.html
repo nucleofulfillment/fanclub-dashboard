@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30A-CUSTOFIXO-MIDIA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30B-ESTOQUE-MERCADO';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -20066,9 +20066,61 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
 
   var midiaReal = (cenario === 'real') ? _gerarSerieMidiaReal() : null;
   var midia       = midiaReal || _gerarSerie(p.midia,       0.85, 41);
-  var estoque     = _gerarSerie(p.estoque,     0.70, 23);
-  var mercado     = _gerarSerie(p.mercado,     0.95, 17);
   var marketplace = _gerarSerie(p.marketplace, 0.78, 29);
+
+  // 🆕 FIX30B — Estoque em UNIDADES (não R$)
+  // Conceito: estoque inicial estimado = 2 meses de giro (GMV mês ÷ ticket médio × 2)
+  // Consumo diário proporcional às vendas reais → cai conforme o tempo passa.
+  // Quando API real plugar (Magazord), substitui essa lógica pela leitura direta.
+  function _gerarSerieEstoqueUnidades() {
+    var TICKET_MEDIO = 165;   // R$/peça — ticket médio Laluna (config futura)
+    var COBERTURA_MESES = 2;  // estoque inicial cobre N meses de venda
+    // Vendas mensais estimadas (R$) = total da janela (média diária × 30)
+    var totalVendasJanela = valores.reduce(function(s,v){return s+v;}, 0);
+    var vendasMensaisEstim = (totalVendasJanela / valores.length) * 30;
+    var unidadesMensais = vendasMensaisEstim / TICKET_MEDIO;
+    var estoqueInicialUn = Math.round(unidadesMensais * COBERTURA_MESES);
+    // Distribui consumo proporcional às vendas do dia
+    var unidades = estoqueInicialUn;
+    return valores.map(function(v){
+      var consumoDia = Math.round(v / TICKET_MEDIO);
+      unidades = Math.max(0, unidades - consumoDia);
+      return unidades;
+    });
+  }
+
+  // 🆕 FIX30B — Mercado como DIAGNÓSTICO de tendência (não R$)
+  // Compara o movimento de Marketplace vs Loja Própria dia a dia.
+  // Score: -100 (queda forte ambos) ... 0 (neutro) ... +100 (alta forte ambos)
+  // O tooltip detecta esse score e renderiza o texto qualitativo
+  // ('Em alta', 'Em baixa', 'Migração pra LP', 'Migração pra MKT').
+  function _gerarSerieMercadoDiagnostico() {
+    return keys.map(function(k, i){
+      if(i === 0) return 0;  // primeiro dia não tem comparação
+      var hoje = dadosDiarios[k];
+      var ontem = dadosDiarios[keys[i-1]];
+      if(!hoje || !ontem) return 0;
+      // Soma GMV de canais marketplace (tudo que NÃO é Loja Própria)
+      var mktHoje = 0, mktOntem = 0, lpHoje = 0, lpOntem = 0;
+      Object.keys(hoje.canais || {}).forEach(function(c){
+        if(c === 'Loja Própria') lpHoje += hoje.canais[c].gmv || 0;
+        else mktHoje += hoje.canais[c].gmv || 0;
+      });
+      Object.keys(ontem.canais || {}).forEach(function(c){
+        if(c === 'Loja Própria') lpOntem += ontem.canais[c].gmv || 0;
+        else mktOntem += ontem.canais[c].gmv || 0;
+      });
+      // Variação % por canal
+      var varMkt = mktOntem > 0 ? (mktHoje - mktOntem) / mktOntem : 0;
+      var varLp  = lpOntem  > 0 ? (lpHoje  - lpOntem)  / lpOntem  : 0;
+      // Score = média ponderada (limita -1..+1, depois × 100)
+      var score = Math.max(-1, Math.min(1, (varMkt + varLp) / 2)) * 100;
+      return Math.round(score);
+    });
+  }
+
+  var estoque = _gerarSerieEstoqueUnidades();
+  var mercado = _gerarSerieMercadoDiagnostico();
 
   return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace, midiaEhReal: !!midiaReal };
 }
@@ -20921,11 +20973,23 @@ function raioxRender() {
         return Math.round(((avgR - avgA) / avgA) * 100);
       }
       var vendasArr = keysAux.map(function(k){ return analise.vendas.dadosDiarios[k].gmv || 0; });
+
+      // 🆕 FIX30B — Mercado já é diagnóstico dia-a-dia (-100..+100).
+      // Calcula proporção de dias positivos na janela recente vs anterior
+      // pra dar uma noção de "tendência geral".
+      function _scoreMedio(arr) {
+        if(!arr || arr.length < nDias) return null;
+        var recente = arr.slice(-nDias);
+        var soma = 0, n = 0;
+        recente.forEach(function(v){ if(v !== undefined && v !== null){ soma += v; n++; } });
+        return n === 0 ? null : Math.round(soma / n);  // score médio na janela
+      }
+
       return {
         marketplace: _calcVar(aux.marketplace),
-        mercado:     _calcVar(aux.mercado),
+        mercado:     _scoreMedio(aux.mercado),     // score médio (-100..+100)
         midia:       _calcVar(aux.midia),
-        estoque:     _calcVar(aux.estoque),
+        estoque:     _calcVar(aux.estoque),         // variação % de unidades (faz sentido)
         vendas:      _calcVar(vendasArr)
       };
     } catch(e) { return null; }
@@ -20945,6 +21009,32 @@ function raioxRender() {
       '<div style="display:flex;align-items:center;gap:8px">'+
         '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+cor+';flex-shrink:0"></span>'+
         '<span style="color:var(--text);font-weight:500">'+emoji+' '+nome+'</span>'+
+      '</div>'+
+      _raioxPilula(pct)+
+    '</div>';
+  }
+  // 🆕 FIX30B — Linha especializada pra Mercado (mostra diagnóstico textual)
+  function _raioxLinhaMercado(scoreM) {
+    var label, corBadge;
+    if(scoreM === null || scoreM === undefined) {
+      label = '—'; corBadge = 'var(--muted)';
+    } else if(scoreM >= 5)        { label = '🔼 Em alta';     corBadge = '#10B981'; }
+    else if(scoreM <= -5)         { label = '🔽 Em baixa';    corBadge = '#F43F5E'; }
+    else                           { label = '─ Estável';      corBadge = 'var(--muted)'; }
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-family:var(--fmono);font-size:11px">'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#A78BFA;flex-shrink:0"></span>'+
+        '<span style="color:var(--text);font-weight:500">🌐 Mercado</span>'+
+      '</div>'+
+      '<span style="color:'+corBadge+';font-weight:700;font-family:var(--fmono);font-size:10px">'+label+'</span>'+
+    '</div>';
+  }
+  // 🆕 FIX30B — Linha especializada pra Estoque (sufixo "un" se positivo, sem prefixo R$)
+  function _raioxLinhaEstoque(pct) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-family:var(--fmono);font-size:11px">'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#EC4899;flex-shrink:0"></span>'+
+        '<span style="color:var(--text);font-weight:500">📦 Estoque <span style="color:var(--muted2);font-size:9px">(un)</span></span>'+
       '</div>'+
       _raioxPilula(pct)+
     '</div>';
@@ -20975,9 +21065,9 @@ function raioxRender() {
             '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Variação · janela <span style="color:var(--accent)">'+labelJanela+'</span> vs período anterior</div>'+
             _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resumo.vendas)+
             _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
-            _raioxLinhaIndicador('🌐', 'Mercado',     '#A78BFA', resumo.mercado)+
+            _raioxLinhaMercado(resumo.mercado)+
             _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resumo.midia)+
-            _raioxLinhaIndicador('📦', 'Estoque',     '#EC4899', resumo.estoque)+
+            _raioxLinhaEstoque(resumo.estoque)+
           '</div>'
         : ''
       )+
@@ -21744,6 +21834,46 @@ function _raioxDesenharChart(dadosDiarios) {
               if(v === null || v === undefined) return '—';
               return 'R$ ' + Math.round(v).toLocaleString('pt-BR');
             }
+            // 🆕 FIX30B — Estoque em UNIDADES
+            function _fmtUnidades(v) {
+              if(v === null || v === undefined) return '—';
+              return Math.round(v).toLocaleString('pt-BR') + ' un';
+            }
+            // 🆕 FIX30B — Mercado: score (-100..+100) → texto qualitativo + detalhe
+            function _diagnosticoMercado(scoreHoje, idxHoje) {
+              if(scoreHoje === null || scoreHoje === undefined) return { label: '—', cor: 'var(--muted)', detalhe: '' };
+              if(idxHoje <= 0) return { label: 'Sem comparação', cor: 'var(--muted)', detalhe: '' };
+              // Recalcula MKT% e LP% pra exibir no detalhe
+              var hoje = context.chart.data.labels && context.chart.data.labels[idxHoje]
+                ? (window._raioxDadosDiariosCache && window._raioxDadosDiariosCache[idxHoje])
+                : null;
+              // Como não temos cache direto, usamos as séries já calculadas
+              var mktV = _getValor('Marketplace', idxHoje);
+              var mktAnt = _getValor('Marketplace', idxHoje - 1);
+              var vendasV = _getValor('Vendas', idxHoje);
+              var vendasAnt = _getValor('Vendas', idxHoje - 1);
+              var lpV = (vendasV !== null && mktV !== null) ? (vendasV - mktV) : null;
+              var lpAnt = (vendasAnt !== null && mktAnt !== null) ? (vendasAnt - mktAnt) : null;
+              var pctMkt = (mktV !== null && mktAnt) ? Math.round(((mktV - mktAnt) / mktAnt) * 100) : null;
+              var pctLp  = (lpV !== null && lpAnt) ? Math.round(((lpV - lpAnt) / lpAnt) * 100) : null;
+              // Diagnóstico baseado nos sinais
+              var subiuMkt = pctMkt !== null && pctMkt > 2;
+              var subiuLp  = pctLp !== null && pctLp > 2;
+              var caiuMkt  = pctMkt !== null && pctMkt < -2;
+              var caiuLp   = pctLp !== null && pctLp < -2;
+              var label, cor;
+              if(subiuMkt && subiuLp)        { label = '🔼 Em alta';            cor = '#10B981'; }
+              else if(caiuMkt && caiuLp)     { label = '🔽 Em baixa';           cor = '#F43F5E'; }
+              else if(caiuMkt && subiuLp)    { label = '↗ Migração pra LP';     cor = '#FCD34D'; }
+              else if(subiuMkt && caiuLp)    { label = '↘ Migração pra MKT';    cor = '#FCD34D'; }
+              else                            { label = '─ Estável';             cor = 'var(--muted)'; }
+              var detalhe = '';
+              if(pctMkt !== null || pctLp !== null) {
+                detalhe = 'MKT ' + (pctMkt !== null ? (pctMkt >= 0 ? '+' : '') + pctMkt + '%' : '—') +
+                          ' · LP ' + (pctLp !== null ? (pctLp >= 0 ? '+' : '') + pctLp + '%' : '—');
+              }
+              return { label: label, cor: cor, detalhe: detalhe };
+            }
             function _linha(emoji, nome, valor, base, isPrincipal, corLinha) {
               var pct = base !== null ? _pct(valor, base) : null;
               var corNome = isPrincipal ? '#6EE7B7' : 'var(--text)';
@@ -21766,6 +21896,36 @@ function _raioxDesenharChart(dadosDiarios) {
                   '<span style="color:'+(isPrincipal ? corNome : 'var(--text)')+';font-weight:'+pesoNome+';font-family:\'Syne\',sans-serif;font-size:'+sizeValor+';font-variant-numeric:tabular-nums">'+_fmt(valor)+'</span>'+
                   (pct !== null ? _pilula(pct) : '')+
                 '</div>'+
+              '</div>';
+            }
+            // 🆕 FIX30B — Linha especializada pra Estoque (unidades)
+            function _linhaEstoque(valor, base, corLinha) {
+              var pct = base !== null ? _pct(valor, base) : null;
+              var bullet = '<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+corLinha+';flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,.04)"></span>';
+              return '<div style="padding:7px 0">'+
+                '<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">'+
+                  bullet+
+                  '<span style="color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:600;letter-spacing:.3px">Estoque <span style="color:var(--muted2);font-size:9px">🔬</span></span>'+
+                '</div>'+
+                '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-left:16px">'+
+                  '<span style="color:var(--text);font-weight:600;font-family:\'Syne\',sans-serif;font-size:13px;font-variant-numeric:tabular-nums">'+_fmtUnidades(valor)+'</span>'+
+                  (pct !== null ? _pilula(pct) : '')+
+                '</div>'+
+              '</div>';
+            }
+            // 🆕 FIX30B — Linha especializada pra Mercado (diagnóstico textual)
+            function _linhaMercado(scoreV, idxAtual, corLinha) {
+              var diag = _diagnosticoMercado(scoreV, idxAtual);
+              var bullet = '<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+corLinha+';flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,.04)"></span>';
+              return '<div style="padding:7px 0">'+
+                '<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">'+
+                  bullet+
+                  '<span style="color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:600;letter-spacing:.3px">Mercado <span style="color:var(--muted2);font-size:9px">🔬</span></span>'+
+                '</div>'+
+                '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-left:16px">'+
+                  '<span style="color:'+diag.cor+';font-weight:700;font-family:\'Syne\',sans-serif;font-size:13px">'+diag.label+'</span>'+
+                '</div>'+
+                (diag.detalhe ? '<div style="padding-left:16px;margin-top:3px;color:var(--muted2);font-family:\'JetBrains Mono\',monospace;font-size:9.5px">'+diag.detalhe+'</div>' : '')+
               '</div>';
             }
 
@@ -21807,8 +21967,8 @@ function _raioxDesenharChart(dadosDiarios) {
                     '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas · vs dia anterior</div>'+
                     (marketplaceV !== null ? _linha('🛒', 'Marketplace 🔬', marketplaceV, marketplaceAnt, false, '#FCD34D') : '')+
                     (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, midiaAnt, false, '#FB923C') : '')+
-                    (estoqueV !== null ? _linha('📦', 'Estoque 🔬', estoqueV, estoqueAnt, false, '#EC4899') : '')+
-                    (mercadoV !== null ? _linha('🌐', 'Mercado 🔬', mercadoV, mercadoAnt, false, '#A78BFA') : '')+
+                    (estoqueV !== null ? _linhaEstoque(estoqueV, estoqueAnt, '#EC4899') : '')+
+                    (mercadoV !== null ? _linhaMercado(mercadoV, idx, '#A78BFA') : '')+
                   '</div>'
                 : ''
               )+
