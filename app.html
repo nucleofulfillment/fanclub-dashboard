@@ -3743,7 +3743,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BR-MIDIA-MEDIA-CORRIGIDA';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BT-KEY-LOCAL';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21326,6 +21326,18 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
     ultimos.forEach(function(k){
       console.log('  '+k+': R$ '+porDia[k].toLocaleString('pt-BR',{minimumFractionDigits:2}));
     });
+    // 🆕 FIX30BT — Log de DIAGNÓSTICO DE MATCHING.
+    // Mostra dias do gráfico (keys do dadosDiarios) que NÃO bateram com nenhum
+    // dia indexado em porDia. Esses são os dias que aparecem como R$ 0 no tooltip.
+    var keysSemMatch = keys.filter(function(k){ return porDia[k] === undefined; });
+    if(keysSemMatch.length > 0) {
+      console.warn('[Raio X · Mídia · MISMATCH] ' + keysSemMatch.length + ' dia(s) do gráfico SEM mídia indexada:');
+      console.warn('  Keys do gráfico (dadosDiarios) — primeiras 5:', keys.slice(0, 5));
+      console.warn('  Keys do gráfico (dadosDiarios) — últimas 5:',  keys.slice(-5));
+      console.warn('  Keys de mídia (porDia) — primeiras 5:',         Object.keys(porDia).sort().slice(0, 5));
+      console.warn('  Keys de mídia (porDia) — últimas 5:',           Object.keys(porDia).sort().slice(-5));
+      console.warn('  Dias sem match — primeiras 10:',               keysSemMatch.slice(0, 10));
+    }
     return serie;
   }
 
@@ -21734,7 +21746,8 @@ function raioxAgregarBrindes(diasJanela) {
       resultado.valorProduto += valorProduto;
       resultado.valorFrete += valorFrete;
       resultado.valorTotal += valorTotal;
-      var key = d.toISOString().slice(0, 10);
+      // 🆕 FIX30BT — Usa key local (mesmo formato do _gerarSerieMidiaReal)
+      var key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
       resultado.porDia[key] = (resultado.porDia[key] || 0) + valorTotal;
     } else {
       // Não é brinde — soma no GMV real do período (pra calcular % depois)
@@ -21779,10 +21792,18 @@ function raioxVendasPorDia(diasJanela) {
   limite.setDate(limite.getDate() - diasJanela + 1);
 
   // Inicializa todos os dias da janela com zero
+  // 🆕 FIX30BT — Helper de key local (sem toISOString que pode shiftar timezone).
+  // O mesmo helper deve ser usado em todas as funções que comparam datas
+  // (raioxVendasPorDia ↔ _gerarSerieMidiaReal ↔ etc) pra garantir matching.
+  function _localKey(dt) {
+    return dt.getFullYear() + '-' +
+           String(dt.getMonth()+1).padStart(2,'0') + '-' +
+           String(dt.getDate()).padStart(2,'0');
+  }
   for(var i = 0; i < diasJanela; i++) {
     var d = new Date(limite);
     d.setDate(d.getDate() + i);
-    var key = d.toISOString().slice(0, 10);
+    var key = _localKey(d);
     resultado[key] = { gmv: 0, pedidos: 0, canais: {} };
   }
 
@@ -21798,7 +21819,7 @@ function raioxVendasPorDia(diasJanela) {
     if(!d) return;
     if(d < limite || d > hoje) return;
 
-    var key = d.toISOString().slice(0, 10);
+    var key = _localKey(d);
     if(!resultado[key]) return;
 
     var v = parseFloat(String(r[valorIdx]||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
@@ -22167,7 +22188,7 @@ function raioxGerarDiagnosticos(analise) {
       severidade: analise.vendas.varGmv < -cfg.varVendas * 2 ? 'critico' : 'alerta',
       titulo: 'Queda nas vendas',
       desc: 'Vendas saíram de ' + fR(vIni) + ' pra ' + fR(vFim) + ' (' + labelComparacao + ').',
-      detalhe: 'Variação: ' + analise.vendas.varGmv + '% no GMV.',
+      detalhe: 'Queda de ' + Math.abs(analise.vendas.varGmv) + '% nas vendas. Vale conferir os principais canais e a operação.',
       confianca: Math.round(conf),
       variacao: analise.vendas.varGmv,
       simulado: false
@@ -22181,7 +22202,7 @@ function raioxGerarDiagnosticos(analise) {
       severidade: 'positivo',
       titulo: 'Vendas em crescimento',
       desc: 'Vendas saíram de ' + fR2(vIni2) + ' pra ' + fR2(vFim2) + ' (' + labelComparacao + ').',
-      detalhe: 'Variação: +' + analise.vendas.varGmv + '%. Continue monitorando estoque e mídia pra sustentar o ritmo.',
+      detalhe: 'Crescimento de ' + analise.vendas.varGmv + '%. Continue monitorando estoque e mídia pra sustentar o ritmo.',
       confianca: 85,
       variacao: analise.vendas.varGmv,
       simulado: false
@@ -22197,7 +22218,7 @@ function raioxGerarDiagnosticos(analise) {
         severidade: c.variacao < -cfg.varVendas * 2 ? 'critico' : 'alerta',
         titulo: 'Queda em ' + c.canal,
         desc: c.canal + ' saiu de ' + fR3(c.gmvAnterior) + ' pra ' + fR3(c.gmvRecente) + '.',
-        detalhe: 'Variação: ' + c.variacao + '% no GMV do canal.',
+        detalhe: 'Queda de ' + Math.abs(c.variacao) + '% nas vendas desse canal.',
         confianca: Math.min(90, 65 + Math.abs(c.variacao) * 1.5),
         variacao: c.variacao,
         simulado: false
@@ -22208,7 +22229,7 @@ function raioxGerarDiagnosticos(analise) {
         severidade: 'positivo',
         titulo: c.canal + ' em alta',
         desc: c.canal + ' saiu de ' + fR3(c.gmvAnterior) + ' pra ' + fR3(c.gmvRecente) + '.',
-        detalhe: 'Variação: +' + c.variacao + '% no GMV do canal.',
+        detalhe: 'Crescimento de ' + c.variacao + '% nas vendas desse canal.',
         confianca: 80,
         variacao: c.variacao,
         simulado: false
@@ -22322,8 +22343,8 @@ function raioxGerarDiagnosticos(analise) {
           tipo: 'midia-atrasada',
           severidade: 'atencao',
           titulo: 'Mídia possivelmente não lançada',
-          desc: 'Detectamos '+diasSemMidia.length+' dia(s) recentes com pouca ou nenhuma mídia lançada na planilha: '+labels+'.',
-          detalhe: 'Verifique se houve gasto nesses dias e atualize a planilha pra análise correta de ROAS/CPA.',
+          desc: 'Em '+diasSemMidia.length+' dia(s) recentes não há mídia registrada na planilha: '+labels+'.',
+          detalhe: 'Confira se faltou lançar nesses dias. Sem isso, ROAS e CPA podem ficar imprecisos.',
           confianca: 85,
           simulado: false
         });
@@ -22369,10 +22390,10 @@ function raioxGerarDiagnosticos(analise) {
               tipo: 'midia-variacao-total',
               severidade: sevMidia,
               titulo: emoji+' Investimento em mídia '+sentido+' '+Math.abs(Math.round(variacao))+'% no dia '+dataLabelD1,
-              desc: 'D-1 ('+dataLabelD1+'): '+fmtBR(d1Valor)+' · média dos 4 dias anteriores: '+fmtBR(mediaAnt)+'.',
+              desc: 'Em '+dataLabelD1+' foi gasto '+fmtBR(d1Valor)+'. Nos 4 dias anteriores a média foi de '+fmtBR(mediaAnt)+'.',
               detalhe: variacao < 0
-                ? 'Gasto em ads caiu fortemente vs média recente. Verifique se campanhas pausaram, orçamento estourou ou se algum canal travou.'
-                : 'Gasto em ads aumentou fortemente vs média recente. Confira se foi planejado e se o ROAS está acompanhando.',
+                ? 'Verifique se alguma campanha foi pausada ou se o orçamento acabou.'
+                : 'Confirme se o aumento foi planejado e olhe o retorno (ROAS).',
               confianca: 90,
               simulado: false
             });
@@ -22433,10 +22454,10 @@ function raioxGerarDiagnosticos(analise) {
               tipo: 'midia-outlier-interno',
               severidade: sevO,
               titulo: emojiO+' Mídia '+sentidoO+' '+Math.abs(Math.round(melhorOutlier.varPct))+'% em '+melhorOutlier.dataLabel,
-              desc: melhorOutlier.dataLabel+': '+fmtBR3(melhorOutlier.valor)+' · média dos outros dias da janela: '+fmtBR3(melhorOutlier.media)+'.',
+              desc: 'Em '+melhorOutlier.dataLabel+' o gasto foi '+fmtBR3(melhorOutlier.valor)+'. A média dos outros dias foi '+fmtBR3(melhorOutlier.media)+'.',
               detalhe: melhorOutlier.varPct < 0
-                ? 'Dia destoante na janela analisada. Pode ter havido pausa de campanhas, problema técnico ou esquecimento de lançamento na planilha.'
-                : 'Dia destoante na janela analisada. Pode ter havido reforço de orçamento, ou registro duplicado/incorreto.',
+                ? 'Esse dia ficou fora do padrão. Verifique se faltou lançar mídia na planilha ou se houve pausa de campanhas.'
+                : 'Esse dia ficou fora do padrão. Pode ter sido reforço de verba ou um lançamento duplicado por engano.',
               confianca: 88,
               simulado: false
             });
@@ -22509,11 +22530,11 @@ function raioxGerarDiagnosticos(analise) {
           diags.push({
             tipo: 'midia-variacao-canal',
             severidade: sevC,
-            titulo: emojiC+' Mídia em '+a.canal+' '+sentidoC+' '+Math.abs(Math.round(a.variacao))+'% (D-1)',
-            desc: 'D-1: '+fmtBR2(a.d1)+' · média dos 4 dias anteriores: '+fmtBR2(a.media)+'.',
+            titulo: emojiC+' Mídia em '+a.canal+' '+sentidoC+' '+Math.abs(Math.round(a.variacao))+'% (ontem)',
+            desc: 'Ontem foi gasto '+fmtBR2(a.d1)+' em '+a.canal+'. Nos 4 dias anteriores a média foi '+fmtBR2(a.media)+'.',
             detalhe: a.variacao < 0
-              ? 'Investimento em '+a.canal+' caiu fortemente. Campanha pausou? Orçamento esgotado?'
-              : 'Investimento em '+a.canal+' subiu fortemente. Foi planejado? Confira ROAS desse canal.',
+              ? 'Verifique se a campanha de '+a.canal+' foi pausada ou se o orçamento acabou.'
+              : 'Confirme se o aumento em '+a.canal+' foi planejado e olhe o retorno (ROAS).',
             confianca: 88,
             simulado: false
           });
@@ -23722,21 +23743,11 @@ function _raioxRenderCardDiag(d, idx) {
     ? '<span id="'+cardId+'-chev" style="font-family:var(--fmono);font-size:11px;color:'+c.txt+';opacity:.6;transition:transform .2s">▼</span>'
     : '';
 
-  // 🆕 FIX30AT — Mostra a variação REAL (queda ou alta) em vez da confiança.
-  // Antes: mostrava sempre o mesmo valor (90%, 95%, 100%) que era abstrato.
-  // Agora: -41% (queda real do canal) ou +12% (alta real). Cor segue sinal.
+  // 🆕 FIX30BS — Badge de % à direita REMOVIDO. Antes mostrava confiança (sempre
+  // valor fixo tipo 88%, 90%) que parecia bug ("igual pra todos os cards"), e quando
+  // mostrava variação caía em fallback inconsistente. A info útil (variação %) já
+  // aparece no título e na descrição. Mantém o card mais limpo.
   var pillVariacao = '';
-  if(d.variacao !== undefined && d.variacao !== null) {
-    var v = d.variacao;
-    var corVar, setaVar;
-    if(v > 0) { corVar = '#10B981'; setaVar = '▲ +'; }
-    else if(v < 0) { corVar = '#F43F5E'; setaVar = '▼ '; }
-    else { corVar = 'var(--muted)'; setaVar = '→ '; }
-    pillVariacao = '<span style="font-family:var(--fmono);font-size:10px;font-weight:700;color:'+corVar+';flex-shrink:0;letter-spacing:.3px" title="Variação real (D-1 vs início da janela)">'+setaVar+v+'%</span>';
-  } else {
-    // Sem variação: mostra confiança (legacy, fallback pra placeholders)
-    pillVariacao = '<span style="font-family:var(--fmono);font-size:9px;color:var(--muted2);background:var(--s2);padding:2px 6px;border-radius:5px;flex-shrink:0">'+d.confianca+'%</span>';
-  }
 
   return '<div class="raiox-diag-card" '+headerOnClick+' style="background:'+c.bg+';border:1px solid '+c.borda+'30;border-left:3px solid '+c.borda+';border-radius:10px;padding:10px 12px;'+cursor+'transition:all .2s;opacity:'+(d.placeholder?0.7:1)+'" '+
     (temDetalhe ? 'onmouseover="this.style.background=\''+c.borda+'15\'" onmouseout="this.style.background=\''+c.bg+'\'"' : '') +
@@ -23747,7 +23758,6 @@ function _raioxRenderCardDiag(d, idx) {
         '<span style="font-family:var(--fmono);font-size:9px;font-weight:700;color:'+c.txt+';letter-spacing:.5px;flex-shrink:0">'+c.label+'</span>'+
         '<span style="font-family:var(--fhead);font-size:12px;font-weight:600;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(d.titulo)+'</span>'+
         tagSimulado + tagPlaceholder +
-        pillVariacao +
         chevron +
       '</div>'+
       // Detalhe (oculto, expande no click)
