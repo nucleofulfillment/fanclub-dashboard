@@ -3743,7 +3743,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BQ-MULTI-AJUSTES';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BR-MIDIA-MEDIA-CORRIGIDA';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21320,6 +21320,12 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
                 window._fluxoV2Data.midia.length + ' lançamentos · ' +
                 Object.keys(porDia).length + ' dias com mídia · ' +
                 'total no período: R$ ' + totalReal.toLocaleString('pt-BR',{maximumFractionDigits:0}));
+    // 🆕 FIX30BR — Log mostrando valor por dia do período (pra debug de tooltip)
+    console.log('[Raio X · Mídia · POR DIA] Últimos 8 dias indexados:');
+    var ultimos = Object.keys(porDia).sort().slice(-8);
+    ultimos.forEach(function(k){
+      console.log('  '+k+': R$ '+porDia[k].toLocaleString('pt-BR',{minimumFractionDigits:2}));
+    });
     return serie;
   }
 
@@ -22335,14 +22341,17 @@ function raioxGerarDiagnosticos(analise) {
         var diaD1 = new Date(hoje);
         var d1Key = diaD1.getFullYear() + '-' + String(diaD1.getMonth()+1).padStart(2,'0') + '-' + String(diaD1.getDate()).padStart(2,'0');
         var d1Valor = midiaPorDia[d1Key] || 0;
-        var soma234 = 0, n234 = 0;
+        // 🆕 FIX30BR — Mesma correção do detector por canal: conta TODOS os 4 dias
+        // da janela (D-2 a D-5), incluindo dias zerados. Antes filtrava `> 0`,
+        // o que mascarava quedas reais quando algum dia tinha gasto zero.
+        var soma234 = 0;
+        var n234 = 0;
         for(var k = 2; k <= 5; k++) {
           var dk = new Date(hoje); dk.setDate(dk.getDate() - (k - 1));
           var dkKey = dk.getFullYear() + '-' + String(dk.getMonth()+1).padStart(2,'0') + '-' + String(dk.getDate()).padStart(2,'0');
-          if(midiaPorDia[dkKey] !== undefined && midiaPorDia[dkKey] > 0) {
-            soma234 += midiaPorDia[dkKey];
-            n234++;
-          }
+          // Conta o dia mesmo zerado (ausência é informação)
+          soma234 += (midiaPorDia[dkKey] || 0);
+          n234++;
         }
         var mediaAnt = n234 > 0 ? soma234 / n234 : 0;
         if(mediaAnt > 100 && d1Valor >= 0) { // só dispara se média anterior é minimamente relevante
@@ -22458,11 +22467,22 @@ function raioxGerarDiagnosticos(analise) {
           var d1Date = new Date(hoje);
           var d1k = d1Date.getFullYear() + '-' + String(d1Date.getMonth()+1).padStart(2,'0') + '-' + String(d1Date.getDate()).padStart(2,'0');
           var v1 = porDia[d1k] || 0;
-          var soma = 0, n = 0;
+          // 🆕 FIX30BR — Conta TODOS os 4 dias anteriores (D-2 a D-5), não só os com valor > 0.
+          // Antes: filtrava `porDia[dxk] > 0` da média → dia zerado sumia do divisor,
+          //        falsificando a média pra cima e fazendo variação parecer pequena.
+          //        Ex: canal teve 100 em 3 dias e ZERO no 4º. Média virava 100 (3/3) em vez
+          //        de 75 (300/4). Variação D-1=70 era reportada -30% em vez de -7% (real)
+          //        ou inversamente, o sinal de queda real ficava mascarado.
+          // Agora: a janela tem 4 dias FIXOS. Dias sem lançamento contam como R$ 0.
+          //        Reflete a realidade: ausência de gasto é informação, não outlier a excluir.
+          var soma = 0;
+          var n = 0;
           for(var kk = 2; kk <= 5; kk++) {
             var dx = new Date(hoje); dx.setDate(dx.getDate() - (kk - 1));
             var dxk = dx.getFullYear() + '-' + String(dx.getMonth()+1).padStart(2,'0') + '-' + String(dx.getDate()).padStart(2,'0');
-            if(porDia[dxk] !== undefined && porDia[dxk] > 0) { soma += porDia[dxk]; n++; }
+            // Conta o dia mesmo se valor for 0 (mídia zerada é dado, não ausência)
+            soma += (porDia[dxk] || 0);
+            n++;
           }
           var media = n > 0 ? soma / n : 0;
           if(media < 100) return; // canal pouco relevante, ignora
