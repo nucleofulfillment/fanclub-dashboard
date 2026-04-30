@@ -3472,7 +3472,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30E-MARKETPLACE-REAL';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30F-LOJA-PROPRIA';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -20106,6 +20106,29 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
   var marketplaceReal = (cenario === 'real') ? _gerarSerieMarketplaceReal() : null;
   var marketplace = marketplaceReal || _gerarSerie(p.marketplace, 0.78, 29);
 
+  // 🆕 FIX30F — Loja Própria REAL: lê GMV do canal "Loja Própria" por dia
+  // direto de dadosDiarios.canais. Permite mostrar LP separado de Marketplace
+  // pra Laluna acompanhar venda direta vs venda em marketplaces.
+  function _gerarSerieLojaPropriaReal() {
+    if(!dadosDiarios || Object.keys(dadosDiarios).length === 0) return null;
+    var temAlgumDado = false;
+    var serie = keys.map(function(k){
+      var d = dadosDiarios[k];
+      if(!d || !d.canais) return 0;
+      var lp = (d.canais['Loja Própria'] || {}).gmv || 0;
+      if(lp > 0) temAlgumDado = true;
+      return lp;
+    });
+    if(!temAlgumDado) return null;
+    var total = serie.reduce(function(s,v){return s+v;}, 0);
+    console.log('[Raio X · Loja Própria] ✅ Usando dados REAIS da planilha. ' +
+                'total no período: R$ ' + total.toLocaleString('pt-BR',{maximumFractionDigits:0}));
+    return serie;
+  }
+
+  var lojaPropriaReal = (cenario === 'real') ? _gerarSerieLojaPropriaReal() : null;
+  var lojaPropria = lojaPropriaReal || _gerarSerie({trend: 0.10, ruido: 0.15, eventos: {}}, 0.20, 53);
+
   // 🆕 FIX30B — Estoque em UNIDADES (não R$)
   // Conceito: estoque inicial estimado = 2 meses de giro (GMV mês ÷ ticket médio × 2)
   // Consumo diário proporcional às vendas reais → cai conforme o tempo passa.
@@ -20160,7 +20183,7 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
   var estoque = _gerarSerieEstoqueUnidades();
   var mercado = _gerarSerieMercadoDiagnostico();
 
-  return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace, midiaEhReal: !!midiaReal, marketplaceEhReal: !!marketplaceReal };
+  return { midia: midia, estoque: estoque, mercado: mercado, marketplace: marketplace, lojaPropria: lojaPropria, midiaEhReal: !!midiaReal, marketplaceEhReal: !!marketplaceReal, lojaPropriaEhReal: !!lojaPropriaReal };
 }
 
 /* Detecta pontos de alerta (outliers) na linha de vendas */
@@ -20978,6 +21001,7 @@ function raioxRender() {
             'style="padding:6px 28px 6px 12px;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:var(--fmono);font-size:10px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22 viewBox=%220 0 10 6%22><path fill=%22%236EE7B7%22 d=%22M0 0l5 6 5-6z%22/></svg>\');background-repeat:no-repeat;background-position:right 10px center;background-size:8px">'+
             '<option value="consolidado">Consolidado</option>'+
             '<option value="marketplace">🛒 Marketplace</option>'+
+            '<option value="lojapropria">🏪 Loja Própria</option>'+
             '<option value="mercado">🌐 Mercado</option>'+
             '<option value="midia">📢 Mídia</option>'+
             '<option value="estoque">📦 Estoque</option>'+
@@ -21037,6 +21061,7 @@ function raioxRender() {
 
       return {
         marketplace: _calcVar(aux.marketplace),
+        lojaPropria: _calcVar(aux.lojaPropria),    // 🆕 FIX30F
         mercado:     _scoreMedio(aux.mercado),     // score médio (-100..+100)
         midia:       _calcVar(aux.midia),
         estoque:     _calcVar(aux.estoque),         // variação % de unidades (faz sentido)
@@ -21115,6 +21140,7 @@ function raioxRender() {
             '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Variação · janela <span style="color:var(--accent)">'+labelJanela+'</span> vs período anterior</div>'+
             _raioxLinhaIndicador('📊', 'Vendas',      '#6EE7B7', resumo.vendas)+
             _raioxLinhaIndicador('🛒', 'Marketplace', '#FCD34D', resumo.marketplace)+
+            _raioxLinhaIndicador('🏪', 'Loja Própria', '#FF8C42', resumo.lojaPropria)+
             _raioxLinhaMercado(resumo.mercado)+
             _raioxLinhaIndicador('📢', 'Mídia',       '#FB923C', resumo.midia)+
             _raioxLinhaEstoque(resumo.estoque)+
@@ -21684,6 +21710,24 @@ function _raioxDesenharChart(dadosDiarios) {
       order: 5
     });
 
+    // 🆕 FIX30F — Linha Loja Própria (laranja neon), análoga à Marketplace
+    if(aux.lojaPropria && aux.lojaPropria.length) {
+      var cfgLp = _focoConfig('lojapropria');
+      datasets.push({
+        label: '🏪 Loja Própria 🔬',
+        data: aux.lojaPropria.map(function(v){ return Math.round(v); }),
+        borderColor: '#FF8C42',
+        backgroundColor: 'transparent',
+        borderWidth: cfgLp.borderWidth,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        hidden: cfgLp.hidden,
+        order: 5
+      });
+    }
+
     // ─── PONTOS DE ALERTA (em cima da linha principal) ───
     var alertas = raioxDetectarAlertasGrafico(dadosDiarios, baseline);
     var alertasPorIdx = {};
@@ -21856,6 +21900,7 @@ function _raioxDesenharChart(dadosDiarios) {
             var estoqueV = _getValor('Estoque');
             var mercadoV = _getValor('Mercado');
             var marketplaceV = _getValor('Marketplace');
+            var lojaPropriaV = _getValor('Loja Própria');  // 🆕 FIX30F
 
             // 🆕 Valores do DIA ANTERIOR (pra comparação 1d vs 1d na tooltip)
             var idxAnterior = idx - 1;
@@ -21864,6 +21909,7 @@ function _raioxDesenharChart(dadosDiarios) {
             var estoqueAnt     = _getValor('Estoque',     idxAnterior);
             var mercadoAnt     = _getValor('Mercado',     idxAnterior);
             var marketplaceAnt = _getValor('Marketplace', idxAnterior);
+            var lojaPropriaAnt = _getValor('Loja Própria', idxAnterior);  // 🆕 FIX30F
 
             // Calcula variação %
             function _pct(v, base) {
@@ -22041,10 +22087,11 @@ function _raioxDesenharChart(dadosDiarios) {
               // Baseline (referência apenas, sem pílula)
               _linha('⚖', 'Equilíbrio', baselineV, null, false, '#9CA3AF')+
               // Outras métricas (sempre mostra) — comparam com DIA ANTERIOR
-              (midiaV !== null || estoqueV !== null || mercadoV !== null || marketplaceV !== null
+              (midiaV !== null || estoqueV !== null || mercadoV !== null || marketplaceV !== null || lojaPropriaV !== null
                 ? '<div style="margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06)">'+
                     '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Outras métricas · vs dia anterior</div>'+
                     (marketplaceV !== null ? _linha('🛒', 'Marketplace 🔬', marketplaceV, marketplaceAnt, false, '#FCD34D') : '')+
+                    (lojaPropriaV !== null ? _linha('🏪', 'Loja Própria 🔬', lojaPropriaV, lojaPropriaAnt, false, '#FF8C42') : '')+
                     (midiaV !== null ? _linha('📢', 'Mídia 🔬', midiaV, midiaAnt, false, '#FB923C') : '')+
                     (estoqueV !== null ? _linhaEstoque(estoqueV, estoqueAnt, '#EC4899') : '')+
                     (mercadoV !== null ? _linhaMercado(mercadoV, idx, '#A78BFA') : '')+
