@@ -1783,20 +1783,21 @@ body.light body::before { opacity: 0; }
           <div class="val" id="fin-perdas" style="font-size:17px;color:var(--text)">R$ 0,00</div>
           <div class="sub" style="font-size:9px">% do GMV</div>
         </div>
-        <!-- Financeiro % LP — sincronizado com Saúde do Estoque e Precificação -->
-        <div class="kpi" style="--cc:#94A3B8" title="Custo financeiro adicional — aplicado sobre Loja Própria. Sincronizado com Saúde do Estoque e Precificação.">
-          <div class="ico">🏦</div><div class="lbl">Financeiro <span style="font-size:9px;color:var(--muted2)">(LP)</span></div>
-          <div style="display:flex;align-items:center;gap:4px;margin:6px 0">
-            <input type="number" id="fin-financeiro-pct" value="0" min="0" max="100" step="0.1"
-              oninput="atualizarResultado()"
-              style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
-                     padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
-                     color:var(--text);outline:none;color-scheme:dark;text-align:center">
-            <span style="font-family:var(--fmono);font-size:11px;color:var(--muted)">%</span>
+        <!-- 🆕 FIX30K — Card Brindes (substitui Financeiro LP que não era usado).
+             Valores vêm dos pedidos com forma_pagamento "14 - Brinde", apenas exibição.
+             Não entra no cálculo do Resultado Líquido (já é deduzido via lançamento virtual no Fluxo). -->
+        <div class="kpi" style="--cc:#A78BFA" id="fin-brindes-card" title="Brindes & cortesias — pedidos com forma de pagamento '14 - Brinde'. Vem da planilha de pedidos. Não entra como receita, é despesa (já contabilizada no Fluxo de Caixa).">
+          <div class="ico">🎁</div><div class="lbl">Brindes <span style="font-size:9px;color:var(--muted2)">(troca)</span></div>
+          <div style="margin:6px 0">
+            <span id="fin-brindes-pct" style="font-family:var(--fmono);font-size:13px;font-weight:600;color:#A78BFA">0,0%</span>
+            <span style="font-family:var(--fmono);font-size:10px;color:var(--muted);margin-left:3px">do GMV</span>
           </div>
-          <div class="val" id="fin-financeiro" style="font-size:17px;color:var(--text)">R$ 0,00</div>
-          <div class="sub" style="font-size:9px">% do GMV LP</div>
+          <div class="val" id="fin-brindes" style="font-size:17px;color:#A78BFA">R$ 0,00</div>
+          <div class="sub" id="fin-brindes-sub" style="font-size:9px">— pedidos · produto + frete</div>
         </div>
+        <!-- 🆕 FIX30K — Input oculto pra manter compatibilidade com código antigo (sempre 0) -->
+        <input type="hidden" id="fin-financeiro-pct" value="0">
+        <span id="fin-financeiro" style="display:none">R$ 0,00</span>
         <!-- Custo Fixo (R$ mensal) -->
         <div class="kpi" style="--cc:#94A3B8" id="fin-custo-fixo-card">
           <div class="ico">🏭</div><div class="lbl">Custo Fixo <span id="fin-custo-fixo-badge" style="font-family:var(--fmono);font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(110,231,183,.15);color:var(--accent);margin-left:4px;display:none">⚡auto</span></div>
@@ -3472,7 +3473,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30J-FILTRO-BRINDES-KPIS';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30L-FALLBACK-ZEROS';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -16235,6 +16236,22 @@ function syncFinanceiroKPIs(d) {
   setT('fin-perdas',     fMKPI(custoPerdas));
   setT('fin-financeiro', fMKPI(custoFinanceiro));
 
+  // 🆕 FIX30K — Popular card Brindes (vem de d.brindes, processado em processarDados)
+  try {
+    var b = (d && d.brindes) ? d.brindes : { total: 0, frete: 0, qtd: 0, produto: 0 };
+    var pctBrindes = (d.total > 0) ? (b.total / d.total * 100) : 0;
+    var pctTexto = pctBrindes.toFixed(1).replace('.', ',') + '%';
+    var corPct = pctBrindes > 10 ? '#F43F5E' : pctBrindes > 5 ? '#FCD34D' : '#A78BFA';
+    setT('fin-brindes', fMKPI(b.total));
+    setT('fin-brindes-pct', pctTexto);
+    var subBrindes = b.qtd > 0
+      ? b.qtd.toLocaleString('pt-BR') + ' pedidos · prod ' + fMKPI(b.produto) + ' + frete ' + fMKPI(b.frete)
+      : 'sem brindes no período';
+    setT('fin-brindes-sub', subBrindes);
+    var pctEl = document.getElementById('fin-brindes-pct');
+    if(pctEl) pctEl.style.color = corPct;
+  } catch(e) { console.warn('[Financeiro · Brindes]', e); }
+
   // Custo Fixo aplicado
   setT('fin-custo-fixo-aplicado', custoFixoMensal > 0
     ? fMKPI(custoFixo)+' aplicado ('+diasPeriodo+'d/30d)'
@@ -20228,7 +20245,9 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
   }
 
   var midiaReal = (cenario === 'real') ? _gerarSerieMidiaReal() : null;
-  var midia       = midiaReal || _gerarSerie(p.midia,       0.85, 41);
+  var midia       = midiaReal || (cenario === 'real'
+    ? keys.map(function(){return 0;})
+    : _gerarSerie(p.midia, 0.85, 41));
 
   // 🆕 FIX30E — Marketplace REAL: lê GMV dos canais marketplace por dia
   // direto de dadosDiarios.canais (que vem de allRows / planilha de pedidos).
@@ -20258,7 +20277,13 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
   }
 
   var marketplaceReal = (cenario === 'real') ? _gerarSerieMarketplaceReal() : null;
-  var marketplace = marketplaceReal || _gerarSerie(p.marketplace, 0.78, 29);
+  // 🆕 FIX30L — No cenário REAL, se não tem dados, retorna zeros em vez de simulação.
+  // Antes: fallback _gerarSerie(p.marketplace,...) gerava valores aleatórios altos
+  // que ficavam INCONSISTENTES com Vendas (LP > Vendas total — impossível).
+  // Agora: dia sem dado real = R$ 0 (gráfico mostra honestamente).
+  var marketplace = marketplaceReal || (cenario === 'real'
+    ? keys.map(function(){return 0;})
+    : _gerarSerie(p.marketplace, 0.78, 29));
 
   // 🆕 FIX30F — Loja Própria REAL: lê GMV do canal "Loja Própria" por dia
   // direto de dadosDiarios.canais. Permite mostrar LP separado de Marketplace
@@ -20281,7 +20306,10 @@ function raioxGerarLinhasAuxiliares(dadosDiarios, cenario) {
   }
 
   var lojaPropriaReal = (cenario === 'real') ? _gerarSerieLojaPropriaReal() : null;
-  var lojaPropria = lojaPropriaReal || _gerarSerie({trend: 0.10, ruido: 0.15, eventos: {}}, 0.20, 53);
+  // 🆕 FIX30L — Mesma lógica do Marketplace: cenário real sem dados → zeros, não simulação
+  var lojaPropria = lojaPropriaReal || (cenario === 'real'
+    ? keys.map(function(){return 0;})
+    : _gerarSerie({trend: 0.10, ruido: 0.15, eventos: {}}, 0.20, 53));
 
   // 🆕 FIX30B — Estoque em UNIDADES (não R$)
   // Conceito: estoque inicial estimado = 2 meses de giro (GMV mês ÷ ticket médio × 2)
@@ -21413,51 +21441,9 @@ function raioxRender() {
       '</div>'+
     '</div>';
 
-  // 🆕 FIX30G — CARD BRINDES (mostra brindes do período + breakdown)
-  // Brindes são trocas/cortesias, NÃO são vendas. Aparecem aqui pra Laluna
-  // acompanhar o volume e impacto. Filtrados de Vendas/Marketplace/LP.
-  try {
-    var brindes = raioxAgregarBrindes(diasAnaliseInterpretacao);
-    if(brindes.qtd > 0) {
-      var pctTexto = brindes.pctGmv.toFixed(1).replace('.', ',') + '%';
-      var corPct = brindes.pctGmv > 10 ? '#F43F5E' : brindes.pctGmv > 5 ? '#FCD34D' : '#10B981';
-      html += '<div class="card fu" style="margin-bottom:14px;border-left:3px solid #A78BFA">'+
-        '<div class="ch" style="margin-bottom:14px">'+
-          '<div>'+
-            '<div class="ct">🎁 Brindes & Cortesias</div>'+
-            '<div class="cs">Trocas e brindes · janela <strong style="color:var(--accent)">'+(diasAnaliseInterpretacao === 3 ? '3 dias' : diasAnaliseInterpretacao+' dias')+'</strong> · NÃO entram no GMV</div>'+
-          '</div>'+
-          '<div style="text-align:right">'+
-            '<div style="font-family:var(--fdisplay);font-size:24px;font-weight:700;color:#A78BFA;line-height:1">'+(typeof fMF === 'function' ? fMF(-brindes.valorTotal) : 'R$ '+brindes.valorTotal.toFixed(2))+'</div>'+
-            '<div style="font-family:var(--fmono);font-size:10px;color:'+corPct+';margin-top:4px;font-weight:700">'+pctTexto+' do GMV real</div>'+
-          '</div>'+
-        '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding-top:10px;border-top:1px solid var(--border)">'+
-          // Quantidade de pedidos
-          '<div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Pedidos</div>'+
-            '<div style="font-family:var(--fdisplay);font-size:18px;font-weight:600;color:var(--text)">'+brindes.qtd.toLocaleString('pt-BR')+'</div>'+
-          '</div>'+
-          // Valor produto
-          '<div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Produto</div>'+
-            '<div style="font-family:var(--fdisplay);font-size:16px;font-weight:600;color:var(--text)">'+(typeof fMF === 'function' ? fMF(brindes.valorProduto) : 'R$ '+brindes.valorProduto.toFixed(2))+'</div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:2px">'+(brindes.valorTotal > 0 ? Math.round(brindes.valorProduto/brindes.valorTotal*100)+'% do total' : '—')+'</div>'+
-          '</div>'+
-          // Valor frete
-          '<div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Frete</div>'+
-            '<div style="font-family:var(--fdisplay);font-size:16px;font-weight:600;color:var(--text)">'+(typeof fMF === 'function' ? fMF(brindes.valorFrete) : 'R$ '+brindes.valorFrete.toFixed(2))+'</div>'+
-            '<div style="font-family:var(--fmono);font-size:9px;color:var(--muted2);margin-top:2px">'+(brindes.valorTotal > 0 ? Math.round(brindes.valorFrete/brindes.valorTotal*100)+'% do total' : '—')+'</div>'+
-          '</div>'+
-        '</div>'+
-        // Aviso pedagógico se % alto
-        (brindes.pctGmv > 10
-          ? '<div style="margin-top:10px;padding:8px 10px;background:rgba(244,63,94,.08);border-left:3px solid #F43F5E;border-radius:4px;font-family:var(--fmono);font-size:10px;color:#F87171;line-height:1.5">⚠️ <strong>Alerta:</strong> brindes representam '+pctTexto+' do seu GMV real. Volume alto pode indicar campanha de troca em massa ou problema de qualidade. Investigue causa.</div>'
-          : '')+
-      '</div>';
-    }
-  } catch(e) { console.warn('[Raio X · Brindes]', e); }
+  // 🆕 FIX30L — Card Brindes REMOVIDO do Raio X (movido pro módulo Financeiro
+  // pra evitar duplicação visual). Funções raioxAgregarBrindes e _raioxEhBrinde
+  // continuam disponíveis pra outros usos do Raio X (ex: console diagnóstico).
 
   // 📋 CARDS DE DIAGNÓSTICO (lado direito)
   var realCount = diags.filter(function(d){return !d.simulado && !d.placeholder;}).length;
