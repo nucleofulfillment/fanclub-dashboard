@@ -3525,7 +3525,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AG-DIAG-INICIO-FIM';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AH-DIAG-REAL-ONLY';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -21306,6 +21306,14 @@ function raioxGerarDiagnosticos(analise) {
   var cfg = raioxGetConfig();
   var diags = [];
 
+  // 🆕 FIX30AH — Janela ativa do diagnóstico (D-1 vs D-N).
+  // Usa diasAnaliseInterpretacao (setado em raioxRender) ao invés de cfg.dias hardcoded.
+  // Texto resultante: "GMV caiu 30% comparado a 10 dias atrás" (em vez de "últimos 7 dias").
+  var diasJanela = window._raioxDiasInterpretacao || cfg.dias || 2;
+  var labelComparacao;
+  if(diasJanela === 2) labelComparacao = 'vs ontem';
+  else                 labelComparacao = 'comparado a ' + diasJanela + ' dias atrás';
+
   // ─── Diagnósticos REAIS ───
 
   // Vendas em queda (geral)
@@ -21315,9 +21323,9 @@ function raioxGerarDiagnosticos(analise) {
       tipo: 'vendas-queda',
       severidade: analise.vendas.varGmv < -cfg.varVendas * 2 ? 'critico' : 'alerta',
       titulo: 'Queda nas vendas',
-      desc: 'GMV caiu ' + Math.abs(analise.vendas.varGmv) + '% nos últimos ' + cfg.dias + ' dias vs período anterior.',
-      detalhe: 'GMV recente: R$ ' + analise.vendas.totalRecente.gmv.toLocaleString('pt-BR',{maximumFractionDigits:0}) +
-               ' · Anterior: R$ ' + analise.vendas.totalAnterior.gmv.toLocaleString('pt-BR',{maximumFractionDigits:0}),
+      desc: 'GMV caiu ' + Math.abs(analise.vendas.varGmv) + '% ' + labelComparacao + '.',
+      detalhe: 'GMV recente (D-1): R$ ' + analise.vendas.totalRecente.gmv.toLocaleString('pt-BR',{maximumFractionDigits:0}) +
+               ' · Início da janela: R$ ' + analise.vendas.totalAnterior.gmv.toLocaleString('pt-BR',{maximumFractionDigits:0}),
       confianca: Math.round(conf),
       simulado: false
     });
@@ -21326,7 +21334,7 @@ function raioxGerarDiagnosticos(analise) {
       tipo: 'vendas-alta',
       severidade: 'positivo',
       titulo: 'Vendas em crescimento',
-      desc: 'GMV subiu ' + analise.vendas.varGmv + '% nos últimos ' + cfg.dias + ' dias.',
+      desc: 'GMV subiu ' + analise.vendas.varGmv + '% ' + labelComparacao + '.',
       detalhe: 'Continue monitorando estoque e mídia pra sustentar o ritmo.',
       confianca: 85,
       simulado: false
@@ -21377,40 +21385,10 @@ function raioxGerarDiagnosticos(analise) {
     });
   }
 
-  // ─── Diagnósticos SIMULADOS (até integrar APIs) ───
-
-  // Mídia: ROAS caindo (simulado)
-  diags.push({
-    tipo: 'midia-roas',
-    severidade: 'alerta',
-    titulo: 'ROAS em queda · Meta Ads',
-    desc: 'ROAS caiu de 3.2 → 1.8 nos últimos ' + cfg.dias + ' dias. CPC subiu 24%.',
-    detalhe: 'Custo recente: R$ 8.420 · Receita atribuída: R$ 15.150',
-    confianca: 72,
-    simulado: true
-  });
-
-  // Mídia: Google Ads (simulado)
-  diags.push({
-    tipo: 'midia-google',
-    severidade: 'positivo',
-    titulo: 'Google Ads performando',
-    desc: 'CPA caiu 12% e conversões subiram 18%.',
-    detalhe: 'Custo: R$ 3.200 · CPA: R$ 22 (era R$ 25)',
-    confianca: 80,
-    simulado: true
-  });
-
-  // Mercado macro (simulado)
-  diags.push({
-    tipo: 'mercado-macro',
-    severidade: 'positivo',
-    titulo: 'Mercado em movimento',
-    desc: 'Categoria com tendência de alta nas buscas (+15% no Google Trends).',
-    detalhe: 'Pico esperado nos próximos 7-10 dias.',
-    confianca: 65,
-    simulado: true
-  });
+  // 🆕 FIX30AH — Diagnósticos simulados (Meta Ads/Google Ads/Mercado macro) REMOVIDOS.
+  // Antes: 3 diagnósticos fake fixos pra ilustrar UI antes da integração com APIs.
+  // Agora: temos dados reais de mídia via _fluxoV2Data (FIX30W) — usar análise real
+  // baseada em variação real por canal (será adicionada em FIX30AI).
 
   // 🆕 Mídia atrasada — detecta dias úteis recentes sem lançamento de mídia
   // Se houver dias úteis sem mídia em _fluxoV2Data nos últimos 7 dias, alerta
@@ -21510,8 +21488,10 @@ function raioxGerarDiagnosticos(analise) {
    Usa os dadosDiarios já gerados (não regenera). */
 function _raioxRecalcularJanela(dadosDiarios, diasJanela) {
   var keys = Object.keys(dadosDiarios).sort();
-  if(keys.length < diasJanela * 2) {
-    // Não tem dados suficientes pra comparar — retorna estrutura vazia
+  // 🆕 FIX30AH — Compara primeiro vs último da janela (D-N vs D-1).
+  // Antes: pegava 2N dias e comparava metades (média anterior vs média recente).
+  // Agora: pega N dias e usa só primeiro vs último.
+  if(keys.length < 2) {
     return {
       diasJanela: diasJanela,
       totalAnterior: { gmv: 0, pedidos: 0, canais: {} },
@@ -21519,8 +21499,11 @@ function _raioxRecalcularJanela(dadosDiarios, diasJanela) {
       varGmv: 0, varPedidos: 0, canais: [], dadosDiarios: dadosDiarios
     };
   }
-  var anterior = keys.slice(-diasJanela * 2, -diasJanela);
-  var recente  = keys.slice(-diasJanela);
+  // Pega só os últimos N dias (a "janela visível")
+  var janelaKeys = keys.slice(-diasJanela);
+  if(janelaKeys.length < 2) janelaKeys = keys.slice(-2); // mínimo 2 dias
+  var anterior = [janelaKeys[0]];                          // D-N
+  var recente  = [janelaKeys[janelaKeys.length - 1]];      // D-1
 
   function somaJanela(janela) {
     var total = { gmv: 0, pedidos: 0, canais: {} };
