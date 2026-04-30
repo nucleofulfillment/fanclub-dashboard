@@ -1786,7 +1786,7 @@ body.light body::before { opacity: 0; }
               <span style="font-family:var(--fmono);font-size:9px;color:var(--muted);text-transform:uppercase">auto</span>
             </label>
             <input type="number" id="fin-cmv-pct" value="0" min="0" max="100" step="0.1"
-              oninput="atualizarResultado()"
+              oninput="this.dataset.edited='1'; delete this.dataset.autoPopulated; atualizarResultado()"
               style="width:50px;background:var(--s3);border:1px solid var(--border2);border-radius:5px;
                      padding:3px 5px;font-family:var(--fmono);font-size:13px;font-weight:600;
                      color:var(--text);outline:none;color-scheme:dark;text-align:center">
@@ -3529,7 +3529,7 @@ body.light body::before { opacity: 0; }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AC-DROPDOWN-FIXES';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30AD-CMV-RESET';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -16386,13 +16386,44 @@ function syncFinanceiroKPIs(d) {
       var pctCalc = (custoCMV / d.total * 100);
       try {
         var inp = document.getElementById('fin-cmv-pct');
-        if(inp) { inp.value = pctCalc.toFixed(1); inp.readOnly = true; inp.style.opacity = '0.7'; }
+        if(inp) {
+          inp.value = pctCalc.toFixed(1);
+          inp.readOnly = true;
+          inp.style.opacity = '0.7';
+          // 🆕 FIX30AD — Marca como auto-populated (não digitado pelo usuário)
+          // pra que ao voltar pra modo manual, o sistema saiba que esse valor
+          // não é uma escolha do usuário e pode ser resetado.
+          inp.dataset.autoPopulated = '1';
+        }
       } catch(e){}
       pctCMV = pctCalc;
     }
   } else {
     // MODO MANUAL: igual ao comportamento original
+    // 🆕 FIX30AD — Se o input foi populado pelo modo Auto anteriormente
+    // (e o usuário não digitou nada), reseta pra 0 pra evitar usar % de
+    // outro filtro/contexto. Bug: ficava 181% (Auto calculado em "Tudo")
+    // e ao filtrar 1 mês com GMV menor virava R$ 2 milhões absurdos.
+    try {
+      var inpReset = document.getElementById('fin-cmv-pct');
+      if(inpReset && inpReset.dataset.autoPopulated === '1' && inpReset.dataset.edited !== '1') {
+        inpReset.value = '0';
+        delete inpReset.dataset.autoPopulated;
+        pctCMV = 0;
+      }
+    } catch(e){}
     custoCMV = d.total * (pctCMV / 100);
+    // 🆕 FIX30AD — Sanity check final: se ainda assim % > 100% e d.total > 0,
+    // limita pra evitar render absurdo (CMV nunca > 100% do GMV em e-commerce)
+    if(pctCMV > 100 && d.total > 0) {
+      console.warn('[CMV] % manual absurdo (>100%): '+pctCMV.toFixed(1)+'% — resetando pra 0');
+      try {
+        var inpClamp = document.getElementById('fin-cmv-pct');
+        if(inpClamp) inpClamp.value = '0';
+      } catch(e){}
+      custoCMV = 0;
+      pctCMV = 0;
+    }
     try {
       var inp2 = document.getElementById('fin-cmv-pct');
       if(inp2) { inp2.readOnly = false; inp2.style.opacity = '1'; }
