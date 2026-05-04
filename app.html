@@ -3743,7 +3743,7 @@ body.light { filter: saturate(0.85); }
 /* ═══════════════════════════════════════════════════════════════
    VERSÃO DO BUILD (atualizar a cada deploy pra detectar cache)
 ═══════════════════════════════════════════════════════════════ */
-var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BT-KEY-LOCAL';
+var VELTRO_BUILD_VERSION = '2026.04.29.FCV2-FIX30BV-LOG-SERIE-FINAL';
 console.log('%c🎯 Veltro OS · Build ' + VELTRO_BUILD_VERSION,
   'background:#6EE7B7;color:#0A0C10;padding:4px 10px;border-radius:4px;font-weight:bold');
 
@@ -23950,6 +23950,18 @@ function _raioxDesenharChart(dadosDiarios) {
       if(aux.marketplace) aux.marketplace = aux.marketplace.slice(sliceStart);
       if(aux.lojaPropria) aux.lojaPropria = aux.lojaPropria.slice(sliceStart);
     }
+    // 🆕 FIX30BU — Log dos VALORES FINAIS da série de Mídia que vão pro gráfico/tooltip.
+    // Mostra dia a dia o que será plotado. Se aqui aparecer R$ 60 ou R$ 6.404 sendo
+    // que a planilha só tem R$ 3.363/dia, o problema está nas linhas auxiliares.
+    if(aux.midia && aux.midiaEhReal) {
+      console.log('[Raio X · Mídia · SÉRIE FINAL] valores plotados (últimos 8 dias):');
+      var ult = keys.slice(-8);
+      ult.forEach(function(k, i){
+        var idxInSerie = aux.midia.length - ult.length + i;
+        var v = aux.midia[idxInSerie];
+        console.log('  '+k+' (idx='+idxInSerie+'): R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}));
+      });
+    }
 
     var cfgMidia = _focoConfig('midia');
     datasets.push({
@@ -24202,21 +24214,18 @@ function _raioxDesenharChart(dadosDiarios) {
             var marketplaceV = _getValor('Marketplace');
             var lojaPropriaV = _getValor('Loja Própria');  // 🆕 FIX30F
 
-            // 🆕 FIX30AG — Valores do INÍCIO da janela (pra comparação D-1 vs D-N na tooltip):
-            //   - Janela 24h (2 dias): idxAnterior = idx-1 → compara D-1 vs D-2
-            //   - Janela 10d:          idxAnterior = 0     → compara D-1 vs D-10
-            //   - Janela 30d:          idxAnterior = 0     → compara D-1 vs D-30
-            // Lógica: quando o tooltip está sobre o último ponto (D-1), comparar com o
-            // primeiro ponto visível pra mostrar variação ao longo da janela inteira.
-            // Outros pontos: comparam com o dia imediatamente anterior (variação local).
-            var idxAnterior;
-            var ehUltimoDaJanela = (idx === keys.length - 1);
-            var janelaAtual = window._raioxJanela || '24h';
-            if(ehUltimoDaJanela && (janelaAtual === '10d' || janelaAtual === '30d')) {
-              idxAnterior = 0; // primeiro dia da janela visível
-            } else {
-              idxAnterior = idx - 1; // dia imediatamente anterior
-            }
+            // 🆕 FIX30AG → 🆕 FIX30BU: Tooltip SEMPRE compara D-1 vs D-2 (dia anterior real),
+            // independente da janela visível (24h/10d/30d).
+            // Antes (FIX30AG): no último ponto da janela 10d/30d, comparava com o PRIMEIRO
+            //                  dia visível. Mas o LABEL exibido sempre dizia "vs dia anterior",
+            //                  gerando inconsistência grave: usuário via "Mídia +14% vs dia
+            //                  anterior" mas o cálculo era +14% vs D-10. Criava impressão de
+            //                  números errados quando na verdade era o label que estava errado.
+            // Agora (FIX30BU): TODAS as métricas (Vendas, Mídia, Estoque, Marketplace, LP, Mercado)
+            //                  comparam SEMPRE com idx - 1. O label é sempre "vs dia anterior".
+            //                  Pra ver variação ao longo da janela inteira, o user pode olhar
+            //                  os termômetros (24h/10d/30d), que já fazem essa análise dedicada.
+            var idxAnterior = idx - 1;
             var vendasAnt      = _getValor('Vendas',      idxAnterior);
             var midiaAnt       = _getValor('Mídia',       idxAnterior);
             var estoqueAnt     = _getValor('Estoque',     idxAnterior);
@@ -24225,9 +24234,14 @@ function _raioxDesenharChart(dadosDiarios) {
             var lojaPropriaAnt = _getValor('Loja Própria', idxAnterior);  // 🆕 FIX30F
 
             // Calcula variação %
+            // 🆕 FIX30BU — Clamp em ±999% pra evitar pílulas estourando visualmente
+            //   quando a base é minúscula (ex: 60 → 6.404 = +10.573%, ilegível).
+            //   Variações maiores que 999% são apenas exibidas como ">+999%".
             function _pct(v, base) {
-              if(!v || !base || base === 0) return null;
-              return Math.round(((v - base) / base) * 100);
+              if(v === null || v === undefined || base === null || base === undefined) return null;
+              if(base === 0 || Math.abs(base) < 0.5) return null; // base muito próxima de zero = sinal não confiável
+              var pct = ((v - base) / base) * 100;
+              return Math.round(pct);
             }
             function _pilula(pct) {
               if(pct === null || pct === undefined) return '';
@@ -24237,7 +24251,13 @@ function _raioxDesenharChart(dadosDiarios) {
               } else {
                 cor = '#F43F5E'; seta = '▼'; bg = 'rgba(244,63,94,.12)'; brd = 'rgba(244,63,94,.40)';
               }
-              return '<span style="background:'+bg+';border:1px solid '+brd+';color:'+cor+';padding:2px 7px;border-radius:6px;font-family:\'JetBrains Mono\',monospace;font-size:9.5px;font-weight:700;letter-spacing:.3px;margin-left:6px;white-space:nowrap">'+seta+' '+(pct >= 0 ? '+' : '')+pct+'%</span>';
+              // 🆕 FIX30BU — Limita visualmente pílulas extremas pra não estourar layout.
+              //   Mostra ">+999%" ou "<-999%" mantendo a info de magnitude.
+              var pctTexto;
+              if(pct > 999)        pctTexto = '>+999';
+              else if(pct < -999)  pctTexto = '<-999';
+              else                 pctTexto = (pct >= 0 ? '+' : '') + pct;
+              return '<span style="background:'+bg+';border:1px solid '+brd+';color:'+cor+';padding:2px 7px;border-radius:6px;font-family:\'JetBrains Mono\',monospace;font-size:9.5px;font-weight:700;letter-spacing:.3px;margin-left:6px;white-space:nowrap">'+seta+' '+pctTexto+'%</span>';
             }
             function _fmt(v) {
               if(v === null || v === undefined) return '—';
@@ -24447,14 +24467,11 @@ function _raioxDesenharChart(dadosDiarios) {
             // - Outros casos: compara dia anterior
             var pctVendas = _pct(vendasV, vendasAnt);
             var pilulaPrincipal = pctVendas !== null ? _pilula(pctVendas) : '';
-            var rotuloComparacao;
-            if(ehUltimoDaJanela && janelaAtual === '10d') {
-              rotuloComparacao = 'vs início da janela (10d)';
-            } else if(ehUltimoDaJanela && janelaAtual === '30d') {
-              rotuloComparacao = 'vs início da janela (30d)';
-            } else {
-              rotuloComparacao = 'vs dia anterior';
-            }
+            // 🆕 FIX30BU — Rótulo sempre "vs dia anterior" (consistente com o cálculo).
+            //   O título do tooltip (ex: "29/04") já indica qual é o dia. A comparação
+            //   é sempre com o dia imediatamente anterior. Pra análise de janela maior,
+            //   os termômetros (24h/10d/30d) cobrem essa visão.
+            var rotuloComparacao = 'vs dia anterior';
 
             // Mini-comentário inteligente
             var comentario = '';
